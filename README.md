@@ -18,7 +18,7 @@ Un cop comenceu heu de canviar aquesta explicació amb la corresponent al vostre
 ---
 
 # Plataforma Intercentre de Traspàs d'Adaptacions Educatives amb IA
-**Projecte Pilot – Opció B (Institucional)**
+**Projecte Pilot – Institucional (Centre a Centre)**
 
 ## Descripció General
 Aquest projecte consisteix en el desenvolupament d’una **plataforma intercentre** destinada a facilitar el traspàs segur i automatitzat dels **Plans Individualitzats (PI)** i adaptacions educatives entre centres d’ESO i centres de Formació Professional (FP).
