@@ -1,25 +1,15 @@
-export const sendVerificationCode = async (email) => {
-  console.log(`Enviando código a ${email}`);
+import axios from 'axios';
 
-  // Simulación de API
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(true);
-    }, 1000);
-  });
+// Asegúrate de que este puerto (3000) coincide con el de tu server.js
+const API_URL = 'http://localhost:3000/api'; 
+
+export const sendVerificationCode = async (email) => {
+  // Llamada real al endpoint que acabamos de crear en server.js
+  const response = await axios.post(`${API_URL}/login/send-code`, { email });
+  return response.data;
 };
 
 export const verifyCode = async (email, code) => {
-  console.log(`Verificando código ${code} para ${email}`);
-
-  // Simulación de validación
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (code === '123456') {
-        resolve(true);
-      } else {
-        reject(new Error('Código incorrecto'));
-      }
-    }, 1000);
-  });
+  const response = await axios.post(`${API_URL}/login/verify-code`, { email, code });
+  return response.data;
 };
