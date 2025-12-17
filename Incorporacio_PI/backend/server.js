@@ -1,114 +1,83 @@
 const express = require('express');
-const multer = require('multer'); // Librería para gestionar subida de archivos
 const cors = require('cors');
-const fs = require('fs');
+const multer = require('multer');
+const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = 3000;
 
-// Middleware
-app.use(cors()); // Permite que cualquier frontend se conecte
+// MIDDLEWARES
+app.use(cors());
 app.use(express.json());
 
-// --- CONFIGURACIÓN DE LA "NEVERA" (Almacenamiento) ---
-// Aquí definimos dónde y cómo se guardan los archivos
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = './uploads';
-        // Si la carpeta "uploads" no existe, la crea (la nevera física)
-        if (!fs.existsSync(dir)){
-            fs.mkdirSync(dir);
-        }
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        // TRUCO: Guardamos el archivo con el nombre del RALC.
-        // Así el ID (RALC) es la llave única de la taquilla.
-        // Ejemplo: "123456.pdf"
-        const ralc = req.body.ralc; 
-        const extension = path.extname(file.originalname);
-        cb(null, `${ralc}${extension}`);
-    }
-});
-
-const upload = multer({ storage: storage });
-
-// --- SIMULACIÓN DE IA (El "Middleware") ---
-// Esta función simula que la IA lee el PDF y saca los datos clave
-function simularProcesamientoIA(ralc) {
-    // En el futuro, aquí conectarás con OpenAI/Python
-    return {
-        ralc: ralc,
-        estado_ia: "PROCESADO",
-        resumen: {
-            adaptacion_tiempo: "Necesita +25% tiempo",
-            adaptacion_formato: "Letra Arial 12",
-            observacion: "Atención dispersa en tardes."
-        },
-        fecha_proceso: new Date()
-    };
+// CONFIGURACIÓN DE CARPETAS
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR);
 }
 
-// ================= RUTAS (La API) =================
-
-// 1. RUTA PARA EL CENTRO ORIGEN (Llenar la nevera)
-// Método: POST | Recibe: archivo 'pdf' y texto 'ralc'
-app.post('/api/subir-pi', upload.single('documento'), (req, res) => {
-    const ralc = req.body.ralc;
-    
-    if (!req.file || !ralc) {
-        return res.status(400).json({ error: "Falta el archivo o el RALC" });
+// CONFIGURACIÓN MULTER (Gestor de archivos)
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, UPLOADS_DIR);
+    },
+    filename: (req, file, cb) => {
+        // Guardamos con: HASH + TIMESTAMP + EXTENSION
+        const studentHash = req.body.studentHash || 'unknown';
+        const ext = path.extname(file.originalname);
+        cb(null, `${studentHash}_${Date.now()}${ext}`);
     }
+});
+const upload = multer({ storage: storage });
 
-    console.log(`[CENTRO 1] Documento guardado para RALC: ${ralc}`);
-    
-    // Aquí disparamos la "Simulación de IA"
-    const datosIA = simularProcesamientoIA(ralc);
+// BASE DE DATOS SIMULADA
+const dbAlumnosESO = [
+    { id_ralc: "1112223334", nombre: "Joan Garcia Lopez", curso: "4t ESO" },
+    { id_ralc: "5556667778", nombre: "Maria Martinez Soler", curso: "4t ESO" },
+    { id_ralc: "9998887776", nombre: "Ahmed Benali", curso: "4t ESO" },
+    { id_ralc: "1234567890", nombre: "Laia Valls Roca", curso: "4t ESO" }
+];
 
-    res.json({
-        mensaje: "Documento guardado en la taquilla correctamente",
-        archivo: req.file.filename,
-        ia_preview: datosIA // Devolvemos ya el mock de la IA
+// UTILIDADES
+function generarHash(texto) {
+    return crypto.createHash('sha256').update(texto).digest('hex');
+}
+function obtenerIniciales(nombre) {
+    return nombre.split(' ').map(n => n[0]).join('.') + '.';
+}
+
+// --- RUTAS (ENDPOINTS) ---
+
+// 1. OBTENER LISTA (Directo, sin login)
+app.get('/api/students', (req, res) => {
+    const listaSegura = dbAlumnosESO.map(alumno => {
+        return {
+            hash_id: generarHash(alumno.id_ralc),
+            visual_identity: {
+                iniciales: obtenerIniciales(alumno.nombre),
+                ralc_suffix: `***${alumno.id_ralc.slice(-3)}`
+            },
+            // Verifica si existe algún archivo que empiece con ese hash
+            has_file: fs.readdirSync(UPLOADS_DIR).some(f => f.startsWith(generarHash(alumno.id_ralc)))
+        };
     });
+    res.json(listaSegura);
 });
 
-// 2. RUTA PARA EL CENTRO DESTINO (Mirar si hay algo en la nevera)
-// Método: GET | Se dispara cuando hay matrícula
-app.get('/api/consultar-alumno/:ralc', (req, res) => {
-    const ralc = req.params.ralc;
-    const pathArchivo = `./uploads/${ralc}.pdf`; // Asumimos PDF por simplicidad
-
-    // Verificamos si existe el archivo en la "nevera"
-    if (fs.existsSync(pathArchivo)) {
-        console.log(`[CENTRO 2] ¡Match encontrado! Hay datos para RALC: ${ralc}`);
-        
-        // Simulamos que recuperamos los datos procesados por la IA
-        const datosIA = simularProcesamientoIA(ralc);
-
-        res.json({
-            encontrado: true,
-            datos_ia: datosIA,
-            download_url: `/api/descargar/${ralc}`
-        });
-    } else {
-        console.log(`[CENTRO 2] Consultando RALC: ${ralc} -> Taquilla vacía.`);
-        res.json({ 
-            encontrado: false, 
-            mensaje: "No hay documentación previa para este alumno." 
-        });
+// 2. SUBIR ARCHIVO
+app.post('/api/upload', upload.single('documento_pi'), (req, res) => {
+    if (!req.file || !req.body.studentHash) {
+        return res.status(400).json({ success: false, message: 'Faltan datos' });
     }
+    console.log(`📂 Archivo guardado para: ${req.body.studentHash.substring(0, 10)}...`);
+    
+    // Aquí es donde entraría la IA más tarde
+    
+    res.json({ success: true, message: 'Subida correcta' });
 });
 
-// 3. RUTA PARA DESCARGAR EL ORIGINAL
-app.get('/api/descargar/:ralc', (req, res) => {
-    const ralc = req.params.ralc;
-    const file = `${__dirname}/uploads/${ralc}.pdf`;
-    res.download(file); 
-});
-
-// --- ARRANCAR SERVIDOR ---
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor "Taquilla Digital" corriendo en http://localhost:${PORT}`);
-    console.log(`📂 Los archivos se guardarán en la carpeta /uploads`);
+    console.log(`🚀 Servidor listo en http://localhost:${PORT}`);
 });
