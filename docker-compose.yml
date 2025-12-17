@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./Incorporacio_PI/backend
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+
+  frontend:
+    build: ./Incorporacio_PI/frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
