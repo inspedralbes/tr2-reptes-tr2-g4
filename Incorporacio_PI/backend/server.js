@@ -50,8 +50,15 @@ const upload = multer({ storage: storage });
 // DATOS FAKE
 const dbAlumnos = [
     { id: "111222333", nombre: "Joan Garcia" },
-    { id: "444555666", nombre: "Maria Martinez" }
+    { id: "444555666", nombre: "Maria Martinez" },
+    { id: "777888999", nombre: "Pau López" },
+    { id: "123456789", nombre: "Laura Sánchez" },
+    { id: "987654321", nombre: "Marc Fernández" },
+    { id: "555666777", nombre: "Anna Puig" },
+    { id: "222333444", nombre: "Oriol Casas" },
+    { id: "888999000", nombre: "Clara Vidal" }
 ];
+
 
 // Helpers
 const generarHash = (id) => crypto.createHash('sha256').update(id).digest('hex');
