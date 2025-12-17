@@ -3,7 +3,8 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const crypto = require('crypto'); // Del teu company
+const { connectDB, getDB } = require('./db'); // La teva DB
 
 const app = express();
 const PORT = 3000;
@@ -11,44 +12,110 @@ const PORT = 3000;
 // MIDDLEWARES
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Servir fitxers
 
-// --- 1. CONFIGURACIÓN LOGIN ---
-const codigosTemporales = {}; 
+// --- HELPER FUNCTIONS (Del teu company) ---
+const generarHash = (id) => crypto.createHash('sha256').update(id).digest('hex');
+const obtenerIniciales = (nombre) => nombre.split(' ').map(n => n[0]).join('.') + '.';
 
-app.post('/api/login/send-code', (req, res) => {
-    const { email } = req.body;
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    codigosTemporales[email] = code;
-    console.log(`📨 Enviando código a ${email}: ${code}`);
-    res.json({ success: true });
-});
-
-app.post('/api/login/verify-code', (req, res) => {
-    const { email, code } = req.body;
-    if (codigosTemporales[email] === code) {
-        delete codigosTemporales[email];
-        res.json({ success: true, token: 'fake-jwt', user: { email } });
-    } else {
-        res.status(401).json({ success: false, message: 'Código mal' });
-    }
-});
-
-// --- 2. CONFIGURACIÓN ESTUDIANTES (¡ESTO ES LO QUE TE FALTA O FALLA!) ---
-
+// --- 1. CONFIGURACIÓ MULTER ---
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => {
+        // Guardem amb Hash + Timestamp per evitar duplicats de nom (idea del company)
         const hash = req.body.studentHash || 'unknown';
         cb(null, `${hash}_${Date.now()}${path.extname(file.originalname)}`);
     }
 });
 const upload = multer({ storage: storage });
 
-// DATOS FAKE
-const dbAlumnos = [
+// --- 2. RUTAS DE LOGIN (Amb MongoDB) ---
+app.post('/api/login/send-code', async (req, res) => {
+    const { email } = req.body;
+    try {
+        const db = getDB();
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        await db.collection('login_codes').updateOne(
+            { email: email },
+            { $set: { code: code, createdAt: new Date(), used: false } },
+            { upsert: true }
+        );
+        console.log(`📨 LOGIN: Codi per ${email}: ${code}`);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Error DB' });
+    }
+});
+
+app.post('/api/login/verify-code', async (req, res) => {
+    const { email, code } = req.body;
+    try {
+        const db = getDB();
+        const reg = await db.collection('login_codes').findOne({ email });
+
+        if (reg && reg.code === code && !reg.used) {
+            await db.collection('login_codes').updateOne({ email }, { $set: { used: true } });
+            res.json({ success: true, token: 'fake-jwt', user: { email } });
+        } else {
+            res.status(401).json({ success: false, message: 'Codi incorrecte' });
+        }
+    } catch (e) {
+        res.status(500).json({ error: 'Error DB' });
+    }
+});
+
+// --- 3. RUTAS ESTUDIANTES (Amb MongoDB) ---
+
+// GET: Recupera de Mongo (molt més ràpid que llegir disc cada vegada)
+app.get('/api/students', async (req, res) => {
+    try {
+        const db = getDB();
+        const students = await db.collection('students').find().toArray();
+        res.json(students);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al servidor' });
+    }
+});
+
+// POST: Puja fitxer i actualitza Mongo
+app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
+    const studentHash = req.body.studentHash;
+    if (!req.file || !studentHash) return res.status(400).json({ success: false });
+
+    try {
+        const db = getDB();
+        // Simulem IA
+        const iaData = {
+            estado: "PROCESADO",
+            resumen: "Document processat correctament el " + new Date().toLocaleDateString()
+        };
+
+        // Actualitzem la BD
+        await db.collection('students').updateOne(
+            { hash_id: studentHash },
+            { 
+                $set: { 
+                    has_file: true, 
+                    filename: req.file.filename,
+                    ia_data: iaData
+                } 
+            }
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false });
+    }
+});
+
+// --- 4. SEED (Dades del company cap a MongoDB) ---
+// Aquesta llista és la que ha posat el teu company
+const dbAlumnosRaw = [
     { id: "111222333", nombre: "Joan Garcia" },
     { id: "444555666", nombre: "Maria Martinez" },
     { id: "777888999", nombre: "Pau López" },
@@ -59,36 +126,26 @@ const dbAlumnos = [
     { id: "888999000", nombre: "Clara Vidal" }
 ];
 
-
-// Helpers
-const generarHash = (id) => crypto.createHash('sha256').update(id).digest('hex');
-const obtenerIniciales = (nombre) => nombre.split(' ').map(n => n[0]).join('.') + '.';
-
-// RUTA IMPORTANTE QUE TE ESTÁ DANDO ERROR 404
-app.get('/api/students', (req, res) => {
-    const archivos = fs.readdirSync(UPLOADS_DIR);
+connectDB().then(async () => {
+    const db = getDB();
+    const count = await db.collection('students').countDocuments();
     
-    const lista = dbAlumnos.map(alum => {
-        const hash = generarHash(alum.id);
-        return {
-            hash_id: hash,
+    // Si la BD està buida, la omplim amb les dades del company però formatades per al teu Vue
+    if (count === 0) {
+        console.log("🌱 Seed: Inserint dades del company a MongoDB...");
+        const docs = dbAlumnosRaw.map(a => ({
+            hash_id: generarHash(a.id), // Usem el seu hash
+            original_id: a.id,
             visual_identity: {
-                iniciales: obtenerIniciales(alum.nombre),
-                ralc_suffix: `***${alum.id.slice(-3)}`
+                iniciales: obtenerIniciales(a.nombre),
+                ralc_suffix: `***${a.id.slice(-3)}`
             },
-            has_file: archivos.some(f => f.startsWith(hash))
-        };
+            has_file: false // Per defecte buit
+        }));
+        await db.collection('students').insertMany(docs);
+    }
+
+    app.listen(PORT, () => {
+        console.log(`🚀 Server Mongo + Logic Company running on http://localhost:${PORT}`);
     });
-    
-    // IMPORTANTE: Responde JSON
-    res.json(lista);
-});
-
-// RUTA DE SUBIDA
-app.post('/api/upload', upload.single('documento_pi'), (req, res) => {
-    res.json({ success: true });
-});
-
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+}).catch(console.error);
