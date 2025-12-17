@@ -34,10 +34,10 @@ async function gestionarCentres() {
         if (!centreExisteix) {
             // Si no existeix, l'inserim
             const resultat = await centresCol.insertOne(nouCentre);
-            console.log(`✅ S'ha creat el centre correctament.`);
-            console.log(`   ID del document: ${resultat.insertedId}`);
+            console.log(`S'ha creat el centre correctament.`);
+            console.log(`ID del document: ${resultat.insertedId}`);
         } else {
-            console.log(`ℹ️ El centre "Institut Pedralbes" ja existeix a la base de dades.`);
+            console.log(`ℹEl centre "Institut Pedralbes" ja existeix a la base de dades.`);
         }
 
         // 5. Mostrem tots els centres de la col·lecció per verificar
@@ -49,7 +49,7 @@ async function gestionarCentres() {
         });
 
     } catch (error) {
-        console.error('❌ Error durant l\'execució:', error);
+        console.error('Error durant l\'execució:', error);
     } finally {
         // 6. Tanquem la connexió
         await closeDB();
