@@ -1,103 +1,87 @@
 const express = require('express');
-const cors = require('cors'); // Necesario para conectar con Vue
-const multer = require('multer'); // Para subir archivos
+const cors = require('cors');
+const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto'); // Para encriptar IDs
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
 
-// --- MIDDLEWARES ---
-app.use(cors()); // Permite todas las conexiones (modo dev)
+// MIDDLEWARES
+app.use(cors());
 app.use(express.json());
 
-// --- CONFIGURACIÓN DE CARPETA DE SUBIDAS ---
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-// Si no existe la carpeta 'uploads', la crea automáticamente
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR);
-}
+// --- 1. CONFIGURACIÓN LOGIN ---
+const codigosTemporales = {}; 
 
-// --- CONFIGURACIÓN MULTER (Gestión de Archivos) ---
+app.post('/api/login/send-code', (req, res) => {
+    const { email } = req.body;
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    codigosTemporales[email] = code;
+    console.log(`📨 Enviando código a ${email}: ${code}`);
+    res.json({ success: true });
+});
+
+app.post('/api/login/verify-code', (req, res) => {
+    const { email, code } = req.body;
+    if (codigosTemporales[email] === code) {
+        delete codigosTemporales[email];
+        res.json({ success: true, token: 'fake-jwt', user: { email } });
+    } else {
+        res.status(401).json({ success: false, message: 'Código mal' });
+    }
+});
+
+// --- 2. CONFIGURACIÓN ESTUDIANTES (¡ESTO ES LO QUE TE FALTA O FALLA!) ---
+
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, UPLOADS_DIR);
-    },
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => {
-        // Obtenemos el Hash del alumno que nos envía el frontend
-        const studentHash = req.body.studentHash || 'unknown';
-        const extension = path.extname(file.originalname);
-        
-        // Guardamos el fichero como: HASH_TIMESTAMP.pdf
-        // Así evitamos sobreescribir si suben dos veces el mismo
-        cb(null, `${studentHash}_${Date.now()}${extension}`);
+        const hash = req.body.studentHash || 'unknown';
+        cb(null, `${hash}_${Date.now()}${path.extname(file.originalname)}`);
     }
 });
 const upload = multer({ storage: storage });
 
-// --- BASE DE DATOS FAKE (Datos Sensibles) ---
+// DATOS FAKE
 const dbAlumnos = [
-    { id: "111222333", nombre: "Joan Garcia Lopez" },
-    { id: "444555666", nombre: "Maria Martinez Soler" },
-    { id: "777888999", nombre: "Ahmed Benali" },
-    { id: "123123123", nombre: "Sofia Valls Roca" }
+    { id: "111222333", nombre: "Joan Garcia" },
+    { id: "444555666", nombre: "Maria Martinez" }
 ];
 
-// --- FUNCIONES AUXILIARES ---
-// Genera el Hash SHA-256 (Identificador único y seguro)
+// Helpers
 const generarHash = (id) => crypto.createHash('sha256').update(id).digest('hex');
-
-// Genera las iniciales para mostrar en pantalla (J.G.L.)
 const obtenerIniciales = (nombre) => nombre.split(' ').map(n => n[0]).join('.') + '.';
 
-
-// --- RUTAS (ENDPOINTS) ---
-
-// 1. OBTENER LISTA DE ALUMNOS
+// RUTA IMPORTANTE QUE TE ESTÁ DANDO ERROR 404
 app.get('/api/students', (req, res) => {
-    // Leemos qué archivos hay ya en la carpeta para marcar el check verde
-    const archivosEnDisco = fs.readdirSync(UPLOADS_DIR);
-
-    const listaSegura = dbAlumnos.map(alumno => {
-        const hash = generarHash(alumno.id);
-        
+    const archivos = fs.readdirSync(UPLOADS_DIR);
+    
+    const lista = dbAlumnos.map(alum => {
+        const hash = generarHash(alum.id);
         return {
-            hash_id: hash, // ID técnico para la BBDD
+            hash_id: hash,
             visual_identity: {
-                iniciales: obtenerIniciales(alumno.nombre), // Para que el profe lo reconozca
-                ralc_suffix: `***${alumno.id.slice(-3)}`   // Para confirmar
+                iniciales: obtenerIniciales(alum.nombre),
+                ralc_suffix: `***${alum.id.slice(-3)}`
             },
-            // Comprobamos si existe algún archivo que empiece con este Hash
-            has_file: archivosEnDisco.some(filename => filename.startsWith(hash))
+            has_file: archivos.some(f => f.startsWith(hash))
         };
     });
-
-    res.json(listaSegura);
+    
+    // IMPORTANTE: Responde JSON
+    res.json(lista);
 });
 
-// 2. SUBIR DOCUMENTO (PDF/WORD/IMG)
-// 'documento_pi' es el nombre del campo que usaremos en el Frontend
+// RUTA DE SUBIDA
 app.post('/api/upload', upload.single('documento_pi'), (req, res) => {
-    try {
-        if (!req.file || !req.body.studentHash) {
-            return res.status(400).json({ success: false, message: 'Faltan datos' });
-        }
-
-        console.log(`✅ Archivo recibido para: ${req.body.studentHash.substring(0, 10)}...`);
-        console.log(`📂 Guardado como: ${req.file.filename}`);
-
-        // Devolvemos OK para que el frontend actualice la lista
-        res.json({ success: true, filename: req.file.filename });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Error al guardar archivo' });
-    }
+    res.json({ success: true });
 });
 
-// --- ARRANCAR SERVIDOR ---
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor backend escuchando en http://localhost:${PORT}`);
-    console.log(`📂 Los archivos se guardarán en: ${UPLOADS_DIR}`);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

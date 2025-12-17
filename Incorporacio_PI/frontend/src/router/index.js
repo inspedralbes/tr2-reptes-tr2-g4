@@ -1,36 +1,50 @@
 /**
- * router/index.ts
- *
- * Automatic routes for `./src/pages/*.vue`
+ * router/index.js
+ * Configuración manual de rutas y seguridad
  */
 
-// Composables
 import { createRouter, createWebHistory } from 'vue-router'
-import { setupLayouts } from 'virtual:generated-layouts'
-import { routes } from 'vue-router/auto-routes'
+
+// 1. Importamos tus componentes/páginas manualmente
+import LoginView from '@/pages/LoginView.vue'
+import StudentList from '@/components/StudentList.vue' // Esta será tu vista principal (Dashboard)
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: setupLayouts(routes),
-})
-
-// Workaround for https://github.com/vitejs/vite/issues/11804
-router.onError((err, to) => {
-  if (err?.message?.includes?.('Failed to fetch dynamically imported module')) {
-    if (localStorage.getItem('vuetify:dynamic-reload')) {
-      console.error('Dynamic import error, reloading page did not fix it', err)
-    } else {
-      console.log('Reloading page to fix dynamic import error')
-      localStorage.setItem('vuetify:dynamic-reload', 'true')
-      location.assign(to.fullPath)
+  routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginView
+    },
+    {
+      path: '/',
+      name: 'dashboard',
+      component: StudentList,
+      meta: { requiresAuth: true } // 🔒 Marcamos esta ruta como protegida
     }
-  } else {
-    console.error(err)
-  }
+  ]
 })
 
-router.isReady().then(() => {
-  localStorage.removeItem('vuetify:dynamic-reload')
+// 2. GUARDIA DE NAVEGACIÓN (La seguridad)
+// Esto se ejecuta antes de cada cambio de página
+router.beforeEach((to, from, next) => {
+  // Verificamos si la ruta a la que va requiere autenticación
+  const necesitaAuth = to.matched.some(record => record.meta.requiresAuth)
+  
+  // Verificamos si tenemos el token guardado (simulado)
+  const isAuthenticated = localStorage.getItem('token')
+
+  if (necesitaAuth && !isAuthenticated) {
+    // Si intenta entrar al dashboard sin token -> Al Login
+    next('/login')
+  } else if (to.path === '/login' && isAuthenticated) {
+    // Si intenta ir al login pero ya tiene token -> Al Dashboard
+    next('/')
+  } else {
+    // En cualquier otro caso, dejamos pasar
+    next()
+  }
 })
 
 export default router
