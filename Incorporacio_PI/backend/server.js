@@ -52,19 +52,44 @@ app.post('/api/login/send-code', async (req, res) => {
     }
 });
 
+// server.js
+
 app.post('/api/login/verify-code', async (req, res) => {
     const { email, code } = req.body;
+    console.log("🔍 INTENTO DE LOGIN:");
+    console.log("   -> Email recibido:", email);
+    console.log("   -> Código recibido:", code);
+
     try {
         const db = getDB();
         const reg = await db.collection('login_codes').findOne({ email });
 
-        if (reg && reg.code === code && !reg.used) {
-            await db.collection('login_codes').updateOne({ email }, { $set: { used: true } });
-            res.json({ success: true, token: 'fake-jwt', user: { email } });
-        } else {
-            res.status(401).json({ success: false, message: 'Codi incorrecte' });
+        console.log("   -> Registro en DB:", reg);
+
+        // Comprobaciones detalladas para ver dónde falla
+        if (!reg) {
+            console.log("   ❌ ERROR: No existe registro para este email.");
+            return res.status(401).json({ success: false, message: 'Email no encontrado' });
         }
+        
+        // Convertimos ambos a String por si acaso hay mezcla de tipos (número vs texto)
+        if (String(reg.code) !== String(code)) {
+            console.log(`   ❌ ERROR: Códigos no coinciden. DB: ${reg.code} vs INPUT: ${code}`);
+            return res.status(401).json({ success: false, message: 'Codi incorrecte' });
+        }
+
+        if (reg.used) {
+            console.log("   ❌ ERROR: Este código ya fue usado.");
+            return res.status(401).json({ success: false, message: 'Codi ja usat' });
+        }
+
+        // Si pasa todo esto, éxito
+        console.log("   ✅ ÉXITO: Login correcto.");
+        await db.collection('login_codes').updateOne({ email }, { $set: { used: true } });
+        res.json({ success: true, token: 'fake-jwt', user: { email } });
+
     } catch (e) {
+        console.error(e);
         res.status(500).json({ error: 'Error DB' });
     }
 });

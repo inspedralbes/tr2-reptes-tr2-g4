@@ -7,6 +7,7 @@
         v-model="code"
         label="Código de verificación"
         maxlength="6"
+        @keyup.enter="submit"
       />
     </v-card-text>
 
@@ -14,7 +15,8 @@
       <v-btn
         color="primary"
         block
-        :loading="loading"
+        :loading="loading" 
+        :disabled="loading"
         @click="submit"
       >
         Verificar
@@ -26,16 +28,19 @@
 <script setup>
 import { ref } from 'vue';
 
+// 1. Recibimos la orden de bloqueo desde el padre
+const props = defineProps({
+  loading: Boolean
+});
+
 const emit = defineEmits(['verified']);
-
 const code = ref('');
-const loading = ref(false);
 
-const submit = async () => {
-  if (!code.value) return;
+const submit = () => {
+  // Si ya está cargando o no hay código, no hacemos nada
+  if (!code.value || props.loading) return;
 
-  loading.value = true;
-  await emit('verified', code.value);
-  loading.value = false;
+  // Emitimos el evento. El padre (LoginView) pondrá loading = true
+  emit('verified', code.value);
 };
 </script>

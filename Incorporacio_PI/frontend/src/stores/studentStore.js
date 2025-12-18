@@ -14,7 +14,7 @@ export const useStudentStore = defineStore('student', {
     
     // Acción A: Fetch
     async fetchStudents() {
-        const response = await fetch('http://localhost:3000/api/students'); 
+        const response = await fetch('http://localhost:3001/api/students'); 
         
         if (!response.ok) {
             console.error("Error del servidor:", response.status, response.statusText);
@@ -36,7 +36,7 @@ export const useStudentStore = defineStore('student', {
         formData.append('studentHash', studentHash);
         formData.append('documento_pi', file); 
 
-        const response = await fetch('http://localhost:3000/api/upload', {
+        const response = await fetch('http://localhost:3001/api/upload', {
           method: 'POST',
           body: formData, 
         });

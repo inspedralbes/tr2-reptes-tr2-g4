@@ -1,10 +1,10 @@
+// services/authService.js
 import axios from 'axios';
 
-// Asegúrate de que este puerto (3000) coincide con el de tu server.js
-const API_URL = 'http://localhost:3000/api'; 
+// CAMBIO: Apuntamos al puerto 3001
+const API_URL = 'http://localhost:3001/api'; 
 
 export const sendVerificationCode = async (email) => {
-  // Llamada real al endpoint que acabamos de crear en server.js
   const response = await axios.post(`${API_URL}/login/send-code`, { email });
   return response.data;
 };
