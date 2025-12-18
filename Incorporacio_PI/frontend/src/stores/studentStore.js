@@ -32,8 +32,9 @@ export const useStudentStore = defineStore('student', {
       this.loading = true;
       try {
         const formData = new FormData();
-        formData.append('documento_pi', file); 
+
         formData.append('studentHash', studentHash);
+        formData.append('documento_pi', file); 
 
         const response = await fetch('http://localhost:3000/api/upload', {
           method: 'POST',
