@@ -8,7 +8,7 @@ const crypto = require('crypto'); // Del teu company
 const { connectDB, getDB } = require('./db'); // La teva DB
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 
 // MIDDLEWARES
 app.use(cors());
