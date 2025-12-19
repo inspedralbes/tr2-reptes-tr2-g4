@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AccesLogs: typeof import('./src/components/AccesLogs.vue')['default']
     AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     CodeForm: typeof import('./src/components/CodeForm.vue')['default']
     EmailForm: typeof import('./src/components/EmailForm.vue')['default']
