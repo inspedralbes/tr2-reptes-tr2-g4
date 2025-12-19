@@ -30,7 +30,7 @@ const router = createRouter({
       meta: { requiresAuth: true } // 🔒 Privada
     },
     {
-      path: '/alumno/:hash_id',
+      path: '/perfil/:hash_id',
       name: 'StudentDetail',
       component: StudentDetail,
       meta: { requiresAuth: true } // 🔒 Privada
