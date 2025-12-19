@@ -109,8 +109,9 @@ app.get('/api/students', async (req, res) => {
 
 // POST: Puja fitxer i actualitza Mongo
 app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
-    const studentHash = req.body.studentHash;
-    if (!req.file || !studentHash) return res.status(400).json({ success: false });
+    // Fusionem la lògica de les dues rutes duplicades
+    const { studentHash, userEmail } = req.body;
+    if (!req.file || !studentHash) return res.status(400).json({ success: false, message: 'Falten dades' });
 
     try {
         const db = getDB();
@@ -129,6 +130,10 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
             uploadDate: new Date()
         };
 
+        // Busquem l'alumne per tenir el seu RALC sufix per al log
+        const alumne = await db.collection('students').findOne({ hash_id: studentHash });
+        const ralcSuffix = alumne ? alumne.visual_identity.ralc_suffix : '???';
+
         // Actualitzem la BD
         await db.collection('students').updateOne(
             { hash_id: studentHash },
@@ -141,6 +146,9 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
                 $push: { files: fileData } // Añadimos al historial de archivos
             }
         );
+
+        // Registrem l'accés (#29)
+        await registrarAcces(userEmail || 'sistema', 'Pujada de document PI', ralcSuffix);
 
         res.json({ success: true });
     } catch (error) {
@@ -215,6 +223,7 @@ connectDB().then(async () => {
         const docs = dbAlumnosRaw.map(a => ({
             hash_id: generarHash(a.id), // Usem el seu hash
             original_id: a.id,
+            original_name: a.nombre, // <--- AFEGIT: Guardem el nom per poder buscar-lo
             visual_identity: {
                 iniciales: obtenerIniciales(a.nombre),
                 ralc_suffix: `***${a.id.slice(-3)}`
@@ -260,31 +269,5 @@ app.get('/api/logs', async (req, res) => {
         res.json(logs);
     } catch (e) {
         res.status(500).json({ error: 'Error al recuperar logs' });
-    }
-});
-
-// ACTUALITZACIÓ: Modifiquem el POST d'upload per registrar el log
-app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
-    const { studentHash, userEmail } = req.body; // Rebrem l'email des del front
-    if (!req.file || !studentHash) return res.status(400).json({ success: false });
-
-    try {
-        const db = getDB();
-        
-        // Busquem l'alumne per tenir el seu RALC sufix per al log
-        const alumne = await db.collection('students').findOne({ hash_id: studentHash });
-        const ralcSuffix = alumne ? alumne.visual_identity.ralc_suffix : '???';
-
-        await db.collection('students').updateOne(
-            { hash_id: studentHash },
-            { $set: { has_file: true, filename: req.file.filename } }
-        );
-
-        // Registrem l'accés (#29)
-        await registrarAcces(userEmail || 'sistema', 'Pujada de document PI', ralcSuffix);
-
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ success: false });
     }
 });

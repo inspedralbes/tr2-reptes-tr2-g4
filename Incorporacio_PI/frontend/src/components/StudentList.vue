@@ -1,11 +1,24 @@
 <template>
     <v-container>
-        <h1>Bústia de Normalització PI</h1>
+        <div class="d-flex justify-space-between align-center mb-4">
+            <h1>Bústia de Normalització PI</h1>
+        </div>
+
+        <!-- Buscador -->
+        <v-text-field
+            v-model="searchTerm"
+            label="Buscar per Nom o ID RALC"
+            prepend-inner-icon="mdi-magnify"
+            variant="outlined"
+            clearable
+            class="mb-4"
+        ></v-text-field>
 
         <v-row>
             <v-col cols="12">
                 <v-list lines="two">
-                    <v-list-item v-for="student in studentStore.students" :key="student.hash_id"
+                    <!-- Iteramos sobre la lista filtrada -->
+                    <v-list-item v-for="student in filteredStudents" :key="student.hash_id"
                         :subtitle="student.visual_identity.ralc_suffix" :title="student.visual_identity.iniciales">
                         <template v-slot:prepend>
                             <v-avatar color="grey-lighten-1">
@@ -46,12 +59,33 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch, computed } from 'vue';
 import { useStudentStore } from '@/stores/studentStore'; // Importamos el store que creamos arriba
 
 // 1. Inicializamos el store
 const studentStore = useStudentStore();
 const showError = ref(false);
+const searchTerm = ref('');
+
+// Propiedad computada para filtrar los estudiantes
+const filteredStudents = computed(() => {
+    if (!searchTerm.value) {
+        return studentStore.students;
+    }
+    const lowerCaseSearch = searchTerm.value.toLowerCase();
+    return studentStore.students.filter(student => {
+        // 1. Cerca per NOM (si existeix a la BD)
+        const nameMatch = (student.original_name || '').toLowerCase().includes(lowerCaseSearch);
+        // 2. Cerca per ID RALC (si existeix a la BD)
+        const idMatch = (student.original_id || '').includes(lowerCaseSearch);
+        // 3. Mantenim cerca per inicials/sufix visual
+        const initials = student.visual_identity.iniciales.toLowerCase();
+        const ralc = student.visual_identity.ralc_suffix.toLowerCase();
+        
+        return nameMatch || idMatch || initials.includes(lowerCaseSearch) || ralc.includes(lowerCaseSearch);
+    });
+});
+
 
 // 2. Cargamos la lista al iniciar el componente
 onMounted(() => {
