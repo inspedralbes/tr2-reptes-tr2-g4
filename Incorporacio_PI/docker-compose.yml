@@ -19,7 +19,7 @@ services:
     build: ./frontend
     container_name: pi_frontend
     ports:
-      - "3000:3000" # IMPORTANTE: Entras por localhost:3000, pero internamente va al 5173 de Vite
+      - "3000:3000" 
     volumes:
       - ./frontend:/app # Hot Reload para Vue
       - /app/node_modules
