@@ -19,7 +19,7 @@
     <v-card v-else-if="student" class="mx-auto pa-4" max-width="800" elevation="2">
       <v-card-title class="text-h5 font-weight-bold d-flex align-center">
         <v-avatar color="primary" class="mr-4" size="80">
-          <span class="text-h4 text-white d-flex align-center justify-center w-100 h-100">{{ student.visual_identity?.iniciales }}</span>
+          <span class="text-h4 text-white d-flex align-center justify-center w-100 h-100" style="line-height: 1;">{{ student.visual_identity?.iniciales }}</span>
         </v-avatar>
         Detalle del Estudiante
       </v-card-title>
@@ -135,8 +135,9 @@ const normalizedFiles = computed(() => {
   const s = student.value;
   if (!s) return [];
 
-  // 1. Si tiene el nuevo formato de array
-  if (s.files && Array.isArray(s.files) && s.files.length > 0) {
+  // 1. Si existe el array 'files', es la fuente de verdad (aunque esté vacío).
+  // Eliminamos la comprobación de .length > 0 para que si está vacío, devuelva [] y no salte al fallback.
+  if (s.files && Array.isArray(s.files)) {
     return s.files;
   }
 
