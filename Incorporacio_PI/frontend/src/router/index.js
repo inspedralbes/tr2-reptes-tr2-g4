@@ -1,12 +1,12 @@
 /**
  * router/index.js
- * Configuración manual de rutas y seguridad
  */
-
 import { createRouter, createWebHistory } from 'vue-router'
 
-// 1. Importamos tus componentes/páginas manualmente
+// Importaciones
+import LandingPage from '@/pages/LandingPage.vue'
 import LoginView from '@/pages/LoginView.vue'
+import DashboardMenu from '@/pages/DashboardMenu.vue' // <--- NUEVO MENÚ
 import StudentList from '@/components/StudentList.vue'
 import StudentDetail from '@/pages/StudentDetail.vue'
 
@@ -14,45 +14,56 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/',
+      name: 'landing',
+      component: LandingPage
+    },
+    {
       path: '/login',
       name: 'login',
       component: LoginView
     },
+    // 1. RUTA DASHBOARD -> Ahora es el MENÚ DE BOTONES
     {
-      path: '/',
+      path: '/dashboard', 
       name: 'dashboard',
+      component: DashboardMenu,
+      meta: { requiresAuth: true } 
+    },
+    // 2. NUEVA RUTA -> Para el listado de alumnos
+    {
+      path: '/alumnos', 
+      name: 'StudentList',
       component: StudentList,
-      meta: { requiresAuth: true } // 🔒 Marcamos esta ruta como protegida
+      meta: { requiresAuth: true } 
+    },
+    // 3. RUTA FUTURA -> Insertar alumno (Aún no creada, dará error 404 o blanco si clickas)
+    {
+      path: '/nuevo-alumno',
+      name: 'CreateStudent',
+      // Como no tienes la página, puedes poner temporalmente un componente vacío o el Dashboard
+      component: DashboardMenu, 
+      meta: { requiresAuth: true }
     },
     {
-      path: '/perfil',
-      component: () => import('@/pages/Perfil.vue')
-    },
-    {
-      path: '/perfil/:hash_id', // Los dos puntos : indican que es un parámetro dinámico
-    name: 'StudentDetail',
-    component: StudentDetail,
+      path: '/perfil/:hash_id',
+      name: 'StudentDetail',
+      component: StudentDetail,
+      meta: { requiresAuth: true }
     }
   ]
 })
 
-// 2. GUARDIA DE NAVEGACIÓN (La seguridad)
-// Esto se ejecuta antes de cada cambio de página
+// GUARDIA DE SEGURIDAD (Igual que antes)
 router.beforeEach((to, from, next) => {
-  // Verificamos si la ruta a la que va requiere autenticación
   const necesitaAuth = to.matched.some(record => record.meta.requiresAuth)
-  
-  // Verificamos si tenemos el token guardado (simulado)
   const isAuthenticated = localStorage.getItem('token')
 
   if (necesitaAuth && !isAuthenticated) {
-    // Si intenta entrar al dashboard sin token -> Al Login
     next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
-    // Si intenta ir al login pero ya tiene token -> Al Dashboard
-    next('/')
+  } else if ((to.path === '/login' || to.path === '/') && isAuthenticated) {
+    next('/dashboard')
   } else {
-    // En cualquier otro caso, dejamos pasar
     next()
   }
 })
