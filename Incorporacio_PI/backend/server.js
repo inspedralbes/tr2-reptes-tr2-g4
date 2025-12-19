@@ -228,3 +228,63 @@ connectDB().then(async () => {
         console.log(`🚀 Server Mongo + Logic Company running on http://localhost:${PORT}`);
     });
 }).catch(console.error);
+
+// --- 5. LÒGICA DE LOGS (Tasques #28 i #29) ---
+
+/**
+ * Funció per registrar accions a la col·lecció "access_logs" (#28)
+ */
+async function registrarAcces(email, accio, ralcSuffix = 'N/A') {
+    try {
+        const db = getDB();
+        await db.collection('access_logs').insertOne({
+            usuari: email,
+            accio: accio,
+            ralc_alumne: ralcSuffix, // Guardem només el sufix per privacitat (#29)
+            timestamp: new Date()
+        });
+    } catch (e) {
+        console.error("Error guardant log:", e);
+    }
+}
+
+// RUTA NOVA: Obtenir logs per a la pantalla de revisió (#30)
+app.get('/api/logs', async (req, res) => {
+    try {
+        const db = getDB();
+        const logs = await db.collection('access_logs')
+            .find()
+            .sort({ timestamp: -1 }) // El més recent primer
+            .limit(50)
+            .toArray();
+        res.json(logs);
+    } catch (e) {
+        res.status(500).json({ error: 'Error al recuperar logs' });
+    }
+});
+
+// ACTUALITZACIÓ: Modifiquem el POST d'upload per registrar el log
+app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
+    const { studentHash, userEmail } = req.body; // Rebrem l'email des del front
+    if (!req.file || !studentHash) return res.status(400).json({ success: false });
+
+    try {
+        const db = getDB();
+        
+        // Busquem l'alumne per tenir el seu RALC sufix per al log
+        const alumne = await db.collection('students').findOne({ hash_id: studentHash });
+        const ralcSuffix = alumne ? alumne.visual_identity.ralc_suffix : '???';
+
+        await db.collection('students').updateOne(
+            { hash_id: studentHash },
+            { $set: { has_file: true, filename: req.file.filename } }
+        );
+
+        // Registrem l'accés (#29)
+        await registrarAcces(userEmail || 'sistema', 'Pujada de document PI', ralcSuffix);
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false });
+    }
+});
