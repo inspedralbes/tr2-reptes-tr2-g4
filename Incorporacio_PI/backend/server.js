@@ -120,17 +120,70 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
             resumen: "Document processat correctament el " + new Date().toLocaleDateString()
         };
 
+        // Preparamos los datos del archivo para el historial
+        const fileData = {
+            filename: req.file.filename,
+            originalName: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+            uploadDate: new Date()
+        };
+
         // Actualitzem la BD
         await db.collection('students').updateOne(
             { hash_id: studentHash },
             { 
                 $set: { 
                     has_file: true, 
-                    filename: req.file.filename,
+                    filename: req.file.filename, // Mantenemos esto para compatibilidad
                     ia_data: iaData
-                } 
+                },
+                $push: { files: fileData } // Añadimos al historial de archivos
             }
         );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false });
+    }
+});
+
+// DELETE: Eliminar fitxer específic d'un estudiant
+app.delete('/api/students/:hash/files/:filename', async (req, res) => {
+    const { hash, filename } = req.params;
+    try {
+        const db = getDB();
+        
+        // 1. Eliminar del array de archivos en Mongo
+        const resArray = await db.collection('students').updateOne(
+            { hash_id: hash },
+            { $pull: { files: { filename: filename } } }
+        );
+        console.log(`🗑️ DELETE: Eliminado de array 'files': ${resArray.modifiedCount} docs`);
+
+        // 1.5. Si es el archivo "legacy" (campo filename suelto), lo borramos también
+        const resLegacy = await db.collection('students').updateOne(
+            { hash_id: hash, filename: filename },
+            { $unset: { filename: "" } }
+        );
+        console.log(`🗑️ DELETE: Eliminado de campo 'filename' (legacy): ${resLegacy.modifiedCount} docs`);
+
+        // 2. Verificar si quedan archivos para actualizar el estado has_file
+        const student = await db.collection('students').findOne({ hash_id: hash });
+        // Tiene archivos si el array tiene algo O si queda un filename legacy
+        const hasFiles = (student.files && student.files.length > 0) || (!!student.filename);
+        
+        await db.collection('students').updateOne(
+            { hash_id: hash },
+            { $set: { has_file: hasFiles } }
+        );
+
+        // 3. Eliminar archivo físico del servidor
+        const filePath = path.join(UPLOADS_DIR, filename);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
 
         res.json({ success: true });
     } catch (error) {
