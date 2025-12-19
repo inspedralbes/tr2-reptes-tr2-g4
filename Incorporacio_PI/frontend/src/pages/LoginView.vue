@@ -59,7 +59,7 @@ const handleCodeVerification = async (code) => {
     localStorage.setItem('userEmail', email.value);
 
     // 4. Ara sí, redirigim a la Home (Dashboard)
-    router.push('/'); 
+    router.push('/dashboard'); // Antes era '/'
     
   } catch (error) {
     console.error("Error al login:", error);
