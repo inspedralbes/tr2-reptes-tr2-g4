@@ -7,7 +7,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 // 1. Importamos tus componentes/páginas manualmente
 import LoginView from '@/pages/LoginView.vue'
-import StudentList from '@/components/StudentList.vue' // Esta será tu vista principal (Dashboard)
+import StudentList from '@/components/StudentList.vue'
+import StudentDetail from '@/pages/StudentDetail.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -22,6 +23,15 @@ const router = createRouter({
       name: 'dashboard',
       component: StudentList,
       meta: { requiresAuth: true } // 🔒 Marcamos esta ruta como protegida
+    },
+    {
+      path: '/perfil',
+      component: () => import('@/pages/Perfil.vue')
+    },
+    {
+      path: '/perfil/:hash_id', // Los dos puntos : indican que es un parámetro dinámico
+    name: 'StudentDetail',
+    component: StudentDetail,
     }
   ]
 })

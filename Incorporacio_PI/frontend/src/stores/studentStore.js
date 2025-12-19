@@ -14,7 +14,8 @@ export const useStudentStore = defineStore('student', {
     
     // Acción A: Fetch
     async fetchStudents() {
-        const response = await fetch('http://localhost:3001/api/students'); 
+        // Añadimos timestamp para evitar caché del navegador y asegurar que la lista se actualiza al borrar
+        const response = await fetch(`http://localhost:3001/api/students?_t=${Date.now()}`); 
         
         if (!response.ok) {
             console.error("Error del servidor:", response.status, response.statusText);

@@ -15,11 +15,20 @@
                         </template>
 
                         <template v-slot:append>
-                            <v-chip v-if="student.has_file" color="success" text-color="white">
-                                Pujat
+                            <router-link :to="`/perfil/${student.hash_id}`">
+                                <v-btn icon="mdi-account-details" variant="text" color="primary" class="mr-2"></v-btn>
+                            </router-link>
+                            
+                            <!-- Chip mejorado para el contador de archivos -->
+                            <v-chip v-if="student.has_file" 
+                                color="blue-grey-darken-1" 
+                                variant="outlined" 
+                                class="mr-4 font-weight-bold">
+                                <v-icon start icon="mdi-paperclip"></v-icon>
+                                {{ student.files?.length || 1 }} Docs
                             </v-chip>
 
-                            <div v-else style="width: 250px">
+                            <div style="width: 250px">
                                 <v-file-input label="Pujar PI (PDF)" variant="outlined" density="compact"
                                     accept=".pdf, .doc, .docx" prepend-icon="mdi-cloud-upload" hide-details
                                     @update:model-value="(files) => handleUpload(files, student.hash_id)"></v-file-input>
@@ -68,6 +77,6 @@ const handleUpload = async (files, hashId) => {
 
 // Vigilar errores del store para mostrarlos
 watch(() => studentStore.error, (newVal) => {
-    if (newVal) showError.value = true;
+        if (newVal) showError.value = true;
 });
 </script>
