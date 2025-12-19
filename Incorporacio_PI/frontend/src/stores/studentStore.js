@@ -5,6 +5,7 @@ export const useStudentStore = defineStore('student', {
   // 1. STATE
   state: () => ({
     students: [],
+    logs: [],
     loading: false,
     error: null,
   }),
@@ -27,13 +28,24 @@ export const useStudentStore = defineStore('student', {
         this.students = data;
     }, // <--- OJO AQUÍ: Solo cerramos la función y ponemos coma, NO cerramos actions todavía
 
-    // Acción B: Subir el PDF
+    async fetchLogs() {
+        try {
+            const response = await fetch('http://localhost:3001/api/logs');
+            this.logs = await response.json();
+        } catch (e) {
+            this.error = "Error carregant els logs";
+        }
+    },
+
     async uploadStudentPI(file, studentHash) {
       this.loading = true;
       try {
         const formData = new FormData();
+        // Agafem l'email de l'usuari loguejat del localStorage
+        const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
         formData.append('studentHash', studentHash);
+        formData.append('userEmail', userEmail); // <--- IMPORTANT per al log
         formData.append('documento_pi', file); 
 
         const response = await fetch('http://localhost:3001/api/upload', {
@@ -42,21 +54,17 @@ export const useStudentStore = defineStore('student', {
         });
         
         const result = await response.json();
-
         if (result.success) {
           await this.fetchStudents();
           return true;
-        } else {
-          throw new Error(result.message);
         }
-
+        throw new Error('Error al pujar');
       } catch (err) {
-        console.error('Error subiendo fichero:', err);
         this.error = err.message;
         return false;
       } finally {
         this.loading = false;
       }
     }
-  } // <--- AQUÍ ES DONDE SE CIERRA ACTIONS FINALMENTE
+  }
 });
