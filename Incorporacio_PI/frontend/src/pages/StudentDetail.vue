@@ -102,6 +102,9 @@
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
               variant="text" color="primary" title="Abrir documento">
             </v-btn>
+            <v-btn icon="mdi-download" variant="text" color="success" title="Descargar documento"
+              @click="downloadFile(file.filename, file.originalName)">
+            </v-btn>
             <v-btn icon="mdi-delete" variant="text" color="error" title="Eliminar documento"
               @click="deleteFile(file.filename)">
             </v-btn>
@@ -167,6 +170,7 @@ const getFileIcon = (filename) => {
   const ext = filename.split('.').pop().toLowerCase();
   if (ext === 'pdf') return 'mdi-file-pdf-box';
   if (['doc', 'docx'].includes(ext)) return 'mdi-file-word-box';
+  if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'mdi-file-image';
   return 'mdi-file-document-outline';
 };
 
@@ -181,6 +185,23 @@ const formatDate = (dateVal) => {
 watch(normalizedFiles, (newFiles) => {
   console.log('🔄 VISTA ACTUALIZADA: La lista de documentos ha cambiado.', newFiles);
 });
+
+const downloadFile = async (filename, originalName) => {
+  try {
+    const response = await fetch(`http://localhost:3001/uploads/${filename}`);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = originalName || filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Error downloading file:', error);
+  }
+};
 
 const deleteFile = async (filename) => {
   console.log(`🗑️ INICIO: Solicitando eliminar archivo: ${filename}`);

@@ -34,16 +34,18 @@
                             
                             <!-- Chip mejorado para el contador de archivos -->
                             <v-chip v-if="student.has_file" 
+                                :to="`/perfil/${student.hash_id}`"
+                                link
                                 color="blue-grey-darken-1" 
                                 variant="outlined" 
                                 class="mr-4 font-weight-bold">
-                                <v-icon start icon="mdi-paperclip"></v-icon>
+                                <v-icon start icon="mdi-folder"></v-icon>
                                 {{ student.files?.length || 1 }} Docs
                             </v-chip>
 
                             <div style="width: 250px">
                                 <v-file-input label="Pujar PI (PDF)" variant="outlined" density="compact"
-                                    accept=".pdf, .doc, .docx" prepend-icon="mdi-cloud-upload" hide-details
+                                    accept=".pdf" prepend-icon="mdi-cloud-upload" hide-details
                                     @update:model-value="(files) => handleUpload(files, student.hash_id)"></v-file-input>
                             </div>
                         </template>
@@ -98,6 +100,13 @@ const handleUpload = async (files, hashId) => {
     const file = Array.isArray(files) ? files[0] : files;
 
     if (file) {
+        // Validació estricta de tipus PDF
+        if (file.type !== 'application/pdf') {
+            studentStore.error = "Només s'accepten fitxers PDF!";
+            showError.value = true;
+            return;
+        }
+
         // Llamamos a la ACCIÓN que creamos en el Store
         const success = await studentStore.uploadStudentPI(file, hashId);
 

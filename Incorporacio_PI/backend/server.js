@@ -31,7 +31,18 @@ const storage = multer.diskStorage({
         cb(null, `${hash}_${Date.now()}${path.extname(file.originalname)}`);
     }
 });
-const upload = multer({ storage: storage });
+
+// Filtre per acceptar NOMÉS PDF
+const upload = multer({ 
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(null, false); // Rebutja el fitxer si no és PDF
+        }
+    }
+});
 
 // --- 2. RUTAS DE LOGIN (Amb MongoDB) ---
 app.post('/api/login/send-code', async (req, res) => {
@@ -111,7 +122,7 @@ app.get('/api/students', async (req, res) => {
 app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
     // Fusionem la lògica de les dues rutes duplicades
     const { studentHash, userEmail } = req.body;
-    if (!req.file || !studentHash) return res.status(400).json({ success: false, message: 'Falten dades' });
+    if (!req.file || !studentHash) return res.status(400).json({ success: false, message: 'Falten dades o el fitxer no és un PDF' });
 
     try {
         const db = getDB();
@@ -149,6 +160,8 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
 
         // Registrem l'accés (#29)
         await registrarAcces(userEmail || 'sistema', 'Pujada de document PI', ralcSuffix);
+
+        console.log(`📄 LOG: Nou PDF registrat a MongoDB per l'alumne ${ralcSuffix}`);
 
         res.json({ success: true });
     } catch (error) {
