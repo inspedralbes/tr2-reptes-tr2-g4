@@ -1,21 +1,18 @@
 <template>
   <v-container>
-    <!-- Botón para volver atrás -->
     <v-btn
       class="mb-4"
       variant="text"
       prepend-icon="mdi-arrow-left"
-      @click="$router.back()"
+      @click="goToList"
     >
       Volver al listado
     </v-btn>
 
-    <!-- Estado de carga -->
     <div v-if="studentStore.loading && !student" class="d-flex justify-center mt-10">
       <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
     </div>
 
-    <!-- Tarjeta de detalle del estudiante -->
     <v-card v-else-if="student" class="mx-auto pa-4" max-width="800" elevation="2">
       <v-card-title class="text-h5 font-weight-bold d-flex align-center">
         <v-avatar color="primary" class="mr-4" size="80">
@@ -71,7 +68,6 @@
       </v-card-text>
     </v-card>
 
-    <!-- Sección de Documentos Adjuntos -->
     <v-card v-if="student && normalizedFiles.length > 0" class="mx-auto mt-4 pa-4" max-width="800" elevation="2">
       <v-card-title class="text-h6 d-flex align-center">
         <v-icon icon="mdi-file-document-multiple-outline" class="mr-2" color="primary"></v-icon>
@@ -113,59 +109,72 @@
       </v-list>
     </v-card>
 
-    <!-- Mensaje si no se encuentra -->
     <v-alert v-else type="error" variant="tonal" class="mt-4">
       No se ha encontrado ningún estudiante con este identificador.
     </v-alert>
+
+    <v-row class="mt-6 mb-10" justify="center">
+      <v-col cols="12" md="6" class="text-center">
+        <v-btn 
+          color="secondary" 
+          size="large" 
+          prepend-icon="mdi-format-list-bulleted"
+          @click="goToList"
+          block
+        >
+          Volver a la lista de estudiantes
+        </v-btn>
+      </v-col>
+    </v-row>
+
   </v-container>
 </template>
 
 <script setup>
 import { computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router'; // <--- AÑADIDO useRouter
 import { useStudentStore } from '@/stores/studentStore';
 
 const route = useRoute();
+const router = useRouter(); // <--- Inicializamos router
 const studentStore = useStudentStore();
 
-// Buscamos el estudiante en el array del store que coincida con el hash de la URL
+// --- NUEVA FUNCIÓN PARA VOLVER ---
+const goToList = () => {
+  // Redirige a la ruta '/alumnos' que creamos en el paso anterior.
+  // Si prefieres ir al menú de botones, cambia esto por '/dashboard'
+  router.push('/alumnos');
+};
+
+// ... (Resto del código idéntico: student, normalizedFiles, helpers, etc.) ...
+
 const student = computed(() => {
   return studentStore.students.find(s => s.hash_id === route.params.hash_id);
 });
 
-// Calculamos la lista de archivos unificando el formato nuevo (array) y el antiguo (string único)
 const normalizedFiles = computed(() => {
   const s = student.value;
   if (!s) return [];
-
-  // 1. Si existe el array 'files', es la fuente de verdad (aunque esté vacío).
-  // Eliminamos la comprobación de .length > 0 para que si está vacío, devuelva [] y no salte al fallback.
   if (s.files && Array.isArray(s.files)) {
     return s.files;
   }
-
-  // 2. Fallback: Si tiene el formato antiguo (solo filename)
   if (s.filename) {
-    // Intentamos extraer la fecha del timestamp en el nombre (hash_timestamp.ext)
     let date = new Date();
     const parts = s.filename.split('_');
     if (parts.length >= 2) {
       const timestamp = parseInt(parts[1]);
       if (!isNaN(timestamp)) date = new Date(timestamp);
     }
-
     return [{
       filename: s.filename,
       originalName: 'Documento PI (Versión anterior)',
       uploadDate: date,
-      mimetype: 'application/pdf' // Asunción por defecto
+      mimetype: 'application/pdf'
     }];
   }
-
   return [];
 });
 
-// Helpers para la visualización
 const getFileIcon = (filename) => {
   const ext = filename.split('.').pop().toLowerCase();
   if (ext === 'pdf') return 'mdi-file-pdf-box';
@@ -181,7 +190,6 @@ const formatDate = (dateVal) => {
   return new Date(dateVal).toLocaleString();
 };
 
-// Vigilar cambios en la lista de archivos para confirmar actualización
 watch(normalizedFiles, (newFiles) => {
   console.log('🔄 VISTA ACTUALIZADA: La lista de documentos ha cambiado.', newFiles);
 });
@@ -216,18 +224,17 @@ const deleteFile = async (filename) => {
 
     if (response.ok) {
       console.log('✅ OK: Archivo borrado. Recargando datos del store...');
-      await studentStore.fetchStudents(); // Recargar datos para actualizar la lista
-      console.log('✨ FIN: Datos recargados. El archivo debería desaparecer de la lista.');
+      await studentStore.fetchStudents(); 
+      console.log('✨ FIN: Datos recargados.');
     } else {
       console.error('Error del servidor:', response.status);
-      alert('Error 404: El servidor no reconoce la acción de borrar.\n\n⚠️ SOLUCIÓN: Debes reiniciar el backend (Ctrl+C y node server.js) para que coja los cambios del código.');
+      alert('Error al borrar. Revisa la consola.');
     }
   } catch (error) {
     console.error('Error eliminando archivo:', error);
   }
 };
 
-// Si entramos directamente a esta página y el store está vacío, cargamos los datos
 onMounted(async () => {
   if (studentStore.students.length === 0) {
     await studentStore.fetchStudents();

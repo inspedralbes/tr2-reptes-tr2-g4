@@ -22,6 +22,7 @@ declare module 'vue-router/auto-routes' {
     '/DashboardMenu': RouteRecordInfo<'/DashboardMenu', '/DashboardMenu', Record<never, never>, Record<never, never>>,
     '/LandingPage': RouteRecordInfo<'/LandingPage', '/LandingPage', Record<never, never>, Record<never, never>>,
     '/LoginView': RouteRecordInfo<'/LoginView', '/LoginView', Record<never, never>, Record<never, never>>,
+    '/logs': RouteRecordInfo<'/logs', '/logs', Record<never, never>, Record<never, never>>,
     '/Perfil': RouteRecordInfo<'/Perfil', '/Perfil', Record<never, never>, Record<never, never>>,
     '/StudentDetail': RouteRecordInfo<'/StudentDetail', '/StudentDetail', Record<never, never>, Record<never, never>>,
   }
@@ -51,6 +52,10 @@ declare module 'vue-router/auto-routes' {
     }
     'src/pages/LoginView.vue': {
       routes: '/LoginView'
+      views: never
+    }
+    'src/pages/logs.vue': {
+      routes: '/logs'
       views: never
     }
     'src/pages/Perfil.vue': {
