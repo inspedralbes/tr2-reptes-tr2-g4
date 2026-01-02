@@ -50,6 +50,20 @@ const router = createRouter({
       name: 'StudentDetail',
       component: StudentDetail,
       meta: { requiresAuth: true }
+    },
+    // 4. RUTA LOGS -> Per veure l'historial d'accions
+    {
+      path: '/logs',
+      name: 'Logs',
+      component: () => import('@/pages/LogsPage.vue'), // Crearem aquest fitxer ara
+      meta: { requiresAuth: true }
+    },
+    // 5. RUTA RESUM IA -> Nova pàgina dedicada
+    {
+      path: '/resum/:filename',
+      name: 'SummaryPage',
+      component: () => import('@/pages/SummaryPage.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

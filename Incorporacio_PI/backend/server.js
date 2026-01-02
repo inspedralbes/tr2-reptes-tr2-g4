@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto'); // Del teu company
 const { connectDB, getDB } = require('./db'); // La teva DB
+const { extractTextFromPDF } = require('./fileReader');
+const { analyzePI } = require('./piAnalyzer');
 
 const app = express();
 const PORT = 3001;
@@ -210,6 +212,33 @@ app.delete('/api/students/:hash/files/:filename', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false });
+    }
+});
+
+// --- RUTA D'ANÀLISI IA (Bloc B) ---
+app.get('/api/analyze/:filename', async (req, res) => {
+    try {
+        // Decodifiquem el nom del fitxer per si té espais o accents
+        const filename = decodeURIComponent(req.params.filename);
+        const filePath = path.join(UPLOADS_DIR, filename);
+
+        // Comprovem si el fitxer existeix físicament
+        if (!fs.existsSync(filePath)) {
+            console.error("Fitxer no trobat:", filePath);
+            return res.status(404).json({ error: 'Fitxer no trobat al servidor' });
+        }
+
+        // Llegim i processem
+        const dataBuffer = fs.readFileSync(filePath);
+        const text = await extractTextFromPDF(dataBuffer);
+        const analysis = analyzePI(text);
+
+        // Retornem el JSON
+        res.json(analysis);
+
+    } catch (error) {
+        console.error("Error analitzant PI:", error);
+        res.status(500).json({ error: 'Error al processar el document' });
     }
 });
 

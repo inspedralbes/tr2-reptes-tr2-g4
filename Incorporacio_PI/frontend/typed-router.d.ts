@@ -23,8 +23,10 @@ declare module 'vue-router/auto-routes' {
     '/LandingPage': RouteRecordInfo<'/LandingPage', '/LandingPage', Record<never, never>, Record<never, never>>,
     '/LoginView': RouteRecordInfo<'/LoginView', '/LoginView', Record<never, never>, Record<never, never>>,
     '/logs': RouteRecordInfo<'/logs', '/logs', Record<never, never>, Record<never, never>>,
+    '/LogsPage': RouteRecordInfo<'/LogsPage', '/LogsPage', Record<never, never>, Record<never, never>>,
     '/Perfil': RouteRecordInfo<'/Perfil', '/Perfil', Record<never, never>, Record<never, never>>,
     '/StudentDetail': RouteRecordInfo<'/StudentDetail', '/StudentDetail', Record<never, never>, Record<never, never>>,
+    '/SummaryPage': RouteRecordInfo<'/SummaryPage', '/SummaryPage', Record<never, never>, Record<never, never>>,
   }
 
   /**
@@ -58,12 +60,20 @@ declare module 'vue-router/auto-routes' {
       routes: '/logs'
       views: never
     }
+    'src/pages/LogsPage.vue': {
+      routes: '/LogsPage'
+      views: never
+    }
     'src/pages/Perfil.vue': {
       routes: '/Perfil'
       views: never
     }
     'src/pages/StudentDetail.vue': {
       routes: '/StudentDetail'
+      views: never
+    }
+    'src/pages/SummaryPage.vue': {
+      routes: '/SummaryPage'
       views: never
     }
   }

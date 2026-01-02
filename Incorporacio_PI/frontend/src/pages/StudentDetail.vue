@@ -68,6 +68,10 @@
       </v-card-text>
     </v-card>
 
+    <v-alert v-else type="error" variant="tonal" class="mt-4">
+      No se ha encontrado ningún estudiante con este identificador.
+    </v-alert>
+
     <v-card v-if="student && normalizedFiles.length > 0" class="mx-auto mt-4 pa-4" max-width="800" elevation="2">
       <v-card-title class="text-h6 d-flex align-center">
         <v-icon icon="mdi-file-document-multiple-outline" class="mr-2" color="primary"></v-icon>
@@ -95,6 +99,10 @@
             <v-chip size="small" class="mr-2" color="primary" variant="outlined">
               {{ getFileExtension(file.filename) }}
             </v-chip>
+            <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
+              icon="mdi-robot" variant="text" color="purple" title="Generar Resum IA"
+              @click="goToSummary(file)">
+            </v-btn>
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
               variant="text" color="primary" title="Abrir documento">
             </v-btn>
@@ -108,10 +116,6 @@
         </v-list-item>
       </v-list>
     </v-card>
-
-    <v-alert v-else type="error" variant="tonal" class="mt-4">
-      No se ha encontrado ningún estudiante con este identificador.
-    </v-alert>
 
     <v-row class="mt-6 mb-10" justify="center">
       <v-col cols="12" md="6" class="text-center">
@@ -131,7 +135,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, watch, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router'; // <--- AÑADIDO useRouter
 import { useStudentStore } from '@/stores/studentStore';
 
@@ -193,6 +197,11 @@ const formatDate = (dateVal) => {
 watch(normalizedFiles, (newFiles) => {
   console.log('🔄 VISTA ACTUALIZADA: La lista de documentos ha cambiado.', newFiles);
 });
+
+const goToSummary = (file) => {
+  // Redirigim a la nova pàgina de resum
+  router.push({ name: 'SummaryPage', params: { filename: file.filename } });
+};
 
 const downloadFile = async (filename, originalName) => {
   try {
