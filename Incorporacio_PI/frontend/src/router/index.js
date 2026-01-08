@@ -8,6 +8,7 @@ import LandingPage from '@/pages/LandingPage.vue'
 import LoginView from '@/pages/LoginView.vue'
 import DashboardMenu from '@/pages/DashboardMenu.vue' // <--- NUEVO MENÚ
 import StudentList from '@/components/StudentList.vue'
+import AddStudent from '@/pages/AddStudent.vue';
 import StudentDetail from '@/pages/StudentDetail.vue'
 
 const router = createRouter({
@@ -40,9 +41,9 @@ const router = createRouter({
     // 3. RUTA FUTURA -> Insertar alumno (Aún no creada, dará error 404 o blanco si clickas)
     {
       path: '/nuevo-alumno',
-      name: 'CreateStudent',
+      name: 'AddStudent',
       // Como no tienes la página, puedes poner temporalmente un componente vacío o el Dashboard
-      component: DashboardMenu, 
+      component: AddStudent, 
       meta: { requiresAuth: true }
     },
     {
