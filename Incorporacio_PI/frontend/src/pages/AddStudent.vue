@@ -26,7 +26,7 @@
 
           <v-text-field
             v-model="student.id"
-            label="ID Alumne (DNI, NIE o RALC)"
+            label="ID Alumne: RALC"
             prepend-inner-icon="mdi-identifier"
             variant="outlined"
             hint="Aquest ID serà la referència única."
