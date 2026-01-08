@@ -19,7 +19,15 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Servir 
 
 // --- HELPER FUNCTIONS (Del teu company) ---
 const generarHash = (id) => crypto.createHash('sha256').update(id).digest('hex');
-const obtenerIniciales = (nombre) => nombre.split(' ').map(n => n[0]).join('.') + '.';
+// Funció millorada per obtenir inicials
+const obtenerIniciales = (nombre) => {
+    if (!nombre) return '';
+    return nombre
+        .trim()                // 1. Elimina espais al principi i al final ("enrique " -> "enrique")
+        .split(/\s+/)          // 2. Divideix per espais, ignorant si n'hi ha més d'un seguit
+        .map(n => n[0].toUpperCase()) // 3. Agafa la primera lletra i la fa Majúscula
+        .join('.') + '.';      // 4. Uneix amb punts i afegeix el punt final
+};
 
 // --- 1. CONFIGURACIÓ MULTER ---
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
