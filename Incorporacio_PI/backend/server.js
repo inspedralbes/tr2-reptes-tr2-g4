@@ -144,57 +144,11 @@ app.post('/api/students', async (req, res) => {
         const hash = generarHash(id);
         const iniciales = obtenerIniciales(nombre);
         
-        // 4. Construir l'objecte
+        // 4. Construir l'objecte (CORREGIDO: Faltaban original_id y original_name)
         const newStudent = {
             hash_id: hash,
-            original_id: id,
-            original_name: nombre,// POST: Crear nou alumne manualment (Necessari per al botó "Nuevo Alumno")
-app.post('/api/students', async (req, res) => {
-    const { nombre, id } = req.body;
-
-    // 1. Validació bàsica
-    if (!nombre || !id) {
-        return res.status(400).json({ error: "Falten dades (nom o id)" });
-    }
-
-    try {
-        const db = getDB();
-
-        // 2. Comprovar que no existeixi ja aquest ID original
-        const existing = await db.collection('students').findOne({ original_id: id });
-        if (existing) {
-            return res.status(409).json({ error: "Aquest ID d'alumne ja existeix" });
-        }
-
-        // 3. Generar dades calculades
-        const hash = generarHash(id);
-        const iniciales = obtenerIniciales(nombre);
-        
-        // 4. Construir l'objecte
-        const newStudent = {
-            hash_id: hash,
-            visual_identity: {
-                iniciales: iniciales,
-                ralc_suffix: `***${id.slice(-3)}`
-            },
-            has_file: false,
-            files: [],
-            ia_data: {},
-            createdAt: new Date()
-        };
-
-        // 5. Insertar a Mongo
-        await db.collection('students').insertOne(newStudent);
-        
-        console.log(`✨ Nou alumne creat: ${nombre} (${id})`);
-        res.json({ success: true, student: newStudent });
-
-    } catch (error) {
-        console.error("Error creant alumne:", error);
-        res.status(500).json({ error: 'Error al servidor' });
-    }
-});
-
+            original_id: id,          // <--- AFEGIT (Molt important)
+            original_name: nombre,    // <--- AFEGIT (Molt important)
             visual_identity: {
                 iniciales: iniciales,
                 ralc_suffix: `***${id.slice(-3)}`
