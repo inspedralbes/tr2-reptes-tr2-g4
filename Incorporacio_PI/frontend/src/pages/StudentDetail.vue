@@ -6,7 +6,7 @@
       prepend-icon="mdi-arrow-left"
       @click="goToList"
     >
-      Volver al listado
+      Tornar al llistat
     </v-btn>
 
     <div v-if="studentStore.loading && !student" class="d-flex justify-center mt-10">
@@ -18,7 +18,7 @@
         <v-avatar color="primary" class="mr-4" size="80">
           <span class="text-h4 text-white d-flex align-center justify-center w-100 h-100" style="line-height: 1;">{{ student.visual_identity?.iniciales }}</span>
         </v-avatar>
-        Detalle del Estudiante
+        Detall de l'Estudiant
       </v-card-title>
       
       <v-divider class="my-3"></v-divider>
@@ -30,7 +30,7 @@
               <template v-slot:prepend>
                 <v-icon icon="mdi-account-circle-outline" color="primary"></v-icon>
               </template>
-              <v-list-item-title>Iniciales</v-list-item-title>
+              <v-list-item-title>Inicials</v-list-item-title>
               <v-list-item-subtitle class="text-body-1">
                 {{ student.visual_identity?.iniciales }}
               </v-list-item-subtitle>
@@ -42,7 +42,7 @@
               <template v-slot:prepend>
                 <v-icon icon="mdi-identifier" color="primary"></v-icon>
               </template>
-              <v-list-item-title>Sufijo RALC</v-list-item-title>
+              <v-list-item-title>Sufix RALC</v-list-item-title>
               <v-list-item-subtitle class="text-body-1">
                 {{ student.visual_identity?.ralc_suffix }}
               </v-list-item-subtitle>
@@ -57,10 +57,10 @@
               class="mt-2"
             >
               <div class="text-subtitle-1 font-weight-bold">
-                Estado del Plan Individual (PI)
+                Estat del Pla Individual (PI)
               </div>
               <div>
-                {{ student.has_file ? 'El documento ha sido subido correctamente.' : 'Pendiente de subir documento.' }}
+                {{ student.has_file ? "El document s'ha pujat correctament." : 'Pendent de pujar document.' }}
               </div>
             </v-alert>
           </v-col>
@@ -69,13 +69,13 @@
     </v-card>
 
     <v-alert v-else type="error" variant="tonal" class="mt-4">
-      No se ha encontrado ningún estudiante con este identificador.
+      No s'ha trobat cap estudiant amb aquest identificador.
     </v-alert>
 
     <v-card v-if="student && normalizedFiles.length > 0" class="mx-auto mt-4 pa-4" max-width="800" elevation="2">
       <v-card-title class="text-h6 d-flex align-center">
         <v-icon icon="mdi-file-document-multiple-outline" class="mr-2" color="primary"></v-icon>
-        Documentos Adjuntos
+        Documents Adjunts
       </v-card-title>
       <v-divider class="my-2"></v-divider>
 
@@ -92,7 +92,7 @@
           </v-list-item-title>
           
           <v-list-item-subtitle>
-            Subido el: {{ formatDate(file.uploadDate) }}
+            Pujat el: {{ formatDate(file.uploadDate) }}
           </v-list-item-subtitle>
 
           <template v-slot:append>
@@ -104,12 +104,12 @@
               @click="goToSummary(file)">
             </v-btn>
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
-              variant="text" color="primary" title="Abrir documento">
+              variant="text" color="primary" title="Obrir document">
             </v-btn>
-            <v-btn icon="mdi-download" variant="text" color="success" title="Descargar documento"
+            <v-btn icon="mdi-download" variant="text" color="success" title="Descarregar document"
               @click="downloadFile(file.filename, file.originalName)">
             </v-btn>
-            <v-btn icon="mdi-delete" variant="text" color="error" title="Eliminar documento"
+            <v-btn icon="mdi-delete" variant="text" color="error" title="Eliminar document"
               @click="deleteFile(file.filename)">
             </v-btn>
           </template>
@@ -126,7 +126,7 @@
           @click="goToList"
           block
         >
-          Volver a la lista de estudiantes
+          Tornar a la llista d'estudiants
         </v-btn>
       </v-col>
     </v-row>
@@ -171,7 +171,7 @@ const normalizedFiles = computed(() => {
     }
     return [{
       filename: s.filename,
-      originalName: 'Documento PI (Versión anterior)',
+      originalName: 'Document PI (Versió anterior)',
       uploadDate: date,
       mimetype: 'application/pdf'
     }];
@@ -190,7 +190,7 @@ const getFileIcon = (filename) => {
 const getFileExtension = (filename) => filename.split('.').pop().toUpperCase();
 
 const formatDate = (dateVal) => {
-  if (!dateVal) return 'Fecha desconocida';
+  if (!dateVal) return 'Data desconeguda';
   return new Date(dateVal).toLocaleString();
 };
 
@@ -222,7 +222,7 @@ const downloadFile = async (filename, originalName) => {
 
 const deleteFile = async (filename) => {
   console.log(`🗑️ INICIO: Solicitando eliminar archivo: ${filename}`);
-  if (!confirm('¿Estás seguro de que quieres eliminar este archivo?')) return;
+  if (!confirm('Estàs segur que vols eliminar aquest fitxer?')) return;
 
   try {
     const response = await fetch(`http://localhost:3001/api/students/${route.params.hash_id}/files/${encodeURIComponent(filename)}`, {
@@ -237,7 +237,7 @@ const deleteFile = async (filename) => {
       console.log('✨ FIN: Datos recargados.');
     } else {
       console.error('Error del servidor:', response.status);
-      alert('Error al borrar. Revisa la consola.');
+      alert("Error a l'esborrar. Revisa la consola.");
     }
   } catch (error) {
     console.error('Error eliminando archivo:', error);

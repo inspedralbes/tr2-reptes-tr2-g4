@@ -2,15 +2,15 @@
   <v-card class="pa-6" elevation="4" max-width="450" rounded="lg">
     <div class="text-center mb-4">
       <v-icon icon="mdi-account-circle" size="64" color="primary"></v-icon>
-      <v-card-title class="text-h5 font-weight-bold">Acceso Usuario</v-card-title>
-      <v-card-subtitle>Introduce tu correo corporativo</v-card-subtitle>
+      <v-card-title class="text-h5 font-weight-bold">Accés Usuari</v-card-title>
+      <v-card-subtitle>Introdueix el teu correu corporatiu</v-card-subtitle>
     </div>
 
     <v-form ref="form" @submit.prevent="submit">
       <v-card-text>
         <v-text-field
           v-model="email"
-          label="Correo electrónico"
+          label="Correu electrònic"
           placeholder="nombre@gencat.cat"
           prepend-inner-icon="mdi-email-outline"
           variant="outlined"
@@ -29,7 +29,7 @@
           type="submit"
           :loading="loading"
         >
-          Enviar código
+          Enviar codi
         </v-btn>
       </v-card-actions>
     </v-form>
@@ -51,8 +51,8 @@ const form = ref(null);
 
 // Reglas básicas de validación
 const rules = [
-  v => !!v || 'El correo es obligatorio',
-  v => /.+@.+\..+/.test(v) || 'Introduce un correo válido'
+  v => !!v || 'El correu és obligatori',
+  v => /.+@.+\..+/.test(v) || 'Introdueix un correu vàlid'
 ];
 
 const submit = async () => {

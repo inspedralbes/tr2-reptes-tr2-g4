@@ -82,7 +82,7 @@ app.post('/api/login/verify-code', async (req, res) => {
         // Comprobaciones detalladas para ver dónde falla
         if (!reg) {
             console.log("   ❌ ERROR: No existe registro para este email.");
-            return res.status(401).json({ success: false, message: 'Email no encontrado' });
+            return res.status(401).json({ success: false, message: 'Email no trobat' });
         }
         
         // Convertimos ambos a String por si acaso hay mezcla de tipos (número vs texto)
@@ -181,7 +181,7 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
         const db = getDB();
         // Simulem IA
         const iaData = {
-            estado: "PROCESADO",
+            estado: "PROCESSAT",
             resumen: "Document processat correctament el " + new Date().toLocaleDateString()
         };
 
