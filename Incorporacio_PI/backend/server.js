@@ -134,21 +134,22 @@ app.post('/api/students', async (req, res) => {
     try {
         const db = getDB();
 
-        // 2. Comprovar que no existeixi ja aquest ID original
-        const existing = await db.collection('students').findOne({ original_id: id });
-        if (existing) {
-            return res.status(409).json({ error: "Aquest ID d'alumne ja existeix" });
-        }
-
-        // 3. Generar dades calculades
+        // 2. Generar dades calculades abans de guardar
+        // Necessitem el hash ara per comprovar duplicats, ja que no guardarem l'ID original
         const hash = generarHash(id);
         const iniciales = obtenerIniciales(nombre);
+
+        // 3. Comprovar que no existeixi ja aquest alumne (busquem pel HASH, no per l'ID original)
+        const existing = await db.collection('students').findOne({ hash_id: hash });
+        if (existing) {
+            return res.status(409).json({ error: "Aquest alumne ja existeix (ID duplicat)" });
+        }
         
-        // 4. Construir l'objecte (CORREGIDO: Faltaban original_id y original_name)
+        // 4. Construir l'objecte (SENSE original_id ni original_name)
         const newStudent = {
             hash_id: hash,
-            original_id: id,          // <--- AFEGIT (Molt important)
-            original_name: nombre,    // <--- AFEGIT (Molt important)
+            // original_id: id,       <-- ELIMINAT PER PRIVACITAT
+            // original_name: nombre, <-- ELIMINAT PER PRIVACITAT
             visual_identity: {
                 iniciales: iniciales,
                 ralc_suffix: `***${id.slice(-3)}`
@@ -162,7 +163,9 @@ app.post('/api/students', async (req, res) => {
         // 5. Insertar a Mongo
         await db.collection('students').insertOne(newStudent);
         
-        console.log(`✨ Nou alumne creat: ${nombre} (${id})`);
+        // Al log de consola sí podem mostrar el nom per debugging, però a la BD no hi va
+        console.log(`✨ Nou alumne creat: ${iniciales} (Hash: ${hash.substring(0, 10)}...)`);
+        
         res.json({ success: true, student: newStudent });
 
     } catch (error) {
@@ -310,18 +313,18 @@ connectDB().then(async () => {
     const db = getDB();
     const count = await db.collection('students').countDocuments();
     
-    // Si la BD està buida, la omplim amb les dades del company però formatades per al teu Vue
+    // Si la BD està buida, la omplim amb les dades del company
     if (count === 0) {
         console.log("🌱 Seed: Inserint dades del company a MongoDB...");
         const docs = dbAlumnosRaw.map(a => ({
-            hash_id: generarHash(a.id), // Usem el seu hash
-            original_id: a.id,
-            original_name: a.nombre, // <--- AFEGIT: Guardem el nom per poder buscar-lo
+            hash_id: generarHash(a.id), 
+            // original_id: a.id,       <-- ELIMINAT: No el guardem a la BD
+            // original_name: a.nombre, <-- ELIMINAT: No el guardem a la BD
             visual_identity: {
                 iniciales: obtenerIniciales(a.nombre),
                 ralc_suffix: `***${a.id.slice(-3)}`
             },
-            has_file: false // Per defecte buit
+            has_file: false
         }));
         await db.collection('students').insertMany(docs);
     }
