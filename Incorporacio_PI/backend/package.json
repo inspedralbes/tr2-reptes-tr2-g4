@@ -19,6 +19,6 @@
     "mongodb": "^7.0.0",
     "multer": "^2.0.2",
     "path": "^0.12.7",
-    "pdfjs-dist": "^5.4.530"
+    "pdf-parse-fork": "^1.2.0"
   }
 }
