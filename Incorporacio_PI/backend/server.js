@@ -290,10 +290,34 @@ app.get('/api/analyze/:filename', async (req, res) => {
             return res.status(404).json({ error: 'Fitxer no trobat al servidor' });
         }
 
+        const db = getDB();
+        
+        // 1. Mirem si ja tenim l'anàlisi guardada a la BD (Cache)
+        // Busquem l'alumne que tingui aquest fitxer
+        const student = await db.collection('students').findOne({ "files.filename": filename });
+        
+        if (student) {
+            const fileObj = student.files.find(f => f.filename === filename);
+            // Si ja tenim l'anàlisi guardada, la retornem directament (Molt ràpid!)
+            if (fileObj && fileObj.analysis) {
+                console.log(`⚡ CACHE: Retornant anàlisi guardada per ${filename}`);
+                return res.json(fileObj.analysis);
+            }
+        }
+
         // Llegim i processem
         const dataBuffer = fs.readFileSync(filePath);
         const text = await extractTextFromPDF(dataBuffer);
         const analysis = analyzePI(text);
+
+        // 2. Guardem el resultat a la BD per la pròxima vegada
+        if (student) {
+            await db.collection('students').updateOne(
+                { "files.filename": filename },
+                { $set: { "files.$.analysis": analysis } }
+            );
+            console.log(`💾 DB: Anàlisi guardada per ${filename}`);
+        }
 
         // Retornem el JSON
         res.json(analysis);
