@@ -50,6 +50,17 @@
           </v-col>
 
           <v-col cols="12">
+            <v-list-item class="bg-grey-lighten-4 rounded-lg">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-school" color="primary"></v-icon>
+              </template>
+              <v-list-item-title>Centre Educatiu Assignat</v-list-item-title>
+              <v-list-item-subtitle class="text-body-1 font-weight-medium mt-1">
+                {{ currentSchoolName }}
+              </v-list-item-subtitle>
+            </v-list-item>
+          </v-col>
+          <v-col cols="12">
             <v-alert
               :color="student.has_file ? 'success' : 'warning'"
               :icon="student.has_file ? 'mdi-check-circle' : 'mdi-alert-circle'"
@@ -136,24 +147,37 @@
 
 <script setup>
 import { computed, onMounted, watch, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router'; // <--- AÑADIDO useRouter
+import { useRoute, useRouter } from 'vue-router';
 import { useStudentStore } from '@/stores/studentStore';
 
 const route = useRoute();
-const router = useRouter(); // <--- Inicializamos router
+const router = useRouter();
 const studentStore = useStudentStore();
 
-// --- NUEVA FUNCIÓN PARA VOLVER ---
+// --- NUEVO: LISTA DE CENTROS ---
+const schoolsList = ref([]); 
+
 const goToList = () => {
-  // Redirige a la ruta '/alumnos' que creamos en el paso anterior.
-  // Si prefieres ir al menú de botones, cambia esto por '/dashboard'
   router.push('/alumnos');
 };
 
-// ... (Resto del código idéntico: student, normalizedFiles, helpers, etc.) ...
-
 const student = computed(() => {
   return studentStore.students.find(s => s.hash_id === route.params.hash_id);
+});
+
+// --- NUEVO: COMPUTED PARA EL NOMBRE DEL CENTRO ---
+// Esto traduce el "08000013" a "Escola Francesc Platón..."
+const currentSchoolName = computed(() => {
+  // 1. Si no hay alumno o no tiene código asignado
+  if (!student.value || !student.value.codi_centre) {
+    return 'No especificat / No assignat';
+  }
+  
+  // 2. Buscamos en la lista que hemos cargado de la API
+  const found = schoolsList.value.find(s => s.codi_centre === student.value.codi_centre);
+  
+  // 3. Si encontramos el centro devolvemos nombre, si no, devolvemos el código
+  return found ? found.denominacio_completa : `Codi: ${student.value.codi_centre}`;
 });
 
 const normalizedFiles = computed(() => {
@@ -199,7 +223,6 @@ watch(normalizedFiles, (newFiles) => {
 });
 
 const goToSummary = (file) => {
-  // Redirigim a la nova pàgina de resum
   router.push({ name: 'SummaryPage', params: { filename: file.filename } });
 };
 
@@ -224,23 +247,29 @@ const deleteFile = async (filename) => {
   console.log(`🗑️ INICIO: Sol·licitant eliminar fitxer: ${filename}`);
   
   if (!confirm('Estàs segur que vols eliminar aquest fitxer?')) return;
-
-  // Cridem a l'acció del STORE.
-  // Aquesta acció ja s'encarrega d'agafar l'email de l'usuari, fer el DELETE,
-  // registrar el log al servidor i actualitzar la llista d'estudiants.
   const success = await studentStore.deleteFile(route.params.hash_id, filename);
 
   if (success) {
     console.log('✅ OK: Fitxer esborrat i llista actualitzada.');
   } else {
-    // L'error ja es mostra a la consola dins del store, però avisem a l'usuari
     alert("No s'ha pogut esborrar el fitxer. Revisa la consola o els permisos.");
   }
 };
 
 onMounted(async () => {
+  // 1. Cargar estudiantes si no están cargados en el Store
   if (studentStore.students.length === 0) {
     await studentStore.fetchStudents();
+  }
+
+  // 2. NUEVO: Cargar lista de centros para poder traducir el código a nombre
+  try {
+    const res = await fetch('http://localhost:3001/api/centros');
+    if (res.ok) {
+      schoolsList.value = await res.json();
+    }
+  } catch (e) {
+    console.error("Error carregant centres:", e);
   }
 });
 </script>

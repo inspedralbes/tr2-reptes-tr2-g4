@@ -20,7 +20,9 @@ router.get('/', async (req, res) => {
 
 // POST: Crear alumne
 router.post('/', async (req, res) => {
-    const { nombre, id } = req.body;
+    // 1. AÑADIMOS codi_centre AQUÍ
+    const { nombre, id, codi_centre } = req.body; 
+
     if (!nombre || !id) return res.status(400).json({ error: "Falten dades" });
 
     try {
@@ -33,6 +35,10 @@ router.post('/', async (req, res) => {
         
         const newStudent = {
             hash_id: hash,
+            
+            // 2. AÑADIMOS EL CAMPO AL OBJETO
+            codi_centre: codi_centre || null, 
+
             visual_identity: {
                 iniciales: iniciales,
                 ralc_suffix: `***${id.slice(-3)}`
@@ -44,7 +50,7 @@ router.post('/', async (req, res) => {
         };
 
         await db.collection('students').insertOne(newStudent);
-        console.log(`✨ Nou alumne creat: ${iniciales}`);
+        console.log(`✨ Nou alumne creat: ${iniciales} (Centre: ${codi_centre})`);
         res.json({ success: true, student: newStudent });
     } catch (error) {
         res.status(500).json({ error: 'Error al servidor' });
