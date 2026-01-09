@@ -4,26 +4,38 @@
             <h1>Bústia de Normalització PI</h1>
         </div>
 
-        <!-- Buscador -->
-        <v-text-field
-            v-model="searchTerm"
-            label="Buscar per Nom o ID RALC"
-            prepend-inner-icon="mdi-magnify"
-            variant="outlined"
-            clearable
-            class="mb-4"
-        ></v-text-field>
+        <v-row class="mb-2">
+            <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="searchName"
+                    label="Buscar per Inicials o Nom"
+                    prepend-inner-icon="mdi-account-search"
+                    variant="outlined"
+                    clearable
+                    hide-details="auto"
+                ></v-text-field>
+            </v-col>
+
+            <v-col cols="12" md="6">
+                <v-text-field
+                    v-model="searchRalc"
+                    label="Buscar per RALC (últims dígits)"
+                    prepend-inner-icon="mdi-numeric"
+                    variant="outlined"
+                    clearable
+                    hide-details="auto"
+                ></v-text-field>
+            </v-col>
+        </v-row>
 
         <v-row>
             <v-col cols="12">
                 <v-list lines="two">
-                    <!-- Iteramos sobre la lista filtrada -->
                     <v-list-item v-for="student in filteredStudents" :key="student.hash_id"
                         :subtitle="student.visual_identity.ralc_suffix" :title="student.visual_identity.iniciales">
                         <template v-slot:prepend>
                             <v-avatar color="grey-lighten-1">
-                                <v-icon color="white">{{ student.has_file ? 'mdi-check-circle' : 'mdi-account'
-                                    }}</v-icon>
+                                <v-icon color="white">{{ student.has_file ? 'mdi-check-circle' : 'mdi-account' }}</v-icon>
                             </v-avatar>
                         </template>
 
@@ -32,7 +44,6 @@
                                 <v-btn icon="mdi-account-details" variant="text" color="primary" class="mr-2"></v-btn>
                             </router-link>
                             
-                            <!-- Chip mejorado para el contador de archivos -->
                             <v-chip v-if="student.has_file" 
                                 :to="`/perfil/${student.hash_id}`"
                                 link
@@ -62,54 +73,51 @@
 
 <script setup>
 import { onMounted, ref, watch, computed } from 'vue';
-import { useStudentStore } from '@/stores/studentStore'; // Importamos el store que creamos arriba
+import { useStudentStore } from '@/stores/studentStore';
 
-// 1. Inicializamos el store
 const studentStore = useStudentStore();
 const showError = ref(false);
-const searchTerm = ref('');
 
-// Propiedad computada para filtrar los estudiantes
+// CAMBIO 1: Creamos dos variables reactivas separadas
+const searchName = ref('');
+const searchRalc = ref('');
+
+// CAMBIO 2: Lógica de filtrado combinada
 const filteredStudents = computed(() => {
-    if (!searchTerm.value) {
-        return studentStore.students;
-    }
-    const lowerCaseSearch = searchTerm.value.toLowerCase();
     return studentStore.students.filter(student => {
-        // 1. Cerca per NOM (si existeix a la BD)
-        const nameMatch = (student.original_name || '').toLowerCase().includes(lowerCaseSearch);
-        // 2. Cerca per ID RALC (si existeix a la BD)
-        const idMatch = (student.original_id || '').includes(lowerCaseSearch);
-        // 3. Mantenim cerca per inicials/sufix visual
-        const initials = student.visual_identity.iniciales.toLowerCase();
-        const ralc = student.visual_identity.ralc_suffix.toLowerCase();
-        
-        return nameMatch || idMatch || initials.includes(lowerCaseSearch) || ralc.includes(lowerCaseSearch);
+        // Obtenemos los valores de búsqueda en minúsculas (o string vacío si es null)
+        const nameInput = (searchName.value || '').toLowerCase();
+        const ralcInput = (searchRalc.value || '').toLowerCase();
+
+        // 1. Verificamos si coincide el NOMBRE (Si el input está vacío, devuelve true automáticamente)
+        const matchesName = !nameInput || 
+                            (student.original_name || '').toLowerCase().includes(nameInput) ||
+                            student.visual_identity.iniciales.toLowerCase().includes(nameInput);
+
+        // 2. Verificamos si coincide el RALC (Si el input está vacío, devuelve true automáticamente)
+        const matchesRalc = !ralcInput || 
+                            (student.original_id || '').includes(ralcInput) ||
+                            student.visual_identity.ralc_suffix.toLowerCase().includes(ralcInput);
+
+        // 3. Devuelve el estudiante solo si cumple AMBAS condiciones
+        return matchesName && matchesRalc;
     });
 });
 
-
-// 2. Cargamos la lista al iniciar el componente
 onMounted(() => {
     studentStore.fetchStudents();
 });
 
-// 3. Manejamos la lógica de subida
 const handleUpload = async (files, hashId) => {
-    // Vuetify devuelve un array de archivos, cogemos el primero
     const file = Array.isArray(files) ? files[0] : files;
 
     if (file) {
-        // Validació estricta de tipus PDF
         if (file.type !== 'application/pdf') {
             studentStore.error = "Només s'accepten fitxers PDF!";
             showError.value = true;
             return;
         }
-
-        // Llamamos a la ACCIÓN que creamos en el Store
         const success = await studentStore.uploadStudentPI(file, hashId);
-
         if (success) {
             console.log("Archivo subido correctamente");
         } else {
@@ -118,7 +126,6 @@ const handleUpload = async (files, hashId) => {
     }
 };
 
-// Vigilar errores del store para mostrarlos
 watch(() => studentStore.error, (newVal) => {
         if (newVal) showError.value = true;
 });
