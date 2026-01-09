@@ -237,38 +237,48 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
 // DELETE: Eliminar fitxer específic d'un estudiant
 app.delete('/api/students/:hash/files/:filename', async (req, res) => {
     const { hash, filename } = req.params;
+    // REBEM L'EMAIL DE L'USUARI QUE ESTÀ ESBORRANT
+    const { userEmail } = req.body; 
+
     try {
         const db = getDB();
         
-        // 1. Eliminar del array de archivos en Mongo
+        // 1. Busquem l'alumne PRIMER per tenir el RALC per al log
+        const studentInfo = await db.collection('students').findOne({ hash_id: hash });
+        const ralcSuffix = studentInfo ? studentInfo.visual_identity.ralc_suffix : '???';
+
+        // 2. Eliminar del array de archivos en Mongo
         const resArray = await db.collection('students').updateOne(
             { hash_id: hash },
             { $pull: { files: { filename: filename } } }
         );
         console.log(`🗑️ DELETE: Eliminado de array 'files': ${resArray.modifiedCount} docs`);
 
-        // 1.5. Si es el archivo "legacy" (campo filename suelto), lo borramos también
-        const resLegacy = await db.collection('students').updateOne(
+        // 3. Si es el archivo "legacy", lo borramos también
+        await db.collection('students').updateOne(
             { hash_id: hash, filename: filename },
             { $unset: { filename: "" } }
         );
-        console.log(`🗑️ DELETE: Eliminado de campo 'filename' (legacy): ${resLegacy.modifiedCount} docs`);
 
-        // 2. Verificar si quedan archivos para actualizar el estado has_file
-        const student = await db.collection('students').findOne({ hash_id: hash });
-        // Tiene archivos si el array tiene algo O si queda un filename legacy
-        const hasFiles = (student.files && student.files.length > 0) || (!!student.filename);
+        // 4. Actualitzar estat has_file
+        // Tornem a buscar l'alumne actualitzat per veure si li queden fitxers
+        const studentUpdated = await db.collection('students').findOne({ hash_id: hash });
+        const hasFiles = (studentUpdated.files && studentUpdated.files.length > 0) || (!!studentUpdated.filename);
         
         await db.collection('students').updateOne(
             { hash_id: hash },
             { $set: { has_file: hasFiles } }
         );
 
-        // 3. Eliminar archivo físico del servidor
+        // 5. Eliminar archivo físico del servidor
         const filePath = path.join(UPLOADS_DIR, filename);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
+
+        // --- NOU: REGISTREM AL LOG ---
+        await registrarAcces(userEmail || 'Desconegut', 'Eliminació de document', ralcSuffix);
+        console.log(`📄 LOG: Document eliminat per ${userEmail} (Alumne: ${ralcSuffix})`);
 
         res.json({ success: true });
     } catch (error) {

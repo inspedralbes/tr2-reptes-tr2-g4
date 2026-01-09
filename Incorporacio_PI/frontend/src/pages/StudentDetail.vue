@@ -221,26 +221,20 @@ const downloadFile = async (filename, originalName) => {
 };
 
 const deleteFile = async (filename) => {
-  console.log(`🗑️ INICIO: Solicitando eliminar archivo: ${filename}`);
+  console.log(`🗑️ INICIO: Sol·licitant eliminar fitxer: ${filename}`);
+  
   if (!confirm('Estàs segur que vols eliminar aquest fitxer?')) return;
 
-  try {
-    const response = await fetch(`http://localhost:3001/api/students/${route.params.hash_id}/files/${encodeURIComponent(filename)}`, {
-      method: 'DELETE'
-    });
+  // Cridem a l'acció del STORE.
+  // Aquesta acció ja s'encarrega d'agafar l'email de l'usuari, fer el DELETE,
+  // registrar el log al servidor i actualitzar la llista d'estudiants.
+  const success = await studentStore.deleteFile(route.params.hash_id, filename);
 
-    console.log(`📡 RESPUESTA SERVIDOR: Status ${response.status}`);
-
-    if (response.ok) {
-      console.log('✅ OK: Archivo borrado. Recargando datos del store...');
-      await studentStore.fetchStudents(); 
-      console.log('✨ FIN: Datos recargados.');
-    } else {
-      console.error('Error del servidor:', response.status);
-      alert("Error a l'esborrar. Revisa la consola.");
-    }
-  } catch (error) {
-    console.error('Error eliminando archivo:', error);
+  if (success) {
+    console.log('✅ OK: Fitxer esborrat i llista actualitzada.');
+  } else {
+    // L'error ja es mostra a la consola dins del store, però avisem a l'usuari
+    alert("No s'ha pogut esborrar el fitxer. Revisa la consola o els permisos.");
   }
 };
 
