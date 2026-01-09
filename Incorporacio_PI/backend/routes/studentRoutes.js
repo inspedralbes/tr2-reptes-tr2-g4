@@ -50,6 +50,12 @@ router.post('/', async (req, res) => {
         };
 
         await db.collection('students').insertOne(newStudent);
+        // --- NUEVO: REGISTRAR EN EL LOG ---
+        // Usamos 'Nou Alumne' como palabra clave para filtrar luego
+        // Si tienes el email del usuario en el body, úsalo. Si no, pon 'Admin' o 'Sistema'.
+        const userEmail = req.body.userEmail || 'Sistema'; 
+        await registrarAcces(userEmail, 'Nou Alumne', newStudent.visual_identity.ralc_suffix);
+
         console.log(`✨ Nou alumne creat: ${iniciales} (Centre: ${codi_centre})`);
         res.json({ success: true, student: newStudent });
     } catch (error) {

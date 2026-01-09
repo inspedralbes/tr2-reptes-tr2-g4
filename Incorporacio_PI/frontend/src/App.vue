@@ -10,6 +10,8 @@
       </v-app-bar-title>
 
       <template v-slot:append>
+        <NotificationBell class="me-2" />
+
         <v-btn icon="mdi-history" @click="router.push('/logs')" class="me-2"></v-btn>
         <v-btn icon="mdi-logout" @click="logout"></v-btn>
       </template>
@@ -23,6 +25,8 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router';
+// 2. IMPORTAMOS EL COMPONENTE
+import NotificationBell from '@/components/NotificationBell.vue'; 
 
 const router = useRouter();
 const route = useRoute(); 
@@ -32,22 +36,17 @@ const logout = () => {
   router.push('/login');
 };
 
-// Nueva función para ir al Dashboard
 const goDashboard = () => {
-  // Si estamos logueados, vamos al menú principal
-  // Si no, nos mandará al login automáticamente por el router guard
   router.push('/dashboard');
 };
 </script>
 
 <style scoped>
-/* Clase para cambiar el cursor y evitar que se seleccione el texto al hacer doble clic */
 .cursor-pointer {
   cursor: pointer;
   user-select: none; 
 }
 
-/* Opcional: Un pequeño efecto al pasar el ratón */
 .title-hover:hover {
   opacity: 0.9;
 }

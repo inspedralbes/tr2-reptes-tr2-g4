@@ -16,6 +16,7 @@ declare module 'vue' {
     CodeForm: typeof import('./src/components/CodeForm.vue')['default']
     EmailForm: typeof import('./src/components/EmailForm.vue')['default']
     HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
+    NotificationBell: typeof import('./src/components/NotificationBell.vue')['default']
     PiSummary: typeof import('./src/components/PiSummary.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
