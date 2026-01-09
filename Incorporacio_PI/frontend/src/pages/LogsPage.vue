@@ -20,7 +20,12 @@
             <td>{{ new Date(log.timestamp).toLocaleString() }}</td>
             <td>{{ log.usuari }}</td>
             <td>
-              <v-chip size="small" color="primary" variant="outlined" class="font-weight-bold">
+              <v-chip 
+                size="small" 
+                :color="getActionColor(log.accio)" 
+                variant="outlined" 
+                class="font-weight-bold"
+              >
                 {{ log.accio }}
               </v-chip>
             </td>
@@ -59,4 +64,22 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+const getActionColor = (accio) => {
+  if (!accio) return 'primary';
+  const text = accio.toLowerCase();
+
+  // VERMELL: Eliminacions
+  if (text.includes('eliminació') || text.includes('delete')) {
+    return 'error'; 
+  }
+  
+  // VERD: Login, Sessió, Codi
+  if (text.includes('sessió') || text.includes('codi') || text.includes('login')) {
+    return 'success'; 
+  }
+
+  // BLAU: Per defecte (Pujades)
+  return 'primary'; 
+};
 </script>
