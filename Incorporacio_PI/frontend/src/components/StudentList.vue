@@ -8,7 +8,7 @@
             <v-col cols="12" md="6">
                 <v-text-field
                     v-model="searchName"
-                    label="Buscar per Inicials o Nom"
+                    label="Buscar per Inicials"
                     prepend-inner-icon="mdi-account-search"
                     variant="outlined"
                     clearable
