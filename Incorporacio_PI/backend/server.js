@@ -8,6 +8,7 @@ const crypto = require('crypto'); // Del teu company
 const { connectDB, getDB } = require('./db'); // La teva DB
 const { extractTextFromPDF } = require('./fileReader');
 const { analyzePI } = require('./piAnalyzer');
+const centrosData = require('./centres-educatius.json');
 
 const app = express();
 const PORT = 3001;
@@ -113,6 +114,12 @@ app.post('/api/login/verify-code', async (req, res) => {
         console.error(e);
         res.status(500).json({ error: 'Error DB' });
     }
+});
+
+// --- RUTA NUEVA: LLISTA DE CENTRES ---
+app.get('/api/centros', (req, res) => {
+    // Retornem el JSON que hem carregat a l'inici
+    res.json(centrosData);
 });
 
 // --- 3. RUTAS ESTUDIANTES (Amb MongoDB) ---

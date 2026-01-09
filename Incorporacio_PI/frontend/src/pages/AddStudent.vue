@@ -8,7 +8,7 @@
       </v-card-title>
       
       <v-card-subtitle class="mt-1">
-        Introdueix les dades bàsiques. El sistema generarà el codi automàticament.
+        Introdueix les dades bàsiques i assigna un centre.
       </v-card-subtitle>
 
       <v-card-text class="mt-4">
@@ -23,7 +23,7 @@
             required
             class="mb-2"
           ></v-text-field>
-
+          
           <v-text-field
             v-model="student.id"
             label="ID Alumne: RALC"
@@ -33,8 +33,25 @@
             persistent-hint
             :rules="idRules"
             required
+            class="mb-4" 
           ></v-text-field>
 
+          <v-autocomplete
+            v-model="student.codi_centre"
+            :items="centrosList"
+            item-title="denominacio_completa"
+            item-value="codi_centre"
+            label="Selecciona el Centre Educatiu"
+            prepend-inner-icon="mdi-school"
+            variant="outlined"
+            :rules="centerRules"
+            clearable
+            required
+          >
+            <template v-slot:item="{ props, item }">
+              <v-list-item v-bind="props" :subtitle="item.raw.codi_centre"></v-list-item>
+            </template>
+          </v-autocomplete>
           <v-alert
             v-if="errorMessage"
             type="error"
@@ -69,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue'; // <--- 1. AÑADIMOS onMounted
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -77,13 +94,37 @@ const valid = ref(false);
 const loading = ref(false);
 const errorMessage = ref('');
 
+// 2. LA LISTA EMPIEZA VACÍA (Se llenará sola)
+const centrosList = ref([]); 
+
 const student = reactive({
   nombre: '',
-  id: ''
+  id: '',
+  codi_centre: null 
 });
 
 const nameRules = [v => !!v || 'El nom és obligatori'];
 const idRules = [v => !!v || "L'ID és obligatori"];
+const centerRules = [v => !!v || 'Has de seleccionar un centre'];
+
+// 3. NUEVO: CARGAR DATOS AL INICIAR EL COMPONENTE
+onMounted(async () => {
+  try {
+    // Llamamos a tu nueva ruta del backend
+    const response = await fetch('http://localhost:3001/api/centros');
+    
+    if (response.ok) {
+      // Guardamos el JSON recibido en nuestra variable reactiva
+      centrosList.value = await response.json();
+      console.log("Centros cargados:", centrosList.value.length);
+    } else {
+      console.error("Error al cargar centros:", response.statusText);
+    }
+  } catch (error) {
+    console.error("Error de conexión:", error);
+    errorMessage.value = "No se pudo cargar la lista de centros.";
+  }
+});
 
 const submitForm = async () => {
   if (!valid.value) return;
@@ -104,7 +145,6 @@ const submitForm = async () => {
       throw new Error(data.error || 'Error desconegut');
     }
 
-    // Èxit: Redirigim a la llista d'alumnes
     router.push('/alumnos'); 
 
   } catch (error) {
