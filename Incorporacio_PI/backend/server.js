@@ -6,8 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto'); // Del teu company
 const { connectDB, getDB } = require('./db'); // La teva DB
-const { extractTextFromPDF } = require('./fileReader');
-const { analyzePI } = require('./piAnalyzer');
+const { extractTextFromPDF } = require('./FileReader'); // Corregit: Majúscules per coincidir amb el fitxer
 
 const app = express();
 const PORT = 3001;
@@ -303,10 +302,9 @@ app.get('/api/analyze/:filename', async (req, res) => {
         // Llegim i processem
         const dataBuffer = fs.readFileSync(filePath);
         const text = await extractTextFromPDF(dataBuffer);
-        const analysis = analyzePI(text);
 
         // Retornem el JSON
-        res.json(analysis);
+        res.json({ text_completo: text });
 
     } catch (error) {
         console.error("Error analitzant PI:", error);
