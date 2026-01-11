@@ -9,12 +9,11 @@ services:
       - "3001:3001" # Mapeamos puerto 3001 del PC al 3001 del contenedor
     environment:
       - MONGODB_URI=${MONGODB_URI} # Leerá esto de tu archivo .env o del sistema
+      - VITE_HF_ACCESS_TOKEN=${VITE_HF_ACCESS_TOKEN}
     volumes:
       - ./backend:/app # Hot Reload: Lo que edites en tu PC se ve en Docker
       - ./backend/uploads:/app/uploads # Persistencia: Las fotos no se borran al apagar
       - /app/node_modules # Evita que tu node_modules local machaque el de linux
-    depends_on:
-      - ollama
 
   # --- SERVICIO FRONTEND ---
   frontend:
@@ -29,30 +28,5 @@ services:
       - CHOKIDAR_USEPOLLING=true # Necesario a veces en Windows/Docker para que detecte cambios
     depends_on:
       - backend # Espera a que el backend arranque un poco
-
-  # --- SERVICIO IA (OLLAMA) ---
-  ollama:
-    image: ollama/ollama:latest
-    container_name: pi_ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_ORIGINS=*
-
-  # --- SERVICIO AUTOMATIZACIÓN (Descarga el modelo sola) ---
-  ollama-init:
-    image: curlimages/curl
-    container_name: pi_ollama_init
-    depends_on:
-      - ollama
-    restart: "no"
-    entrypoint: ["/bin/sh", "-c"]
-    command: >
-      "echo 'Esperando a Ollama...'; until curl -s http://ollama:11434/api/tags > /dev/null; do sleep 2; done; echo 'Ollama listo. Descargando TinyLlama...'; curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"tinyllama\"}'; echo 'Modelo descargado.';"
-
-volumes:
-  ollama_data:
 
 # No necesitamos servicio de Mongo porque usas Atlas (Nube)

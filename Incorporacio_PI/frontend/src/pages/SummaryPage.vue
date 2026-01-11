@@ -7,13 +7,13 @@
         <p class="text-subtitle-1 text-grey-darken-1">{{ filename }}</p>
       </div>
       <v-spacer></v-spacer>
-      <!-- Botón para regenerar con IA Local -->
+      <!-- Botón para regenerar con IA -->
       <v-btn 
         prepend-icon="mdi-robot" 
         color="primary" 
         variant="tonal" 
         :loading="loadingAI"
-        @click="regenerarResumenLocal"
+        @click="regenerarResumenIA"
       >
         Regenerar Resum
       </v-btn>
@@ -34,9 +34,11 @@
     </div>
 
     <!-- Resultat de la IA -->
-    <v-card v-else-if="resumenIA" class="pa-6" elevation="2">
+    <!-- CANVI: Ara fem servir un contenidor transparent en lloc d'una card única -->
+    <div v-else-if="resumenIA">
       <!-- Barra de progrés dinàmica mentre s'escriu -->
       <div v-if="loadingAI" class="mb-4">
+        <v-card class="pa-4 mb-4" border>
         <div class="d-flex justify-space-between text-body-2 text-primary mb-1">
           <span class="d-flex align-center">
             <v-icon icon="mdi-pencil" size="small" class="mr-2 start-animation"></v-icon>
@@ -48,10 +50,15 @@
         <div class="text-right mt-1">
           <span class="text-body-2 font-weight-bold text-primary">{{ Math.ceil(progress) }}% completed</span>
         </div>
+        </v-card>
       </div>
 
-      <div class="text-body-1" style="white-space: pre-wrap;">{{ resumenIA }}</div>
-    </v-card>
+      <!-- COMPONENT VISUAL MILLORAT -->
+      <PiSummary :analysis="parsedAnalysis" />
+      
+      <!-- Debug (opcional, per si vols veure el text cru mentre es genera) -->
+      <!-- <div class="text-caption text-grey mt-4">Text cru: {{ resumenIA.length }} caràcters</div> -->
+    </div>
 
     <!-- Error -->
     <v-alert v-else type="error" variant="tonal" class="mt-4">
@@ -63,7 +70,7 @@
 <script setup>
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { resumirTextoPI } from './aiService'; // Importamos tu servicio local
+import PiSummary from '@/components/PiSummary.vue'; // Importem el component visual
 
 const route = useRoute();
 const filename = route.params.filename;
@@ -81,6 +88,52 @@ const wordCount = computed(() => {
   return resumenIA.value ? resumenIA.value.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
 });
 
+// --- NOVA FUNCIÓ: Parsejar el text de la IA a l'estructura de PiSummary ---
+const parsedAnalysis = computed(() => {
+  const text = resumenIA.value || '';
+  const result = {
+    perfil: [],
+    dificultats: [],
+    adaptacions: [],
+    avaluacio: [],
+    recomanacions: []
+  };
+
+  // Definim els marcadors amb REGEX per detectar les seccions que genera la IA
+  const markers = [
+    { key: 'perfil', regex: /(?:^|\n)\s*(?:1\.|[\*#]*)\s*(?:📋|.*?)\s*(?:PERFIL|Dades de l['’]alumne|Diagnòstic)/i },
+    { key: 'dificultats', regex: /(?:^|\n)\s*(?:2\.|[\*#]*)\s*(?:⚠️|.*?)\s*(?:DIFICULTATS|Motiu del pla|Motiu del PI|Punts febles|Observacions|Habilitats)/i },
+    { key: 'adaptacions', regex: /(?:^|\n)\s*(?:3\.|[\*#]*)\s*(?:🛠|.*?)\s*(?:ADAPTACIONS|Mesures|Estratègies|Adaptacions curriculars)/i },
+    { key: 'avaluacio', regex: /(?:^|\n)\s*(?:4\.|[\*#]*)\s*(?:📝|.*?)\s*(?:AVALUACIÓ|Qualificació|Criteris)/i },
+    { key: 'recomanacions', regex: /(?:^|\n)\s*(?:5\.|[\*#]*)\s*(?:💡|.*?)\s*(?:RECOMANACIONS|Orientacions|Consells)/i }
+  ];
+
+  // Busquem on comença cada secció
+  const positions = markers.map(m => {
+    const match = text.match(m.regex);
+    return match ? { key: m.key, index: match.index, labelLength: match[0].length } : null;
+  }).filter(p => p !== null).sort((a, b) => a.index - b.index);
+
+  // Si no troba cap secció, ho posem tot a perfil (fallback)
+  if (positions.length === 0 && text.trim().length > 0) {
+    result.perfil = text.split('\n').filter(l => l.trim().length > 0);
+    return result;
+  }
+
+  // Tallem el text per seccions
+  for (let i = 0; i < positions.length; i++) {
+    const current = positions[i];
+    const next = positions[i + 1];
+    const start = current.index + current.labelLength;
+    const end = next ? next.index : text.length;
+    const sectionText = text.substring(start, end).trim();
+    
+    result[current.key] = sectionText.split('\n').filter(l => l.trim().length > 0);
+  }
+
+  return result;
+});
+
 onMounted(async () => {
   if (!filename) return;
 
@@ -92,8 +145,8 @@ onMounted(async () => {
       const data = await response.json();
       rawText.value = data.text_completo;
       
-      // 2. Un cop tenim el text, cridem automàticament a Ollama
-      await regenerarResumenLocal();
+      // 2. Un cop tenim el text, cridem automàticament a la IA
+      await regenerarResumenIA();
     } else {
       console.error("Error del servidor:", response.status);
     }
@@ -104,13 +157,13 @@ onMounted(async () => {
   }
 });
 
-const regenerarResumenLocal = async () => {
+const regenerarResumenIA = async () => {
   if (!rawText.value) return;
   
   loadingAI.value = true;
   resumenIA.value = ''; // Netegem el resum anterior
   progress.value = 0;
-  currentStatus.value = 'Starting AI engine...';
+  currentStatus.value = 'Connectant amb la IA...';
   
   // Netejem interval previ si n'hi ha
   if (progressInterval) clearInterval(progressInterval);
@@ -125,32 +178,42 @@ const regenerarResumenLocal = async () => {
   }, 250); // Actualització cada 250ms
 
   try {
-    // Estimació: Tenim en compte que l'aiService retalla a 12000 caràcters
-    const MAX_CHARS_AI = 12000;
+    // Estimació: Tenim en compte que l'aiService retalla a 150000 caràcters
+    const MAX_CHARS_AI = 150000;
     const textLength = Math.min(rawText.value.length, MAX_CHARS_AI);
     // AJUSTAT: Un resum sol ser el 10% del text (abans 20%), així la barra puja més ràpid
     const estimatedLength = Math.max(100, textLength * 0.10);
 
-    // Enviem el text net a Ollama amb un callback per actualitzar en temps real
-    await resumirTextoPI(rawText.value, (textParcial) => {
-      resumenIA.value = textParcial;
-      
-      // Lògica de progrés basada en text generat
-      const calculatedProgress = Math.min(99, (textParcial.length / estimatedLength) * 100);
-
-      // Només actualitzem si el càlcul real (text) és superior al del timer (per no tirar enrere)
-      if (calculatedProgress > progress.value) {
-        progress.value = calculatedProgress;
-      }
-    }, (statusUpdate) => {
-      // Callback d'estat
-      currentStatus.value = statusUpdate;
+    // --- NOVA LÒGICA: CRIDAR AL BACKEND ---
+    const response = await fetch('http://localhost:3001/api/generate-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: rawText.value })
     });
+
+    if (!response.ok) throw new Error("Error al servidor generant el resum");
+
+    // Llegim el stream del backend
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value);
+      resumenIA.value += chunk;
+      
+      // Actualitzem progrés visual
+      const calculatedProgress = Math.min(99, (resumenIA.value.length / estimatedLength) * 100);
+      if (calculatedProgress > progress.value) progress.value = calculatedProgress;
+    }
+
     progress.value = 100;
   } catch (e) {
     console.error(e);
-    // Mostramos el mensaje exacto del error (ej: "Ejecuta docker exec...")
-    resumenIA.value = e.message || "Error connectant amb la IA local. Assegura't que Docker/Ollama està funcionant.";
+    // Mostramos el mensaje del error
+    resumenIA.value = e.message || "Error connectant amb la IA. Revisa la teva connexió o el token.";
   } finally {
     loadingAI.value = false;
     if (progressInterval) clearInterval(progressInterval);

@@ -1,89 +1,90 @@
-// Este servicio se encarga de comunicar tu aplicación JS con el modelo local Ollama
+const { InferenceClient } = require("@huggingface/inference");
 
-const OLLAMA_API_URL = 'http://localhost:11434/api/generate';
-const MODEL_NAME = 'tinyllama'; // Canviat a tinyllama per velocitat
+// Llegim el token del .env (que ja carrega el server.js)
+const HF_TOKEN = process.env.VITE_HF_ACCESS_TOKEN;
 
 /**
- * Funció auxiliar per gestionar el streaming d'Ollama
+ * Genera un resum utilitzant Hugging Face i l'envia per streaming a la resposta Express.
+ * @param {string} text - Text a resumir
+ * @param {object} res - Objecte Response d'Express per fer streaming
  */
-async function generateStream(prompt, onProgress) {
-  const response = await fetch(OLLAMA_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL_NAME,
-      prompt: prompt,
-      stream: true,
-      keep_alive: -1
-    }),
-  });
+async function generateSummaryStream(text, res) {
+  if (!HF_TOKEN) {
+    console.error("Manca el token VITE_HF_ACCESS_TOKEN");
+    res.write("Error: Token de Hugging Face no configurat al servidor.");
+    res.end();
+    return;
+  }
 
-  if (!response.ok) throw new Error('Error connectant amb Ollama');
+  const client = new InferenceClient(HF_TOKEN);
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let fullText = '';
-  let buffer = '';
+  // Retallem per seguretat (Qwen 2.5 72B té 32k context ~ 128k chars, pugem a 150k)
+  const MAX_CHARS = 150000;
+  const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  const messages = [
+    {
+      role: "system",
+      content: `Ets un analista documental expert. La teva missió és facilitar el traspàs d'informació d'alumnes que passen de Secundària a Formació Professional (FP).
+      
+      OBJECTIU PRINCIPAL: El nou centre ha de rebre informació clara sobre:
+      1. Les adaptacions educatives aplicades.
+      2. Quines han funcionat i en quin context.
+      3. Quines es podrien aplicar o adaptar al nou centre (FP).
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop(); 
+      ESTRUCTURA OBLIGATÒRIA (Fes servir aquests títols exactes):
+      1. PERFIL DE L'ALUMNE
+      2. DIFICULTATS I BARRERES
+      3. ADAPTACIONS METODOLÒGIQUES
+      4. AVALUACIÓ I QUALIFICACIÓ
+      5. RECOMANACIONS I TRASPÀS
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const json = JSON.parse(line);
-        if (json.response) {
-          fullText += json.response;
-          if (onProgress) onProgress(fullText);
-        }
-      } catch (e) { console.warn("Error JSON:", e); }
+      REGLA D'OR DEL FORMAT "DETALL":
+      L'usuari vol veure TOTA la informació original i saber d'on surt. Per a cada punt, has de seguir aquest format:
+      "Idea principal. [[Detall: **[Font: Secció]** Copia aquí tot el text original...]]"
+
+      INSTRUCCIONS ESPECÍFIQUES:
+      - **Perfil**: Resum breu (2-3 línies) amb dades acadèmiques, diagnòstic i motiu.
+      - **Adaptacions per Matèries**: OBLIGATORI: Fes una TAULA MARKDOWN (| Assignatura | Adaptació |). NO facis servir llistes per a les matèries.
+      - **Recomanacions**: Consells clars per al nou centre (FP).
+      - **Exhaustivitat**: Processa totes les pàgines.
+      - **Taules Originals**: Si detectes taules amb 'X' al PDF, indica clarament què està marcat dins del detall.
+      - **Noms**: Ignora noms de professionals.
+
+      Exemple de sortida desitjada:
+      | Matemàtiques | Ús de calculadora. [[Detall: **[Font: Adaptacions]** L'alumne millora amb calculadora...]] |
+
+      Processa tot el text proporcionat.`
+    },
+    {
+      role: "user",
+      content: `Analitza aquest PI i extreu-ne la informació rellevant:\n\n${truncatedText}`
     }
-  }
-  return fullText;
-}
+  ];
 
-/**
- * Resumeix el text en dos passos: Primer resumeix en anglès (més qualitat) i després tradueix al català.
- * @param {string} texto - Text a processar
- * @param {function} onProgress - Callback per al text (streaming)
- * @param {function} onStatus - Callback per a l'estat (Fase 1, Fase 2...)
- */
-export async function resumirTextoPI(texto, onProgress, onStatus) {
   try {
-    const MAX_CHARS = 12000;
-    const textoNet = texto.length > MAX_CHARS 
-      ? texto.substring(0, MAX_CHARS) + "..." 
-      : texto;
+    const stream = client.chatCompletionStream({
+      model: "Qwen/Qwen2.5-72B-Instruct",
+      messages: messages,
+      max_tokens: 30000,
+      temperature: 0.2
+    });
 
-    console.log(`🚀 Generant resum en anglès...`);
-    if (onStatus) onStatus("Analyzing document and generating summary...");
+    for await (const chunk of stream) {
+      if (chunk.choices && chunk.choices.length > 0) {
+        const content = chunk.choices[0].delta.content || "";
+        // Escrivim directament al stream de resposta HTTP
+        res.write(content);
+      }
+    }
     
-    // PAS ÚNIC: Resumir en anglès directament
-    const summary = await generateStream(
-      `You are an expert educational psychologist. Analyze the provided text from an Individualized Education Plan (IEP/PI).
-      The text is extracted from a PDF and might contain formatting artifacts, unstructured tables, or merged columns.
-      Your task is to identify the key information despite these issues.
-      
-      EXTRACT ONLY the real information found in the text. DO NOT invent anything.
+    res.end(); // Tanquem la connexió quan acabem
 
-      Structure the summary exactly as follows:
-      - **Diagnosis/Needs**: (Extract specific disorders like ADHD, Dyslexia, etc.)
-      - **Key Adaptations**: (List specific measures like "more time", "use of computer", "calculator", etc.)
-      - **Evaluation**: (How exams/grades should be adapted, e.g., "do not penalize spelling")
-      
-      Text to analyze:\n"${textoNet}"\n\nSummary:`,
-      onProgress
-    );
-
-    if (onStatus) onStatus("Process finished.");
-    return summary;
   } catch (error) {
-    console.error('Error generant resum:', error);
-    throw error;
+    console.error("Error Hugging Face:", error);
+    res.write("\n[Error generant el resum]");
+    res.end();
   }
 }
+
+module.exports = { generateSummaryStream };
