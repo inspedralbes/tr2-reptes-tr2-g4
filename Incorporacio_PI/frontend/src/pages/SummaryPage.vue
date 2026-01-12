@@ -60,6 +60,15 @@
       <!-- <div class="text-caption text-grey mt-4">Text cru: {{ resumenIA.length }} caràcters</div> -->
     </div>
 
+    <!-- Error específic de la IA -->
+    <v-alert v-else-if="errorAI" type="warning" variant="tonal" class="mt-4" border="start" border-color="warning">
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-alert-outline" class="mr-2" color="warning"></v-icon>
+        <div><strong>Error generant el resum:</strong> {{ errorAI }}</div>
+      </div>
+      <v-btn class="mt-2 ml-8" variant="outlined" size="small" color="warning" @click="regenerarResumenIA">Tornar a provar</v-btn>
+    </v-alert>
+
     <!-- Error -->
     <v-alert v-else type="error" variant="tonal" class="mt-4">
       No s'ha pogut analitzar el document. Potser és una imatge o està protegit.
@@ -79,6 +88,7 @@ const loading = ref(true);
 const loadingAI = ref(false);
 const rawText = ref('');
 const resumenIA = ref('');
+const errorAI = ref(null);
 const progress = ref(0);
 const currentStatus = ref('Iniciant...');
 
@@ -162,6 +172,7 @@ const regenerarResumenIA = async () => {
   
   loadingAI.value = true;
   resumenIA.value = ''; // Netegem el resum anterior
+  errorAI.value = null; // Netegem errors anteriors
   progress.value = 0;
   currentStatus.value = 'Connectant amb la IA...';
   
@@ -213,7 +224,7 @@ const regenerarResumenIA = async () => {
   } catch (e) {
     console.error(e);
     // Mostramos el mensaje del error
-    resumenIA.value = e.message || "Error connectant amb la IA. Revisa la teva connexió o el token.";
+    errorAI.value = e.message || "Error connectant amb la IA. Revisa la teva connexió o el token.";
   } finally {
     loadingAI.value = false;
     if (progressInterval) clearInterval(progressInterval);

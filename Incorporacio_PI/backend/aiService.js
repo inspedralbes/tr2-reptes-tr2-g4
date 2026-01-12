@@ -40,7 +40,7 @@ async function generateSummaryStream(text, res) {
       5. RECOMANACIONS I TRASPÀS
 
       REGLA D'OR DEL FORMAT "DETALL":
-      L'usuari vol veure TOTA la informació original i saber d'on surt. Per a cada punt, has de seguir aquest format:
+      L'usuari vol veure TOTA la informació original i saber d'on surt. NO resumeixis en excés, extreu les frases clau literals. Per a cada punt, has de seguir aquest format:
       "Idea principal. [[Detall: **[Font: Secció]** Copia aquí tot el text original...]]"
 
       INSTRUCCIONS ESPECÍFIQUES:
@@ -64,9 +64,9 @@ async function generateSummaryStream(text, res) {
 
   try {
     const stream = client.chatCompletionStream({
-      model: "Qwen/Qwen2.5-72B-Instruct",
+      model: "meta-llama/Llama-3.3-70B-Instruct",
       messages: messages,
-      max_tokens: 30000,
+      max_tokens: 8000,
       temperature: 0.2
     });
 
