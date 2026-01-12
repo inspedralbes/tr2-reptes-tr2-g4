@@ -4,6 +4,7 @@ services:
   # --- SERVICIO BACKEND ---
   backend:
     build: ./backend
+    context: Dockerfile.dev
     container_name: pi_backend
     ports:
       - "3001:3001" # Mapeamos puerto 3001 del PC al 3001 del contenedor
@@ -17,6 +18,7 @@ services:
   # --- SERVICIO FRONTEND ---
   frontend:
     build: ./frontend
+    context: Dockerfile.dev
     container_name: pi_frontend
     ports:
       - "3000:3000" 

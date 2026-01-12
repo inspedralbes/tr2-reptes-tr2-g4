@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # BACKEND PROD
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: pi_backend_prod
+    restart: always # Si se cae, se reinicia solo
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - NODE_ENV=production
+    volumes:
+      - ./backend_uploads_prod:/app/uploads # Persistencia fuera del contenedor
+
+  # FRONTEND PROD (NGINX)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: pi_frontend_prod
+    restart: always
+    ports:
+      - "80:80" # En producción entras por el puerto 80 (web estándar)
+    depends_on:
+      - backend
