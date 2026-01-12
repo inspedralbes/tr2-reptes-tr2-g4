@@ -26,10 +26,10 @@
               @click="speak(analysis.perfil.join('. '))" title="Llegir en veu alta">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2">
-            <div v-for="(item, i) in cleanList(analysis.perfil)" :key="i" class="mb-2">
+          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+            <template v-for="(item, i) in cleanList(analysis.perfil)" :key="i">
               <!-- RENDERITZAT DE TAULA (Si la línia comença per |) -->
-              <div v-if="item.trim().startsWith('|')" class="d-flex align-center py-1 border-b">
+              <div v-if="item.trim().startsWith('|')" class="d-flex align-center py-1 border-b w-100 my-2">
                 <v-row no-gutters>
                   <v-col cols="4" class="font-weight-bold text-primary pr-2">
                     {{ getTableCol(item, 0) }}
@@ -37,10 +37,11 @@
                   <v-col cols="8">
                     {{ getTableCol(item, 1) }}
                     <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                      (+ Detalls)
+                      (+ Font)
                       <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                         <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                          <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                          <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                         </v-card>
                       </v-menu>
                     </span>
@@ -48,19 +49,21 @@
                 </v-row>
               </div>
 
-              <!-- RENDERITZAT NORMAL -->
-              <div v-else>
+              <!-- RENDERITZAT NORMAL (Text seguit) -->
+              <span v-else class="mr-1">
                 <span v-html="highlightKeywords(getMainText(item))"></span>
-                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-2 text-caption" style="text-decoration: underline;">
-                  (+ Detalls)
+                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
+                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                  (+ Font)
                   <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                     <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
-              </div>
-            </div>
+              </span>
+            </template>
           </div>
           <v-divider class="my-3"></v-divider>
         </v-col>
@@ -74,21 +77,22 @@
               @click="speak(analysis.dificultats.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2">
-            <div v-for="(item, i) in cleanList(analysis.dificultats)" :key="i" class="mb-2">
-              <div>
+          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+            <template v-for="(item, i) in cleanList(analysis.dificultats)" :key="i">
+              <span class="mr-1">
                 <span v-html="highlightKeywords(getMainText(item))"></span>
-                <!-- Només mostrem l'indicador si hi ha detalls extra -->
-                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-2 text-caption" style="text-decoration: underline;">
-                  (+ Detalls)
+                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
+                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                  (+ Font)
                   <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                     <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
-              </div>
-            </div>
+              </span>
+            </template>
           </div>
         </v-col>
 
@@ -102,36 +106,34 @@
             </v-btn>
           </div>
           <div class="ml-4 text-body-2">
-            <div v-for="(item, i) in cleanList(analysis.adaptacions)" :key="i" class="mb-2">
+            <div v-for="(item, i) in cleanList(analysis.adaptacions)" :key="i" class="mb-2 list-item-break">
               <!-- RENDERITZAT DE TAULA (Si la línia comença per |) -->
-              <div v-if="item.trim().startsWith('|')" class="d-flex align-center py-1 border-b">
-                <v-row no-gutters>
-                  <v-col cols="4" class="font-weight-bold text-primary pr-2">
-                    {{ getTableCol(item, 0) }}
-                  </v-col>
-                  <v-col cols="8">
+              <div v-if="item.trim().startsWith('|')" class="mb-2">
+                <strong class="text-primary">{{ getTableCol(item, 0) }}:</strong>
+                <span class="ml-2">
                     {{ getTableCol(item, 1) }}
                     <!-- Suport per detalls dins la taula -->
                     <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                      (+ Detalls)
+                      (+ Font)
                       <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                         <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                          <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                          <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                         </v-card>
                       </v-menu>
                     </span>
-                  </v-col>
-                </v-row>
+                </span>
               </div>
 
               <!-- RENDERITZAT NORMAL (Llista) -->
               <div v-else>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-2 text-caption" style="text-decoration: underline;">
-                  (+ Detalls)
+                  (+ Font)
                   <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                     <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
@@ -149,21 +151,22 @@
               @click="speak(analysis.avaluacio.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2">
-            <div v-for="(item, i) in cleanList(analysis.avaluacio)" :key="i" class="mb-2">
-              <div>
+          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+            <template v-for="(item, i) in cleanList(analysis.avaluacio)" :key="i">
+              <span class="mr-1">
                 <span v-html="highlightKeywords(getMainText(item))"></span>
-                <!-- Només mostrem l'indicador si hi ha detalls extra -->
-                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-2 text-caption" style="text-decoration: underline;">
-                  (+ Detalls)
+                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
+                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                  (+ Font)
                   <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                     <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
-              </div>
-            </div>
+              </span>
+            </template>
           </div>
         </v-col>
 
@@ -176,21 +179,22 @@
               @click="speak(analysis.recomanacions.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2">
-            <div v-for="(item, i) in cleanList(analysis.recomanacions)" :key="i" class="mb-2">
-              <div>
+          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+            <template v-for="(item, i) in cleanList(analysis.recomanacions)" :key="i">
+              <span class="mr-1">
                 <span v-html="highlightKeywords(getMainText(item))"></span>
-                <!-- Només mostrem l'indicador si hi ha detalls extra -->
-                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-2 text-caption" style="text-decoration: underline;">
-                  (+ Detalls)
+                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
+                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                  (+ Font)
                   <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
                     <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <span class="text-body-2" v-html="highlightKeywords(getDetailText(item))"></span>
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
-              </div>
-            </div>
+              </span>
+            </template>
           </div>
         </v-col>
       </v-row>
@@ -284,13 +288,19 @@ const highlightKeywords = (text) => {
 
 const getMainText = (item) => {
   // Retorna el text principal eliminant la part de [[Detall...]]
-  return item.replace(/\[\[.*?\]\]/s, '').trim();
+  // Modificat per acceptar tancament amb ]] o ] (per si la IA s'equivoca)
+  return item.replace(/\[\[.*?\]+$/s, '').trim();
 };
 
 const getDetailText = (item) => {
   // Extreu el text dins de [[ ... ]]
-  const match = item.match(/\[\[(.*?)\]\]/s);
-  return match ? match[1].trim() : null;
+  // Modificat per acceptar tancament amb ]] o ]
+  const match = item.match(/\[\[(.*?)\]+$/s);
+  if (!match) return null;
+  let text = match[1].trim();
+  // Remove "Detall:" prefix if present (case insensitive)
+  text = text.replace(/^Detall:\s*/i, '');
+  return text;
 };
 
 const getTableCol = (item, colIndex) => {
@@ -320,3 +330,20 @@ const speak = (text) => {
   window.speechSynthesis.speak(utterance);
 };
 </script>
+
+<style scoped>
+.list-columns {
+  column-count: 1;
+}
+@media (min-width: 960px) {
+  .list-columns {
+    column-count: 2;
+    column-gap: 32px;
+  }
+}
+.list-item-break {
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+</style>

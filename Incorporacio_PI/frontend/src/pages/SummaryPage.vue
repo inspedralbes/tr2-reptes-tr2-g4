@@ -69,6 +69,20 @@
       <v-btn class="mt-2 ml-8" variant="outlined" size="small" color="warning" @click="regenerarResumenIA">Tornar a provar</v-btn>
     </v-alert>
 
+    <!-- Error: Fitxer no trobat (NOU) -->
+    <v-alert v-else-if="fileNotFound" type="warning" variant="tonal" class="mt-4" border="start" border-color="warning">
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-file-remove-outline" class="mr-2" color="warning"></v-icon>
+        <div><strong>Document no disponible:</strong> El fitxer PDF no s'ha trobat al servidor.</div>
+      </div>
+      <div class="ml-8 mt-1 text-caption text-grey-darken-1">
+        Això passa si el servidor s'ha reiniciat i no s'han guardat els fitxers, o si l'enllaç és antic.
+      </div>
+      <v-btn class="mt-3 ml-8" variant="outlined" size="small" color="warning" to="/">
+        Tornar a la llista d'alumnes
+      </v-btn>
+    </v-alert>
+
     <!-- Error -->
     <v-alert v-else type="error" variant="tonal" class="mt-4">
       No s'ha pogut analitzar el document. Potser és una imatge o està protegit.
@@ -89,6 +103,7 @@ const loadingAI = ref(false);
 const rawText = ref('');
 const resumenIA = ref('');
 const errorAI = ref(null);
+const fileNotFound = ref(false);
 const progress = ref(0);
 const currentStatus = ref('Iniciant...');
 
@@ -111,11 +126,11 @@ const parsedAnalysis = computed(() => {
 
   // Definim els marcadors amb REGEX per detectar les seccions que genera la IA
   const markers = [
-    { key: 'perfil', regex: /(?:^|\n)\s*(?:1\.|[\*#]*)\s*(?:📋|.*?)\s*(?:PERFIL|Dades de l['’]alumne|Diagnòstic)/i },
-    { key: 'dificultats', regex: /(?:^|\n)\s*(?:2\.|[\*#]*)\s*(?:⚠️|.*?)\s*(?:DIFICULTATS|Motiu del pla|Motiu del PI|Punts febles|Observacions|Habilitats)/i },
-    { key: 'adaptacions', regex: /(?:^|\n)\s*(?:3\.|[\*#]*)\s*(?:🛠|.*?)\s*(?:ADAPTACIONS|Mesures|Estratègies|Adaptacions curriculars)/i },
-    { key: 'avaluacio', regex: /(?:^|\n)\s*(?:4\.|[\*#]*)\s*(?:📝|.*?)\s*(?:AVALUACIÓ|Qualificació|Criteris)/i },
-    { key: 'recomanacions', regex: /(?:^|\n)\s*(?:5\.|[\*#]*)\s*(?:💡|.*?)\s*(?:RECOMANACIONS|Orientacions|Consells)/i }
+    { key: 'perfil', regex: /(?:^|\n)\s*(?:[\*#]*\s*1\.\s*)?(?:PERFIL DE L'ALUMNE|PERFIL|Dades de l['’]alumne|Diagnòstic).*/i },
+    { key: 'dificultats', regex: /(?:^|\n)\s*(?:[\*#]*\s*2\.\s*)?(?:DIFICULTATS I BARRERES|Dificultats Principals|DIFICULTATS|Motiu del pla|Motiu del PI|Punts febles|Observacions|Habilitats).*/i },
+    { key: 'adaptacions', regex: /(?:^|\n)\s*(?:[\*#]*\s*3\.\s*)?(?:ADAPTACIONS METODOLÒGIQUES|ADAPTACIONS|Mesures|Estratègies|Adaptacions curriculars).*/i },
+    { key: 'avaluacio', regex: /(?:^|\n)\s*(?:[\*#]*\s*4\.\s*)?(?:AVALUACIÓ I QUALIFICACIÓ|AVALUACIÓ|Qualificació|Criteris d'Avaluació|Criteris).*/i },
+    { key: 'recomanacions', regex: /(?:^|\n)\s*(?:[\*#]*\s*5\.\s*)?(?:RECOMANACIONS I TRASPÀS|RECOMANACIONS|Orientacions|Consells).*/i }
   ];
 
   // Busquem on comença cada secció
@@ -158,6 +173,9 @@ onMounted(async () => {
       // 2. Un cop tenim el text, cridem automàticament a la IA
       await regenerarResumenIA();
     } else {
+      if (response.status === 404) {
+        fileNotFound.value = true;
+      }
       console.error("Error del servidor:", response.status);
     }
   } catch (error) {

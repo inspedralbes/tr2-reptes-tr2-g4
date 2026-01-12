@@ -7,6 +7,10 @@ services:
     container_name: pi_backend
     ports:
       - "3001:3001" # Mapeamos puerto 3001 del PC al 3001 del contenedor
+    # --- AFEGIT: DNS per evitar errors de connexió EAI_AGAIN ---
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - MONGODB_URI=${MONGODB_URI} # Leerá esto de tu archivo .env o del sistema
       - VITE_HF_ACCESS_TOKEN=${VITE_HF_ACCESS_TOKEN}
