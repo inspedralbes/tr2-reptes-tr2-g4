@@ -99,10 +99,13 @@
             <v-chip size="small" class="mr-2" color="primary" variant="outlined">
               {{ getFileExtension(file.filename) }}
             </v-chip>
+            
+            <!-- Botó per obrir el diàleg de selecció -->
             <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
               icon="mdi-robot" variant="text" color="purple" title="Generar Resum IA"
               @click="goToSummary(file)">
             </v-btn>
+
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
               variant="text" color="primary" title="Obrir document">
             </v-btn>
@@ -142,6 +145,7 @@ import { useStudentStore } from '@/stores/studentStore';
 const route = useRoute();
 const router = useRouter(); // <--- Inicializamos router
 const studentStore = useStudentStore();
+
 
 // --- NUEVA FUNCIÓN PARA VOLVER ---
 const goToList = () => {
@@ -199,7 +203,7 @@ watch(normalizedFiles, (newFiles) => {
 });
 
 const goToSummary = (file) => {
-  // Redirigim a la nova pàgina de resum
+  // Redirigim a la nova pàgina de resum amb el mode seleccionat a la URL
   router.push({ name: 'SummaryPage', params: { filename: file.filename } });
 };
 
@@ -248,5 +252,8 @@ onMounted(async () => {
 <style scoped>
 .font-mono {
   font-family: monospace;
+}
+.hover-card:hover {
+  background-color: rgba(var(--v-theme-primary), 0.05);
 }
 </style>

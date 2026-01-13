@@ -46,14 +46,18 @@
           </span>
           <span class="text-caption text-grey">{{ wordCount }} paraules generades</span>
         </div>
-        <v-progress-linear v-model="progress" color="primary" height="6" rounded striped></v-progress-linear>
-        <div class="text-right mt-1">
-          <span class="text-body-2 font-weight-bold text-primary">{{ Math.ceil(progress) }}% completed</span>
-        </div>
+        <!-- BARRA DE PROGRÉS HONESTA (Indeterminada mentre genera) -->
+        <v-progress-linear 
+          indeterminate
+          color="primary" 
+          height="6" 
+          rounded 
+          striped
+        ></v-progress-linear>
         </v-card>
       </div>
 
-      <!-- COMPONENT VISUAL MILLORAT -->
+      <!-- COMPONENT VISUAL (Restaurat) -->
       <PiSummary :analysis="parsedAnalysis" />
       
       <!-- Debug (opcional, per si vols veure el text cru mentre es genera) -->
@@ -93,7 +97,7 @@
 <script setup>
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
-import PiSummary from '@/components/PiSummary.vue'; // Importem el component visual
+import PiSummary from '@/components/PiSummary.vue';
 
 const route = useRoute();
 const filename = route.params.filename;
@@ -106,8 +110,7 @@ const errorAI = ref(null);
 const fileNotFound = ref(false);
 const progress = ref(0);
 const currentStatus = ref('Iniciant...');
-
-let progressInterval = null; // Variable per controlar el timer de la barra
+const modelIndex = ref(0); // Per rotar models
 
 const wordCount = computed(() => {
   return resumenIA.value ? resumenIA.value.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
@@ -170,7 +173,7 @@ onMounted(async () => {
       const data = await response.json();
       rawText.value = data.text_completo;
       
-      // 2. Un cop tenim el text, cridem automàticament a la IA
+      // 2. Un cop tenim el text, cridem automàticament a la IA amb el mode seleccionat
       await regenerarResumenIA();
     } else {
       if (response.status === 404) {
@@ -188,36 +191,20 @@ onMounted(async () => {
 const regenerarResumenIA = async () => {
   if (!rawText.value) return;
   
+  // Rotació de model: Sempre provem el següent de la llista
+  modelIndex.value++;
+
   loadingAI.value = true;
   resumenIA.value = ''; // Netegem el resum anterior
   errorAI.value = null; // Netegem errors anteriors
   progress.value = 0;
-  currentStatus.value = 'Connectant amb la IA...';
+  currentStatus.value = 'Connectant amb IA al Núvol (això pot trigar uns segons)...';
   
-  // Netejem interval previ si n'hi ha
-  if (progressInterval) clearInterval(progressInterval);
-
-  // --- SISTEMA DE PROGRÉS HÍBRID ---
-  // Timer: Fa que la barra pugi suaument encara que la IA estigui "pensant" i no escrigui res.
-  progressInterval = setInterval(() => {
-    // Pugem a poc a poc fins al 95% mentre pensem
-    if (progress.value < 95) {
-       progress.value += (95 - progress.value) * 0.05; // Desacceleració suau
-    } 
-  }, 250); // Actualització cada 250ms
-
   try {
-    // Estimació: Tenim en compte que l'aiService retalla a 150000 caràcters
-    const MAX_CHARS_AI = 150000;
-    const textLength = Math.min(rawText.value.length, MAX_CHARS_AI);
-    // AJUSTAT: Un resum sol ser el 10% del text (abans 20%), així la barra puja més ràpid
-    const estimatedLength = Math.max(100, textLength * 0.10);
-
-    // --- NOVA LÒGICA: CRIDAR AL BACKEND ---
     const response = await fetch('http://localhost:3001/api/generate-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: rawText.value })
+      body: JSON.stringify({ text: rawText.value, modelIndex: modelIndex.value }) // Enviem índex per rotar
     });
 
     if (!response.ok) throw new Error("Error al servidor generant el resum");
@@ -231,11 +218,32 @@ const regenerarResumenIA = async () => {
       if (done) break;
       
       const chunk = decoder.decode(value);
-      resumenIA.value += chunk;
       
-      // Actualitzem progrés visual
-      const calculatedProgress = Math.min(99, (resumenIA.value.length / estimatedLength) * 100);
-      if (calculatedProgress > progress.value) progress.value = calculatedProgress;
+      // --- NOU: Processament d'etiquetes de sistema ---
+      const progressRegex = /\[SYS_PROGRESS:(\d+)\]/g;
+      const statusRegex = /\[SYS_STATUS:(.*?)\]/g;
+      const errorRegex = /\[SYS_ERROR:(.*?)\]/g;
+      let match;
+      
+      // NOU: Cerca i aplica missatges d'error des del stream
+      while ((match = errorRegex.exec(chunk)) !== null) {
+        errorAI.value = match[1];
+        console.error(`🤖 Error IA (from stream): ${match[1]}`);
+      }
+
+      // 1. Cerca i aplica missatges d'estat
+      while ((match = statusRegex.exec(chunk)) !== null) {
+        currentStatus.value = match[1];
+        console.log(`🤖 Estat IA: ${match[1]}`); // Log a la consola del navegador
+      }
+
+      // 3. Netegem les etiquetes i afegim el text real al resum
+      const cleanChunk = chunk.replace(progressRegex, '').replace(statusRegex, '').replace(errorRegex, '');
+      if (cleanChunk) {
+        resumenIA.value += cleanChunk;
+        // Actualitzem estat visual
+        currentStatus.value = "Escrivint resum...";
+      }
     }
 
     progress.value = 100;
@@ -245,14 +253,9 @@ const regenerarResumenIA = async () => {
     errorAI.value = e.message || "Error connectant amb la IA. Revisa la teva connexió o el token.";
   } finally {
     loadingAI.value = false;
-    if (progressInterval) clearInterval(progressInterval);
   }
 };
 
-// Neteja quan sortim de la pàgina
-onUnmounted(() => {
-  if (progressInterval) clearInterval(progressInterval);
-});
 </script>
 
 <style scoped>

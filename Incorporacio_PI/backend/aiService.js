@@ -1,120 +1,34 @@
-const { InferenceClient } = require("@huggingface/inference");
+require('dotenv').config();
+const OpenAI = require("openai");
 
-// Llegim el token del .env (que ja carrega el server.js)
-const HF_TOKEN = process.env.VITE_HF_ACCESS_TOKEN;
+// Configuració del client OpenRouter
+const openai = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY,
+  defaultHeaders: {
+    "HTTP-Referer": "http://localhost:3000", // Canviar pel domini real si cal
+    "X-Title": "Projecte Incorporacio PI",
+  }
+});
 
-// LLISTA DE MODELS PER ORDRE DE PREFERÈNCIA (Estratègia de Rotació)
-// Si el primer falla (per límits), provarà el segon, etc.
+// LLISTA DE MODELS GRATUÏTS D'OPENROUTER (Ordre de preferència)
 const MODELS = [
-  // --- TIER 1: Ràpids, Moderns i Eficients (Prioritat Alta) ---
-  "microsoft/Phi-3.5-mini-instruct",
-  "mistralai/Mistral-Nemo-Instruct-2407",
-  "Qwen/Qwen2.5-7B-Instruct",
-  "google/gemma-2-9b-it",
-  "meta-llama/Meta-Llama-3.1-8B-Instruct",
-  "meta-llama/Llama-3.2-3B-Instruct",
-  "HuggingFaceH4/zephyr-7b-beta",
-  
-  // --- TIER 2: Família Qwen (Molt fiables a Hugging Face) ---
-  "Qwen/Qwen2.5-14B-Instruct",
-  "Qwen/Qwen2.5-32B-Instruct",
-  "Qwen/Qwen2.5-72B-Instruct",
-  "Qwen/Qwen2-7B-Instruct",
-  "Qwen/Qwen2-72B-Instruct",
-  "Qwen/Qwen2-57B-A14B-Instruct",
-  "Qwen/Qwen1.5-72B-Chat",
-  "Qwen/Qwen1.5-32B-Chat",
-  "Qwen/Qwen1.5-14B-Chat",
-  "Qwen/Qwen1.5-7B-Chat",
-  "Qwen/Qwen1.5-4B-Chat",
-  "Qwen/Qwen2.5-3B-Instruct",
-  "Qwen/Qwen2.5-1.5B-Instruct",
-
-  // --- TIER 3: Família Mistral & Mixtral ---
-  "mistralai/Mixtral-8x7B-Instruct-v0.1",
-  "mistralai/Mixtral-8x22B-Instruct-v0.1",
-  "mistralai/Mistral-7B-Instruct-v0.3",
-  "mistralai/Mistral-7B-Instruct-v0.2",
-  "mistralai/Mistral-7B-Instruct-v0.1",
-  "Open-Orca/Mistral-7B-OpenOrca",
-  "teknium/OpenHermes-2.5-Mistral-7B",
-  "NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO",
-  "cognitivecomputations/dolphin-2.8-mistral-7b-v02",
-
-  // --- TIER 4: Família Llama (Meta) ---
-  "meta-llama/Meta-Llama-3-8B-Instruct",
-  "meta-llama/Meta-Llama-3-70B-Instruct",
-  "meta-llama/Llama-3.2-1B-Instruct",
-  "meta-llama/Llama-2-7b-chat-hf",
-  "meta-llama/Llama-2-13b-chat-hf",
-  "meta-llama/Llama-2-70b-chat-hf",
-  "NousResearch/Hermes-3-Llama-3.1-8B",
-  "cognitivecomputations/dolphin-2.9.4-llama3.1-8b",
-  
-  // --- TIER 5: Família Gemma (Google) ---
-  "google/gemma-2-27b-it",
-  "google/gemma-2-2b-it",
-  "google/gemma-1.1-7b-it",
-  "google/gemma-1.1-2b-it",
-  "google/gemma-7b-it",
-  "google/gemma-2b-it",
-  "HuggingFaceH4/zephyr-7b-gemma-v0.1",
-
-  // --- TIER 6: Família Phi (Microsoft) ---
-  "microsoft/Phi-3-mini-128k-instruct",
-  "microsoft/Phi-3-medium-128k-instruct",
-  "microsoft/Phi-3-small-8k-instruct",
-  "microsoft/Phi-3-small-128k-instruct",
-  "microsoft/phi-2",
-
-  // --- TIER 7: Família Yi (01.AI) ---
-  "01-ai/Yi-1.5-34B-Chat",
-  "01-ai/Yi-1.5-9B-Chat",
-  "01-ai/Yi-1.5-6B-Chat",
-  "01-ai/Yi-34B-Chat",
-  "01-ai/Yi-6B-Chat",
-
-  // --- TIER 8: DeepSeek & CodeLlama (Bons en lògica) ---
-  "deepseek-ai/deepseek-coder-33b-instruct",
-  "deepseek-ai/deepseek-coder-6.7b-instruct",
-  "deepseek-ai/deepseek-llm-67b-chat",
-  "deepseek-ai/deepseek-llm-7b-chat",
-  "codellama/CodeLlama-70b-Instruct-hf",
-  "codellama/CodeLlama-34b-Instruct-hf",
-  "codellama/CodeLlama-13b-Instruct-hf",
-  "codellama/CodeLlama-7b-Instruct-hf",
-
-  // --- TIER 9: Altres Models d'Alta Qualitat ---
-  "CohereForAI/c4ai-command-r-plus",
-  "CohereForAI/c4ai-command-r-v01",
-  "databricks/dbrx-instruct",
-  "nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
-  "upstage/SOLAR-10.7B-Instruct-v1.0",
-  "openchat/openchat-3.5-0106",
-  "berkeley-nest/Starling-LM-7B-alpha",
-  "stabilityai/stablelm-zephyr-3b",
-  "allenai/tulu-2-dpo-70b",
-  "Intel/neural-chat-7b-v3-1",
-  "tiiuae/falcon-40b-instruct"
+  "mistralai/mistral-7b-instruct:free",           // Molt fiable i ràpid
+  "google/gemini-2.0-flash-lite-preview-02-05:free", // Molt potent (Google)
+  "meta-llama/llama-3.1-8b-instruct:free",        // L'estàndard actual de Meta
+  "qwen/qwen-2.5-7b-instruct-1m:free"             // Molt bo per a textos llargs
 ];
 
 /**
- * Genera un resum utilitzant Hugging Face i l'envia per streaming a la resposta Express.
+ * Genera un resum utilitzant OpenRouter i l'envia per streaming a la resposta Express.
  * @param {string} text - Text a resumir
  * @param {object} res - Objecte Response d'Express per fer streaming
+ * @param {number} modelIndex - Índex del model inicial per provar (per a rotació)
  */
-async function generateSummaryStream(text, res) {
-  if (!HF_TOKEN) {
-    console.error("Manca el token VITE_HF_ACCESS_TOKEN");
-    res.write("Error: Token de Hugging Face no configurat al servidor.");
-    res.end();
-    return;
-  }
+async function generateSummaryStream(text, res, modelIndex = 0) {
 
-  const client = new InferenceClient(HF_TOKEN);
-
-  // Retallem el text per no saturar el context del model (aprox 15k paraules)
-  const MAX_CHARS = 60000; // Reduït per seguretat a la capa gratuïta
+  // Retallem el text per no saturar el context del model
+  const MAX_CHARS = 100000; 
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
   const messages = [
@@ -141,15 +55,16 @@ async function generateSummaryStream(text, res) {
       INSTRUCCIONS ESPECÍFIQUES:
       - **Perfil**: Resum breu (2-3 línies) amb dades acadèmiques, diagnòstic i motiu.
       - **Adaptacions per Matèries**: 
-        - CRÍTIC: Si les adaptacions són per a "Totes les matèries" (o general), NO FACIS TAULA. Fes una llista normal amb guions (-). Si dubtes, prioritza llista general.
-        - Només fes TAULA MARKDOWN (| Assignatura | Adaptació |) si hi ha assignatures diferents (ex: Mates, Català, etc.). Assegura't de fer servir el caràcter '|' per separar columnes.
+        - FORMAT: Fes una llista on cada punt comenci amb l'assignatura o àmbit seguit de dos punts.
+        - Exemple: "- Matemàtiques: Ús de calculadora..."
+        - NO facis taules Markdown. Utilitza llistes per aprofitar millor l'espai en columnes.
       - **Recomanacions**: Redacta un text fluid però MOLT ESPECÍFIC. NO facis servir frases genèriques com "continuar amb les adaptacions". Has d'explicar QUINES són (ex: "Donar més temps", "Ús de calculadora", "Pautes escrites").
       - **Exhaustivitat**: Processa totes les pàgines.
       - **Taules Originals**: Si detectes taules amb 'X' al PDF, indica clarament què està marcat dins del detall.
       - **Noms**: Ignora noms de professionals.
 
       Exemple de sortida desitjada:
-      | Matemàtiques | Ús de calculadora. [[Detall: **[Font: Adaptacions]** L'alumne millora amb calculadora...]] |
+      - Matemàtiques: Ús de calculadora. [[Detall: **[Font: Adaptacions]** L'alumne millora amb calculadora...]]
 
       Processa tot el text proporcionat.`
     },
@@ -159,47 +74,57 @@ async function generateSummaryStream(text, res) {
     }
   ];
 
-  // BUCLE DE RESILIÈNCIA: Prova models en ordre fins que un funcioni
-  for (const model of MODELS) {
-    let success = false;
+  // --- MODE NÚVOL (OPENROUTER) ---
+  if (!process.env.OPENROUTER_API_KEY) {
+    console.error("❌ Manca la OPENROUTER_API_KEY al fitxer .env");
+    res.write("[SYS_ERROR:Manca la clau API d'OpenRouter al servidor. Revisa el fitxer .env]");
+    res.end();
+    return;
+  }
+
+  console.log("☁️  Iniciant cicle de models a OpenRouter...");
+  
+  // Intentem els models en ordre, començant pel sol·licitat (rotació)
+  let attempts = 0;
+  while (attempts < MODELS.length) {
+    const currentIdx = (modelIndex + attempts) % MODELS.length;
+    const model = MODELS[currentIdx];
+    attempts++;
+
     try {
-      console.log(`🤖 Provant generació amb model: ${model}...`);
+      console.log(`🤖 [aiService] Provant generació amb model [${currentIdx}] ${model}...`);
       
-      // Reduïm max_tokens per evitar timeouts a la capa gratuïta
-      const stream = client.chatCompletionStream({
+      const stream = await openai.chat.completions.create({
         model: model,
         messages: messages,
-        max_tokens: 2048, // Més conservador que 8000
-        temperature: 0.3,
-        top_p: 0.9
+        stream: true,
+        temperature: 0.2, // Baixa temperatura per ser més precís
       });
 
       for await (const chunk of stream) {
-        if (chunk.choices && chunk.choices.length > 0) {
-          const content = chunk.choices[0].delta.content || "";
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
           res.write(content);
         }
       }
       
-      success = true;
-      console.log(`✅ Èxit amb el model: ${model}`);
-      // Si arribem aquí, ha funcionat! Sortim del bucle i de la funció.
+      console.log(`✅ [aiService] ÈXIT amb el model: ${model}`);
       res.end();
       return; 
 
     } catch (error) {
-      console.warn(`⚠️ Error amb el model ${model}: ${error.message}`);
+      console.warn(`⚠️ [aiService] Error amb el model ${model}: ${error.message}`);
       
-      // Si és un error de límit de quota, esperem 1 segon abans de provar el següent
-      if (error.message.includes("rate limit") || error.message.includes("usage limit")) {
+      // Si és un error de límit de quota o servidor, esperem una mica
+      if (error.status === 429 || error.status >= 500) {
          await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
   }
 
-  // Si arribem aquí, tots han fallat
-  console.error("❌ Tots els models han fallat.");
-  res.write("\n\n[Error: El sistema d'IA està saturat o ha superat la quota gratuïta. Si us plau, intenta-ho més tard o revisa el token de Hugging Face.]");
+  // Si arribem aquí, tots els models han fallat
+  console.warn("☁️❌ [aiService] Tots els models OpenRouter han fallat.");
+  res.write("[SYS_ERROR:No s'ha pogut generar el resum amb cap dels models disponibles al núvol.]");
   res.end();
 }
 

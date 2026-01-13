@@ -105,7 +105,7 @@
               @click="speak(analysis.adaptacions.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2">
+          <div class="ml-4 text-body-2 list-columns">
             <div v-for="(item, i) in cleanList(analysis.adaptacions)" :key="i" class="mb-2 list-item-break">
               <!-- RENDERITZAT DE TAULA (Si la línia comença per |) -->
               <div v-if="item.trim().startsWith('|')" class="mb-2">
@@ -276,10 +276,11 @@ const highlightKeywords = (text) => {
   // 2. Ressaltar la font d'informació [Font: ...]
   processed = processed.replace(/\[Font:(.*?)\]/g, '<span class="text-caption text-grey-darken-1 font-italic">[Font:$1]</span>');
 
-  // 2. Ressaltar encapçalaments tipus "Matèria:" (per fer efecte taula)
-  processed = processed.replace(/^([^:]+):/g, '<strong class="text-primary">$1:</strong>');
+  // 3. Ressaltar encapçalaments tipus "Matèria:" (per fer efecte taula)
+  // Millora: Accepta "Matèria:-" i afegeix espai, netejant el format
+  processed = processed.replace(/^([^:]+):[\s-]*/, '<strong class="text-primary">$1:</strong> ');
 
-  // 3. Ressaltar paraules clau
+  // 4. Ressaltar paraules clau
   const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
   processed = processed.replace(regex, '<span class="text-blue-darken-2 font-weight-bold">$1</span>');
   

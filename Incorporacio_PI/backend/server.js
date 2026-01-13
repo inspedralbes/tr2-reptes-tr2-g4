@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto'); // Del teu company
 const { connectDB, getDB } = require('./db'); // La teva DB
-const { extractTextFromPDF } = require('./FileReader'); // Corregit: Majúscules per coincidir amb el fitxer
+const { extractTextFromPDF } = require('./fileReader'); // Corregit: Coincideix amb fileReader.js
 const { generateSummaryStream } = require('./aiService'); // Importem el servei d'IA
 
 const app = express();
@@ -315,7 +315,7 @@ app.get('/api/analyze/:filename', async (req, res) => {
 
 // --- RUTA GENERACIÓ RESUM (IA) ---
 app.post('/api/generate-summary', async (req, res) => {
-    const { text } = req.body;
+    const { text, modelIndex } = req.body; // Rebem l'índex del model per rotar
     if (!text) return res.status(400).json({ error: 'Falta el text' });
 
     // Configurem capçaleres per a Streaming
@@ -323,7 +323,7 @@ app.post('/api/generate-summary', async (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
 
     // Cridem al servei que escriurà directament a 'res'
-    await generateSummaryStream(text, res);
+    await generateSummaryStream(text, res, modelIndex || 0);
 });
 
 // --- 4. SEED (Dades del company cap a MongoDB) ---
