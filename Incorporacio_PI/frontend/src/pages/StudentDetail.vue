@@ -37,8 +37,7 @@
             <v-list-item>
               <template v-slot:prepend><v-icon icon="mdi-identifier" color="primary"></v-icon></template>
               <v-list-item-title>Sufix RALC</v-list-item-title>
-              <v-list-item-subtitle class="text-body-1">{{ student.visual_identity?.ralc_suffix
-                }}</v-list-item-subtitle>
+              <v-list-item-subtitle class="text-body-1">{{ student.visual_identity?.ralc_suffix }}</v-list-item-subtitle>
             </v-list-item>
           </v-col>
 
@@ -71,30 +70,32 @@
           <v-icon icon="mdi-history" class="mr-2"></v-icon> Historial de Centres
         </div>
 
-        <v-timeline density="compact" side="end">
+        <div class="history-container">
+          <v-timeline density="compact" side="end">
 
-          <v-timeline-item dot-color="green" size="small">
-            <div class="d-flex justify-space-between">
-              <div>
-                <div class="font-weight-bold text-green">{{ currentSchoolName }}</div>
-                <div class="text-caption">Centre Actual</div>
+            <v-timeline-item dot-color="green" size="small">
+              <div class="d-flex justify-space-between">
+                <div>
+                  <div class="font-weight-bold text-green">{{ currentSchoolName }}</div>
+                  <div class="text-caption">Centre Actual</div>
+                </div>
+                <div class="text-caption text-grey">Des d'avui</div>
               </div>
-              <div class="text-caption text-grey">Des d'avui</div>
-            </div>
-          </v-timeline-item>
+            </v-timeline-item>
 
-          <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey" size="x-small">
-            <div class="d-flex justify-space-between">
-              <div>
-                <div class="font-weight-bold">{{ getSchoolName(hist.codi_centre) }}</div>
-                <div class="text-caption">Centre Anterior</div>
+            <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey" size="x-small">
+              <div class="d-flex justify-space-between">
+                <div>
+                  <div class="font-weight-bold">{{ getSchoolName(hist.codi_centre) }}</div>
+                  <div class="text-caption">Centre Anterior</div>
+                </div>
+                <div class="text-caption text-grey">
+                  Fins al: {{ new Date(hist.date_end).toLocaleDateString() }}
+                </div>
               </div>
-              <div class="text-caption text-grey">
-                Fins al: {{ new Date(hist.date_end).toLocaleDateString() }}
-              </div>
-            </div>
-          </v-timeline-item>
-        </v-timeline>
+            </v-timeline-item>
+          </v-timeline>
+        </div>
 
       </v-card-text>
     </v-card>
@@ -137,7 +138,33 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="grey" text @click="showTransferDialog = false">Cancel·lar</v-btn>
-          <v-btn color="primary" :disabled="!selectedNewSchool" @click="confirmTransfer">Guardar Canvi</v-btn>
+          
+          <v-btn color="primary" :disabled="!selectedNewSchool" @click="openConfirmDialog">
+            Guardar Canvi
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showConfirmDialog" max-width="400px">
+      <v-card>
+        <v-card-title class="text-h6 bg-warning text-white">
+          <v-icon icon="mdi-alert" color="white" class="mr-2"></v-icon>
+          Confirmar Trasllat
+        </v-card-title>
+        <v-card-text class="pa-4 text-center">
+          Estàs segur que vols canviar l'alumne al centre:<br>
+          <strong>{{ getSchoolName(selectedNewSchool) }}</strong>?
+          <br><br>
+          <small class="text-grey">L'alumne desapareixerà de la llista del centre actual.</small>
+        </v-card-text>
+        <v-card-actions class="justify-center pb-4">
+          <v-btn color="grey-darken-1" variant="text" @click="showConfirmDialog = false">
+            No, revisar
+          </v-btn>
+          <v-btn color="warning" variant="elevated" @click="executeTransfer">
+            Sí, estic segur
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -156,6 +183,7 @@ const studentStore = useStudentStore();
 
 const schoolsList = ref([]);
 const showTransferDialog = ref(false);
+const showConfirmDialog = ref(false); // NUEVA VARIABLE
 const selectedNewSchool = ref(null);
 
 const goToList = () => {
@@ -166,8 +194,8 @@ const student = computed(() => {
   return studentStore.students.find(s => s.hash_id === route.params.hash_id);
 });
 
-// Función auxiliar para obtener nombre de cualquier código
 const getSchoolName = (code) => {
+  if(!code) return '';
   const found = schoolsList.value.find(s => s.codi_centre === code);
   return found ? found.denominacio_completa : `Codi: ${code}`;
 };
@@ -180,44 +208,48 @@ const currentSchoolName = computed(() => {
 // --- LÓGICA DE TRANSFERENCIA DE CENTRO ---
 
 const openTransferDialog = () => {
-  selectedNewSchool.value = student.value.codi_centre; // Preseleccionar el actual
+  selectedNewSchool.value = student.value.codi_centre;
   showTransferDialog.value = true;
 };
 
-const confirmTransfer = async () => {
+// NUEVO: Solo abre el popup de confirmación
+const openConfirmDialog = () => {
+  showConfirmDialog.value = true;
+};
+
+// NUEVO: Esta función es la que hace la llamada real a la API
+const executeTransfer = async () => {
   if (!selectedNewSchool.value) return;
 
   try {
-    // Llamada REAL al backend que acabas de programar
     const response = await fetch(`http://localhost:3001/api/students/${student.value.hash_id}/transfer`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
-      // Enviamos el ID del nuevo centro
       body: JSON.stringify({ new_center_id: selectedNewSchool.value })
     });
 
     if (response.ok) {
       console.log("✅ Trasllat guardat a la BBDD");
-
-      // IMPORTANTE: Recargamos los datos del store para que:
-      // 1. Se actualice el centro actual en la ficha.
-      // 2. Aparezca el centro antiguo en el historial.
       await studentStore.fetchStudents();
-
+      
+      // Cerramos AMBOS diálogos
+      showConfirmDialog.value = false;
       showTransferDialog.value = false;
+      
     } else {
       const errorData = await response.json();
       alert(`Error: ${errorData.error || 'No s\'ha pogut realitzar el trasllat'}`);
+      showConfirmDialog.value = false; // Cerramos solo la confirmación si falla
     }
   } catch (e) {
     console.error("Error de connexió:", e);
     alert("Error de connexió amb el servidor");
   }
 };
-// ... RESTO DE TU CÓDIGO DE ARCHIVOS (normalizedFiles, etc.) ...
-// Copia aquí las funciones getFileIcon, getFileExtension, downloadFile, deleteFile que ya tenías
+
+// ... RESTO DE TU CÓDIGO (normalizedFiles, etc.) ...
 const normalizedFiles = computed(() => {
   const s = student.value;
   if (!s) return [];
@@ -231,8 +263,8 @@ const getFileIcon = (filename) => {
   return 'mdi-file-document-outline';
 };
 const formatDate = (d) => d ? new Date(d).toLocaleString() : '-';
-const downloadFile = (f, o) => console.log('Download', f); // Usa tu función real
-const deleteFile = (f) => console.log('Delete', f); // Usa tu función real
+const downloadFile = (f, o) => console.log('Download', f);
+const deleteFile = (f) => console.log('Delete', f);
 
 onMounted(async () => {
   if (studentStore.students.length === 0) {
@@ -252,5 +284,26 @@ onMounted(async () => {
 <style scoped>
 .font-mono {
   font-family: monospace;
+}
+
+/* NUEVO CSS PARA EL SCROLL DEL HISTORIAL */
+.history-container {
+  max-height: 250px; /* Altura máxima visible */
+  overflow-y: auto;  /* Scroll vertical si se pasa */
+  padding-right: 10px;
+  border: 1px solid #eeeeee; /* Borde opcional para delimitar la zona */
+  border-radius: 8px;
+}
+
+/* Opcional: Para hacer la barra de scroll más bonita */
+.history-container::-webkit-scrollbar {
+  width: 6px;
+}
+.history-container::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+.history-container::-webkit-scrollbar-thumb {
+  background: #bdbdbd; 
+  border-radius: 4px;
 }
 </style>
