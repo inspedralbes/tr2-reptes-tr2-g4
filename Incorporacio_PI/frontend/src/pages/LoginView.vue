@@ -13,6 +13,14 @@
       @verified="handleCodeVerification"
     />
 
+    <!-- Opcional: Un snackbar per mostrar errors de forma maca -->
+    <v-snackbar v-model="showError" color="error">
+      {{ errorMessage }}
+      <template v-slot:actions>
+        <v-btn color="white" variant="text" @click="showError = false">Tancar</v-btn>
+      </template>
+    </v-snackbar>
+
   </v-container>
 </template>
 
@@ -26,47 +34,62 @@ import { sendVerificationCode, verifyCode } from '@/services/authService';
 const router = useRouter();
 const step = ref('email');
 const email = ref('');
-const isLoading = ref(false); // Esta variable es la clave
+const isLoading = ref(false);
 
-const handleEmailSubmit = async (value) => {
+// Per mostrar errors
+const showError = ref(false);
+const errorMessage = ref('');
+
+const handleEmailSubmit = async (payload) => {
+  // 'payload' ara conté { email, token }
   isLoading.value = true;
   try {
-    await sendVerificationCode(value);
-    email.value = value;
+    // Enviem les dues coses al servei
+    await sendVerificationCode(payload.email, payload.token);
+    
+    // Si tot va bé:
+    email.value = payload.email;
     step.value = 'code';
   } catch (error) {
     console.error(error);
-    alert('Error enviant el codi.');
+    
+    // GESTIÓ D'ERRORS (Bloqueig IP / Captcha incorrecte)
+    if (error.response && error.response.data && error.response.data.error) {
+        // Mostrem l'error específic que envia el backend (Ex: "Massa intents...")
+        errorMessage.value = error.response.data.error;
+    } else if (error.response && error.response.status === 429) {
+        errorMessage.value = "Has superat el límit d'intents. Torna-ho a provar en 15 minuts.";
+    } else {
+        errorMessage.value = "Error enviant el codi. Revisa la consola.";
+    }
+    showError.value = true;
   } finally {
     isLoading.value = false;
   }
 };
 
 const handleCodeVerification = async (code) => {
-  // 1. Bloquem el botó perquè no es pugui fer doble clic
   isLoading.value = true; 
-  
   try {
-    // 2. Fem la petició al servidor
     const response = await verifyCode(email.value, code); 
-    console.log('Login correcte! Resposta:', response);
     
-    // 3. IMPORTANT: Guardem el token i l'usuari al navegador
-    // Si no fem això, el router ens farà fora al intentar entrar a "/"
     if (response.token) {
         localStorage.setItem('token', response.token);
     }
     localStorage.setItem('userEmail', email.value);
 
-    // 4. Ara sí, redirigim a la Home (Dashboard)
-    router.push('/dashboard'); // Antes era '/'
+    router.push('/dashboard'); 
     
   } catch (error) {
-    console.error("Error al login:", error);
-    alert('Codi incorrecte o expirat.');
-    
-    // Només desbloquem el botó si ha fallat. 
-    // Si ha anat bé, deixem que giri fins que canviï de pàgina.
+    // Gestió d'errors al verificar codi
+    if (error.response && error.response.data && error.response.data.message) {
+        errorMessage.value = error.response.data.message;
+    } else if (error.response && error.response.status === 429) {
+        errorMessage.value = "Massa intents de codi incorrecte. Espera uns minuts.";
+    } else {
+        errorMessage.value = "Codi incorrecte o error del servidor.";
+    }
+    showError.value = true;
     isLoading.value = false;
   }
 };

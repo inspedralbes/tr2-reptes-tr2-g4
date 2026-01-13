@@ -8,7 +8,6 @@
 
     <v-form ref="form" @submit.prevent="submit">
       <v-card-text>
-        <!-- CANVI: Usamos v-combobox en lloc de v-text-field -->
         <v-combobox
           v-model="selectedItem"
           :items="centros"
@@ -27,7 +26,6 @@
           hint="Pots escriure el nom de l'escola i seleccionarem el correu automàticament."
           persistent-hint
         >
-          <!-- PERSONALITZACIÓ DE LA LLISTA DESPLEGABLE -->
           <template v-slot:item="{ props, item }">
             <v-list-item v-bind="props" :subtitle="item.raw.email">
               <template v-slot:prepend>
@@ -36,7 +34,6 @@
             </v-list-item>
           </template>
 
-          <!-- SI NO TROBA RES -->
           <template v-slot:no-data>
             <v-list-item>
               <v-list-item-title>
@@ -47,9 +44,22 @@
           </template>
         </v-combobox>
 
+        <!-- Component del Captcha -->
+        <div class="d-flex justify-center mt-6">
+            <VueRecaptcha
+                :sitekey="siteKey"
+                @verify="onCaptchaVerify"
+                @expired="onCaptchaExpired"
+            ></VueRecaptcha>
+        </div>
+        
+        <div v-if="captchaError" class="text-center text-caption text-red mt-2">
+            Per seguretat, confirma que no ets un robot.
+        </div>
+
       </v-card-text>
 
-      <v-card-actions>
+      <v-card-actions class="mt-2">
         <v-btn
           color="primary"
           block
@@ -65,7 +75,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
+import VueRecaptcha from 'vue3-recaptcha2';
 
 const props = defineProps({
   loading: Boolean
@@ -78,24 +89,27 @@ const centros = ref([]);
 const loadingCentros = ref(false);
 const selectedItem = ref(null);
 
-// Regles de validació
+// CORRECCIÓ 2: He posat la teva CLAU PÚBLICA (Site Key)
+// La que tenies posada era la secreta (la secreta només va al backend)
+const siteKey = "6LcLBUgsAAAAAO5gfUHPVfkHogRC-gaLtrDb7YrH";
+
+const recaptchaToken = ref(null);
+const captchaError = ref(false);
+
 const rules = [
   v => !!v || 'El correu o centre és obligatori',
   v => {
-    // Validem si és un objecte (seleccionat de la llista) o un string (escrit manualment)
     const emailToCheck = (typeof v === 'object' && v !== null) ? v.email : v;
     return /.+@.+\..+/.test(emailToCheck) || 'Introdueix un correu vàlid';
   }
 ];
 
-// Càrrega de dades del Backend
 onMounted(async () => {
   loadingCentros.value = true;
   try {
     const response = await fetch('http://localhost:3001/api/centros');
     if (response.ok) {
       const data = await response.json();
-      // Preparem les dades per al buscador combinant nom i codi
       centros.value = data.map(c => ({
         ...c,
         displayTitle: `${c.denominacio_completa} (${c.codi_centre})`
@@ -108,23 +122,35 @@ onMounted(async () => {
   }
 });
 
+const onCaptchaVerify = (token) => {
+    recaptchaToken.value = token;
+    captchaError.value = false;
+};
+
+const onCaptchaExpired = () => {
+    recaptchaToken.value = null;
+};
+
 const submit = async () => {
   const { valid } = await form.value.validate();
   
+  if (!recaptchaToken.value) {
+      captchaError.value = true;
+      return; 
+  }
+
   if (valid) {
-    // Lògica intel·ligent:
-    // Si selectedItem és un objecte (l'usuari ha clicat un centre), enviem .email
-    // Si selectedItem és un string (l'usuari ha escrit manualment), enviem l'string
     let emailToSend = '';
-    
     if (typeof selectedItem.value === 'object' && selectedItem.value !== null) {
       emailToSend = selectedItem.value.email;
     } else {
       emailToSend = selectedItem.value;
     }
 
-    // Convertim a minúscules i netegem espais per si de cas
-    emit('submitted', emailToSend.trim().toLowerCase());
+    emit('submitted', { 
+        email: emailToSend.trim().toLowerCase(),
+        token: recaptchaToken.value 
+    });
   }
 };
 </script>
