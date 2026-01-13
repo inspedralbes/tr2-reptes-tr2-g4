@@ -3,31 +3,33 @@ version: '3.8'
 services:
   # --- SERVICIO BACKEND ---
   backend:
-    build: ./backend
-    context: Dockerfile.dev
+    build:
+      context: ./backend         # Carpeta del contexto
+      dockerfile: Dockerfile.dev # Archivo específico
     container_name: pi_backend
     ports:
-      - "3001:3001" # Mapeamos puerto 3001 del PC al 3001 del contenedor
-    environment:
-      - MONGODB_URI=${MONGODB_URI} # Leerá esto de tu archivo .env o del sistema
+      - "3001:3001"
+    env_file:
+      - .env
     volumes:
-      - ./backend:/app # Hot Reload: Lo que edites en tu PC se ve en Docker
-      - ./backend/uploads:/app/uploads # Persistencia: Las fotos no se borran al apagar
-      - /app/node_modules # Evita que tu node_modules local machaque el de linux
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - /app/node_modules
 
   # --- SERVICIO FRONTEND ---
   frontend:
-    build: ./frontend
-    context: Dockerfile.dev
+    build:
+      context: ./frontend        # Carpeta del contexto
+      dockerfile: Dockerfile.dev # Archivo específico
     container_name: pi_frontend
     ports:
-      - "3000:3000" 
+      - "3000:3000"
     volumes:
-      - ./frontend:/app # Hot Reload para Vue
+      - ./frontend:/app
       - /app/node_modules
     environment:
-      - CHOKIDAR_USEPOLLING=true # Necesario a veces en Windows/Docker para que detecte cambios
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
-      - backend # Espera a que el backend arranque un poco
+      - backend
 
 # No necesitamos servicio de Mongo porque usas Atlas (Nube)
