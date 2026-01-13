@@ -1,46 +1,35 @@
 const nodemailer = require("nodemailer");
 
+// Configuración con Contraseña de Aplicación (Simple y Efectiva)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    type: 'OAuth2',
-    // Usamos process.env.NOMBRE_DE_LA_VARIABLE
-    user: process.env.GOOGLE_USER, 
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    refreshToken: process.env.GOOGLE_REFRESH_TOKEN
+    user: process.env.EMAIL_USER, 
+    pass: process.env.EMAIL_PASS  
   }
 });
 
-// ... el resto de la función sendVerificationCode igual ...
-
-// Función para enviar correo
 async function sendVerificationCode(email, code) {
   const mailOptions = {
-    from: 'Tu Aplicación <dammongog4@gmail.com>',
+    from: `"Incorporación PI" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: 'Tu código de verificación',
-    text: `Tu código es: ${code}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>Verificación de Login</h2>
-        <p>Hola,</p>
-        <p>Tu código de seguridad es:</p>
-        <h1 style="color: #4CAF50; letter-spacing: 5px;">${code}</h1>
-        <p>Este código expirará en 10 minutos.</p>
-      </div>
-    `
+    html: `<h1>Tu código es: ${code}</h1>`
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Correo enviado con éxito a:', email);
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Correo enviado a:', email);
     return true;
   } catch (error) {
     console.error('❌ Error enviando correo:', error);
+    // Debug para ver si lee las variables (sin mostrar la password entera)
+    console.log("DEBUG:", { 
+      user: process.env.EMAIL_USER, 
+      passLength: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.length : 0 
+    });
     return false;
   }
 }
 
-// EXPORTAMOS LA FUNCIÓN
 module.exports = { sendVerificationCode };
