@@ -1,21 +1,62 @@
 <template>
-  <v-container class="fill-height d-flex align-center justify-center">
+  <v-container class="fill-height bg-grey-lighten-5" fluid>
     
-    <EmailForm
-      v-if="step === 'email'"
-      :loading="isLoading"
-      @submitted="handleEmailSubmit"
-    />
+    <div class="gencat-top-bar"></div>
 
-    <CodeForm
-      v-else
-      :loading="isLoading"
-      @verified="handleCodeVerification"
-    />
+    <v-row justify="center" align="center">
+      <v-col cols="12" sm="8" md="6" lg="4">
+        
+        <v-card class="pa-8 gencat-card" elevation="1" rounded="lg">
+          
+          <div class="text-center mb-8">
+            <img 
+              src="https://upload.wikimedia.org/wikipedia/commons/6/6d/Logo_Generalitat_de_Catalunya.svg" 
+              alt="Generalitat de Catalunya" 
+              width="150"
+              class="mb-6"
+            />
+            <h2 class="text-overline text-grey-darken-1 font-weight-bold tracking-wide">
+              DEPARTAMENT D'EDUCACIÓ
+            </h2>
+            <h1 class="text-h5 font-weight-black text-grey-darken-4 mt-2">
+              Accés a la Plataforma
+            </h1>
+          </div>
 
-    <!-- Opcional: Un snackbar per mostrar errors de forma maca -->
-    <v-snackbar v-model="showError" color="error">
-      {{ errorMessage }}
+          <div class="form-container">
+            <EmailForm
+              v-if="step === 'email'"
+              :loading="isLoading"
+              @submitted="handleEmailSubmit"
+            />
+
+            <CodeForm
+              v-else
+              :loading="isLoading"
+              @verified="handleCodeVerification"
+            />
+          </div>
+          
+          <div class="text-center mt-6">
+             <a href="#" class="text-caption text-grey-darken-1 text-decoration-underline">
+               Problemes per accedir-hi?
+             </a>
+          </div>
+
+        </v-card>
+
+        <div class="text-center mt-6">
+          <p class="text-caption text-grey">© 2026 Generalitat de Catalunya</p>
+        </div>
+
+      </v-col>
+    </v-row>
+
+    <v-snackbar v-model="showError" color="#D0021B" location="top" variant="flat">
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-alert-circle" color="white" class="mr-2"></v-icon>
+        {{ errorMessage }}
+      </div>
       <template v-slot:actions>
         <v-btn color="white" variant="text" @click="showError = false">Tancar</v-btn>
       </template>
@@ -41,21 +82,14 @@ const showError = ref(false);
 const errorMessage = ref('');
 
 const handleEmailSubmit = async (payload) => {
-  // 'payload' ara conté { email, token }
   isLoading.value = true;
   try {
-    // Enviem les dues coses al servei
     await sendVerificationCode(payload.email, payload.token);
-    
-    // Si tot va bé:
     email.value = payload.email;
     step.value = 'code';
   } catch (error) {
     console.error(error);
-    
-    // GESTIÓ D'ERRORS (Bloqueig IP / Captcha incorrecte)
     if (error.response && error.response.data && error.response.data.error) {
-        // Mostrem l'error específic que envia el backend (Ex: "Massa intents...")
         errorMessage.value = error.response.data.error;
     } else if (error.response && error.response.status === 429) {
         errorMessage.value = "Has superat el límit d'intents. Torna-ho a provar en 15 minuts.";
@@ -72,20 +106,16 @@ const handleCodeVerification = async (code) => {
   isLoading.value = true; 
   try {
     const response = await verifyCode(email.value, code); 
-    
     if (response.token) {
         localStorage.setItem('token', response.token);
     }
     localStorage.setItem('userEmail', email.value);
-
     router.push('/dashboard'); 
-    
   } catch (error) {
-    // Gestió d'errors al verificar codi
     if (error.response && error.response.data && error.response.data.message) {
         errorMessage.value = error.response.data.message;
     } else if (error.response && error.response.status === 429) {
-        errorMessage.value = "Massa intents de codi incorrecte. Espera uns minuts.";
+        errorMessage.value = "Massa intents. Espera uns minuts.";
     } else {
         errorMessage.value = "Codi incorrecte o error del servidor.";
     }
@@ -94,3 +124,30 @@ const handleCodeVerification = async (code) => {
   }
 };
 </script>
+
+<style scoped>
+/* ESTILS CORPORATIUS GENCAT */
+
+.gencat-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: #D0021B; /* Vermell Corporatiu */
+  z-index: 10;
+}
+
+.gencat-card {
+  border: 1px solid rgba(0,0,0,0.1) !important;
+}
+
+.tracking-wide {
+  letter-spacing: 2px !important;
+}
+
+/* Assegurar tipografia de sistema */
+.v-container, .v-card {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+</style>
