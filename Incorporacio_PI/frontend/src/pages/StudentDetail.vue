@@ -1,91 +1,125 @@
 <template>
-  <v-container>
-    <v-btn class="mb-4" variant="text" prepend-icon="mdi-arrow-left" @click="goToList">
+  <v-container class="fill-height align-start bg-grey-lighten-5" fluid>
+    
+    <v-btn 
+      class="mb-4 text-none font-weight-bold" 
+      variant="text" 
+      prepend-icon="mdi-arrow-left" 
+      @click="goToList"
+      color="grey-darken-3"
+    >
       Tornar al llistat
     </v-btn>
 
-    <div v-if="studentStore.loading && !student" class="d-flex justify-center mt-10">
-      <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
+    <div v-if="studentStore.loading && !student" class="d-flex justify-center mt-10 w-100">
+      <v-progress-circular indeterminate color="#D0021B" size="64"></v-progress-circular>
     </div>
 
-    <v-card v-else-if="student" class="mx-auto pa-4" max-width="900" elevation="2">
-      <v-card-title class="text-h5 font-weight-bold d-flex align-center">
-        <v-avatar color="primary" class="mr-4" size="80">
-          <span class="text-h4 text-white d-flex align-center justify-center w-100 h-100" style="line-height: 1;">
+    <v-card v-else-if="student" class="mx-auto pa-6 gencat-card" max-width="900" elevation="0" rounded="lg">
+      
+      <v-card-title class="text-h5 font-weight-bold d-flex align-center px-0">
+        <v-avatar color="grey-lighten-4" class="mr-4 border" size="80">
+          <span class="text-h4 text-grey-darken-3 font-weight-bold d-flex align-center justify-center w-100 h-100" style="line-height: 1;">
             {{ student.visual_identity?.iniciales }}
           </span>
         </v-avatar>
         <div>
-          <div>Detall de l'Estudiant</div>
-          <div class="text-caption text-grey">ID: {{ student.hash_id }}</div>
+          <div class="text-grey-darken-3 font-weight-bold">Detall de l'Estudiant</div>
+          <div class="text-caption text-grey-darken-1">ID: {{ student.hash_id }}</div>
         </div>
       </v-card-title>
 
-      <v-divider class="my-3"></v-divider>
+      <v-divider class="my-4"></v-divider>
 
-      <v-card-text>
+      <v-card-text class="px-0">
         <v-row>
           <v-col cols="12" md="4">
-            <v-list-item>
-              <template v-slot:prepend><v-icon icon="mdi-account-circle-outline" color="primary"></v-icon></template>
-              <v-list-item-title>Inicials</v-list-item-title>
-              <v-list-item-subtitle class="text-body-1">{{ student.visual_identity?.iniciales }}</v-list-item-subtitle>
+            <v-list-item class="pa-0">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-account-circle-outline" color="grey-darken-2" size="large"></v-icon>
+              </template>
+              <v-list-item-title class="text-caption font-weight-bold text-grey">INICIALS</v-list-item-title>
+              <v-list-item-subtitle class="text-body-1 text-black font-weight-medium">
+                {{ student.visual_identity?.iniciales }}
+              </v-list-item-subtitle>
             </v-list-item>
           </v-col>
 
           <v-col cols="12" md="4">
-            <v-list-item>
-              <template v-slot:prepend><v-icon icon="mdi-identifier" color="primary"></v-icon></template>
-              <v-list-item-title>Sufix RALC</v-list-item-title>
-              <v-list-item-subtitle class="text-body-1">{{ student.visual_identity?.ralc_suffix }}</v-list-item-subtitle>
+            <v-list-item class="pa-0">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-identifier" color="grey-darken-2" size="large"></v-icon>
+              </template>
+              <v-list-item-title class="text-caption font-weight-bold text-grey">SUFIX RALC</v-list-item-title>
+              <v-list-item-subtitle class="text-body-1 text-black font-weight-medium">
+                {{ student.visual_identity?.ralc_suffix }}
+              </v-list-item-subtitle>
             </v-list-item>
           </v-col>
 
           <v-col cols="12" md="4">
-            <v-list-item class="bg-blue-lighten-5 rounded-lg border-thin">
-              <template v-slot:prepend><v-icon icon="mdi-school" color="primary"></v-icon></template>
-              <v-list-item-title class="font-weight-bold text-primary">Centre Actual</v-list-item-title>
-              <v-list-item-subtitle class="text-body-2 mt-1" style="white-space: normal;">
+            <v-list-item class="bg-grey-lighten-4 rounded border" lines="two">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-school" color="grey-darken-3"></v-icon>
+              </template>
+              <v-list-item-title class="font-weight-bold text-grey-darken-3 text-body-2">
+                Centre Actual
+              </v-list-item-title>
+              <v-list-item-subtitle class="text-caption mt-1 text-black" style="white-space: normal;">
                 {{ currentSchoolName }}
               </v-list-item-subtitle>
               <template v-slot:append>
-                <v-btn icon="mdi-pencil" size="small" variant="text" color="primary"
-                  @click="openTransferDialog" title="Modificar Centre"></v-btn>
+                <v-btn 
+                  icon="mdi-pencil" 
+                  size="small" 
+                  variant="text" 
+                  color="#D0021B"
+                  @click="openTransferDialog" 
+                  title="Modificar Centre"
+                ></v-btn>
               </template>
             </v-list-item>
           </v-col>
 
           <v-col cols="12">
-            <v-alert :color="student.has_file ? 'success' : 'warning'"
-              :icon="student.has_file ? 'mdi-check-circle' : 'mdi-alert-circle'" variant="tonal" density="compact"
-              class="mt-2">
-              {{ student.has_file ? "Pla Individual (PI) pujat correctament." : 'Pendent de pujar document PI.' }}
+            <v-alert 
+              :color="student.has_file ? 'green-lighten-5' : 'orange-lighten-5'"
+              :icon="student.has_file ? 'mdi-check-circle' : 'mdi-alert-circle'" 
+              variant="flat" 
+              density="compact"
+              class="mt-2 border"
+              :class="student.has_file ? 'text-green-darken-4' : 'text-orange-darken-4'"
+              style="border-color: rgba(0,0,0,0.1) !important;"
+            >
+              <span class="text-body-2 font-weight-bold">
+                {{ student.has_file ? "Pla Individual (PI) pujat correctament." : 'Pendent de pujar document PI.' }}
+              </span>
             </v-alert>
           </v-col>
         </v-row>
 
         <v-divider class="my-6"></v-divider>
 
-        <div class="text-h6 mb-4 d-flex align-center">
-          <v-icon icon="mdi-history" class="mr-2"></v-icon> Historial de Centres
+        <div class="text-h6 mb-4 d-flex align-center text-grey-darken-3 font-weight-bold">
+          <v-icon icon="mdi-history" class="mr-2" color="grey-darken-2"></v-icon> Historial de Centres
         </div>
 
-        <div class="history-container">
-          <v-timeline density="compact" side="end">
-            <v-timeline-item dot-color="green" size="small">
+        <div class="history-container bg-white border rounded pa-2">
+          <v-timeline density="compact" side="end" align="start">
+            <v-timeline-item dot-color="green-darken-3" size="small">
               <div class="d-flex justify-space-between">
                 <div>
-                  <div class="font-weight-bold text-green">{{ currentSchoolName }}</div>
-                  <div class="text-caption">Centre Actual</div>
+                  <div class="font-weight-bold text-green-darken-4">{{ currentSchoolName }}</div>
+                  <div class="text-caption text-grey-darken-1">Centre Actual</div>
                 </div>
-                <div class="text-caption text-grey">Des d'avui</div>
+                <div class="text-caption text-grey-darken-1">Des d'avui</div>
               </div>
             </v-timeline-item>
-            <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey" size="x-small">
+            <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey-lighten-1" size="x-small">
               <div class="d-flex justify-space-between">
                 <div>
-                  <div class="font-weight-bold">{{ getSchoolName(hist.codi_centre) }}</div>
-                  <div class="text-caption">Centre Anterior</div>
+                  <div class="font-weight-bold text-grey-darken-3">{{ getSchoolName(hist.codi_centre) }}</div>
+                  <div class="text-caption text-grey">Centre Anterior</div>
                 </div>
                 <div class="text-caption text-grey">
                   Fins al: {{ new Date(hist.date_end).toLocaleDateString() }}
@@ -98,24 +132,28 @@
       </v-card-text>
     </v-card>
 
-    <v-card v-if="student" class="mx-auto mt-4 pa-4" max-width="900" elevation="2">
-      <v-card-title class="text-h6 d-flex align-center justify-space-between">
-        <div class="d-flex align-center">
-            <v-icon icon="mdi-file-document-multiple-outline" class="mr-2" color="primary"></v-icon>
+    <v-card v-if="student" class="mx-auto pa-6 gencat-card" max-width="900" elevation="0" rounded="lg">
+      <v-card-title class="text-h6 d-flex align-center justify-space-between px-0">
+        <div class="d-flex align-center text-grey-darken-3 font-weight-bold">
+            <v-icon icon="mdi-folder-open" class="mr-2" color="grey-darken-2"></v-icon>
             Documents Adjunts
         </div>
       </v-card-title>
       
       <v-divider class="my-2"></v-divider>
       
-      <div class="pa-2 bg-grey-lighten-5 rounded mb-4 border-dashed">
+      <div class="pa-4 bg-grey-lighten-5 rounded mb-4 border border-dashed">
          <v-file-input 
             label="Pujar nou PI (PDF)" 
             variant="outlined" 
             density="compact"
             accept=".pdf" 
-            prepend-icon="mdi-cloud-upload" 
+            prepend-icon=""
+            prepend-inner-icon="mdi-cloud-upload" 
             hide-details="auto"
+            color="#D0021B"
+            base-color="grey-darken-1"
+            bg-color="white"
             @update:model-value="handleUpload"
         ></v-file-input>
       </div>
@@ -124,32 +162,36 @@
         No hi ha documents adjunts.
       </div>
 
-      <v-list lines="two" v-else>
-        <v-list-item v-for="(file, index) in normalizedFiles" :key="index">
+      <v-list lines="two" v-else class="pa-0">
+        <v-list-item v-for="(file, index) in normalizedFiles" :key="index" class="border-b">
           <template v-slot:prepend>
-            <v-avatar color="grey-lighten-4" rounded="0">
-              <v-icon :icon="getFileIcon(file.filename)" color="red-darken-2" size="large"></v-icon>
+            <v-avatar color="red-lighten-5" rounded="lg">
+              <v-icon :icon="getFileIcon(file.filename)" color="#D0021B" size="large"></v-icon>
             </v-avatar>
           </template>
 
-          <v-list-item-title class="font-weight-bold">{{ file.originalName || file.filename }}</v-list-item-title>
-          <v-list-item-subtitle>Pujat el: {{ formatDate(file.uploadDate) }}</v-list-item-subtitle>
+          <v-list-item-title class="font-weight-bold text-grey-darken-3">
+            {{ file.originalName || file.filename }}
+          </v-list-item-title>
+          <v-list-item-subtitle class="text-caption text-grey-darken-1">
+            Pujat el: {{ formatDate(file.uploadDate) }}
+          </v-list-item-subtitle>
 
           <template v-slot:append>
              <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
-              icon="mdi-robot" variant="text" color="purple" title="Generar Resum IA"
+              icon="mdi-robot" variant="text" color="purple-darken-2" title="Generar Resum IA"
               @click="goToSummary(file)">
             </v-btn>
             
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
-              variant="text" color="primary" title="Obrir en nova pestanya">
+              variant="text" color="grey-darken-3" title="Obrir en nova pestanya">
             </v-btn>
             
-            <v-btn icon="mdi-download" variant="text" color="success" title="Descarregar"
+            <v-btn icon="mdi-download" variant="text" color="green-darken-3" title="Descarregar"
               @click="downloadFile(file.filename, file.originalName)">
             </v-btn>
             
-            <v-btn icon="mdi-delete" variant="text" color="error" title="Eliminar"
+            <v-btn icon="mdi-delete" variant="text" color="#D0021B" title="Eliminar"
               @click="deleteFile(file.filename)">
             </v-btn>
           </template>
@@ -158,36 +200,48 @@
     </v-card>
 
     <v-dialog v-model="showTransferDialog" max-width="500px">
-      <v-card>
-        <v-card-title>Modificar Centre (Trasllat)</v-card-title>
-        <v-card-text>
-          <p class="text-body-2 text-grey mb-4">Selecciona el nou centre. L'actual es guardarà a l'historial.</p>
-          <v-autocomplete v-model="selectedNewSchool" :items="schoolsList" item-title="denominacio_completa"
-            item-value="codi_centre" label="Buscar nou centre..." variant="outlined" prepend-inner-icon="mdi-school"
-            clearable></v-autocomplete>
+      <v-card class="gencat-card" rounded="lg">
+        <v-card-title class="bg-grey-lighten-5 pa-4 border-b font-weight-bold text-grey-darken-3">
+          Modificar Centre (Trasllat)
+        </v-card-title>
+        <v-card-text class="pa-6">
+          <p class="text-body-2 text-grey-darken-1 mb-4">Selecciona el nou centre. L'actual es guardarà a l'historial.</p>
+          <v-autocomplete 
+            v-model="selectedNewSchool" 
+            :items="schoolsList" 
+            item-title="denominacio_completa"
+            item-value="codi_centre" 
+            label="Buscar nou centre..." 
+            variant="outlined" 
+            color="#D0021B"
+            prepend-inner-icon="mdi-school"
+            clearable
+          ></v-autocomplete>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="pa-4 pt-0">
           <v-spacer></v-spacer>
-          <v-btn color="grey" text @click="showTransferDialog = false">Cancel·lar</v-btn>
-          <v-btn color="primary" :disabled="!selectedNewSchool" @click="openConfirmDialog">Guardar Canvi</v-btn>
+          <v-btn color="grey-darken-1" variant="text" @click="showTransferDialog = false">Cancel·lar</v-btn>
+          <v-btn color="#D0021B" class="text-white" variant="flat" :disabled="!selectedNewSchool" @click="openConfirmDialog">
+            Guardar Canvi
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="showConfirmDialog" max-width="400px">
-      <v-card>
-        <v-card-title class="text-h6 bg-warning text-white">
-          <v-icon icon="mdi-alert" color="white" class="mr-2"></v-icon>
-          Confirmar Trasllat
-        </v-card-title>
-        <v-card-text class="pa-4 text-center">
+      <v-card class="gencat-card text-center pa-4" rounded="lg">
+        <div class="mb-2">
+            <v-icon icon="mdi-alert-circle-outline" size="50" color="orange-darken-3"></v-icon>
+        </div>
+        <h3 class="text-h6 font-weight-bold mb-2">Confirmar Trasllat</h3>
+        <p class="text-body-2 text-grey-darken-1 mb-4">
           Estàs segur que vols canviar l'alumne al centre:<br>
-          <strong>{{ getSchoolName(selectedNewSchool) }}</strong>?
-        </v-card-text>
-        <v-card-actions class="justify-center pb-4">
+          <strong class="text-black">{{ getSchoolName(selectedNewSchool) }}</strong>?
+        </p>
+        <div class="d-flex justify-center gap-2">
           <v-btn color="grey-darken-1" variant="text" @click="showConfirmDialog = false">No, revisar</v-btn>
-          <v-btn color="warning" variant="elevated" @click="executeTransfer">Sí, estic segur</v-btn>
-        </v-card-actions>
+          <v-btn color="#D0021B" class="text-white" variant="flat" @click="executeTransfer">Sí, estic segur</v-btn>
+        </div>
       </v-card>
     </v-dialog>
   </v-container>
@@ -278,9 +332,7 @@ const executeTransfer = async () => {
   }
 };
 
-// --- LÓGICA DE ARCHIVOS (RESTAURADA) ---
-
-// 1. Subir archivo
+// --- LÓGICA DE ARCHIVOS ---
 const handleUpload = async (files) => {
     const file = Array.isArray(files) ? files[0] : files;
     if (file) {
@@ -290,8 +342,6 @@ const handleUpload = async (files) => {
         }
         const success = await studentStore.uploadStudentPI(file, route.params.hash_id);
         if (success) {
-            console.log("Archivo subido correctamente");
-            // Recargamos estudiante para ver el nuevo fichero
             await studentStore.fetchStudents();
         } else {
             alert("Error al pujar el fitxer");
@@ -299,12 +349,15 @@ const handleUpload = async (files) => {
     }
 };
 
-// 2. Ir a resumen IA
 const goToSummary = (file) => {
-  router.push({ name: 'SummaryPage', params: { filename: file.filename } });
+  router.push({ 
+    name: 'SummaryPage', 
+    params: { filename: file.filename },
+    // AQUI ESTÁ EL TRUCO: Pasamos el nombre real por la URL
+    query: { originalName: file.originalName || file.filename } 
+  });
 };
 
-// 3. Descargar
 const downloadFile = async (filename, originalName) => {
   try {
     const response = await fetch(`http://localhost:3001/uploads/${filename}`);
@@ -322,12 +375,10 @@ const downloadFile = async (filename, originalName) => {
   }
 };
 
-// 4. Eliminar
 const deleteFile = async (filename) => {
   if (!confirm('Estàs segur que vols eliminar aquest fitxer?')) return;
   const success = await studentStore.deleteFile(route.params.hash_id, filename);
   if (success) {
-    console.log('Fitxer esborrat');
     await studentStore.fetchStudents();
   } else {
     alert("No s'ha pogut esborrar");
@@ -348,16 +399,17 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.font-mono {
-  font-family: monospace;
+/* ESTILS GENCAT (Base neta i vora fina) */
+.gencat-card {
+  border: 1px solid rgba(0,0,0,0.12) !important;
+  background-color: white;
 }
 
+/* Scroll personalitzat */
 .history-container {
   max-height: 250px;
   overflow-y: auto;
-  padding-right: 10px;
-  border: 1px solid #eeeeee;
-  border-radius: 8px;
+  border-color: rgba(0,0,0,0.1) !important;
 }
 
 .history-container::-webkit-scrollbar {
@@ -369,5 +421,10 @@ onMounted(async () => {
 .history-container::-webkit-scrollbar-thumb {
   background: #bdbdbd; 
   border-radius: 4px;
+}
+
+/* Tipografia de sistema */
+.v-application {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }
 </style>
