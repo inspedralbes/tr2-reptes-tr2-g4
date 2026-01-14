@@ -9,12 +9,7 @@
         <v-card class="pa-8 gencat-card" elevation="1" rounded="lg">
           
           <div class="text-center mb-8">
-            <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/6/6d/Logo_Generalitat_de_Catalunya.svg" 
-              alt="Generalitat de Catalunya" 
-              width="150"
-              class="mb-6"
-            />
+            <img src="/logo_gencat.png" alt="Generalitat de Catalunya" height="45" class="me-4" />
             <h2 class="text-overline text-grey-darken-1 font-weight-bold tracking-wide">
               DEPARTAMENT D'EDUCACIÓ
             </h2>
