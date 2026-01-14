@@ -23,8 +23,7 @@ declare module 'vue-router/auto-routes' {
     '/DashboardMenu': RouteRecordInfo<'/DashboardMenu', '/DashboardMenu', Record<never, never>, Record<never, never>>,
     '/LandingPage': RouteRecordInfo<'/LandingPage', '/LandingPage', Record<never, never>, Record<never, never>>,
     '/LoginView': RouteRecordInfo<'/LoginView', '/LoginView', Record<never, never>, Record<never, never>>,
-    '/logs': RouteRecordInfo<'/logs', '/logs', Record<never, never>, Record<never, never>>,
-    '/LogsPage': RouteRecordInfo<'/LogsPage', '/LogsPage', Record<never, never>, Record<never, never>>,
+    '/Logs': RouteRecordInfo<'/Logs', '/Logs', Record<never, never>, Record<never, never>>,
     '/Perfil': RouteRecordInfo<'/Perfil', '/Perfil', Record<never, never>, Record<never, never>>,
     '/StudentDetail': RouteRecordInfo<'/StudentDetail', '/StudentDetail', Record<never, never>, Record<never, never>>,
     '/SummaryPage': RouteRecordInfo<'/SummaryPage', '/SummaryPage', Record<never, never>, Record<never, never>>,
@@ -61,12 +60,8 @@ declare module 'vue-router/auto-routes' {
       routes: '/LoginView'
       views: never
     }
-    'src/pages/logs.vue': {
-      routes: '/logs'
-      views: never
-    }
-    'src/pages/LogsPage.vue': {
-      routes: '/LogsPage'
+    'src/pages/Logs.vue': {
+      routes: '/Logs'
       views: never
     }
     'src/pages/Perfil.vue': {

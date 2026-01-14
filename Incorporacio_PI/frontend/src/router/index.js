@@ -10,6 +10,9 @@ import DashboardMenu from '@/pages/DashboardMenu.vue' // <--- NUEVO MENÚ
 import StudentList from '@/components/StudentList.vue'
 import AddStudent from '@/pages/AddStudent.vue';
 import StudentDetail from '@/pages/StudentDetail.vue'
+import Logs from '@/pages/Logs.vue'
+
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -56,7 +59,7 @@ const router = createRouter({
     {
       path: '/logs',
       name: 'Logs',
-      component: () => import('@/pages/LogsPage.vue'), // Crearem aquest fitxer ara
+      component: Logs, // Crearem aquest fitxer ara
       meta: { requiresAuth: true }
     },
     // 5. RUTA RESUM IA -> Nova pàgina dedicada
