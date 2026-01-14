@@ -9,12 +9,7 @@
         <v-card class="text-center pa-8 pa-md-12 gencat-card" elevation="1" rounded="lg">
           
           <div class="mb-10 d-flex justify-center">
-            <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/6/6d/Logo_Generalitat_de_Catalunya.svg" 
-              alt="Generalitat de Catalunya" 
-              width="180"
-              style="max-width: 80%;"
-            />
+            <img src="/logo_gencat.png" alt="Generalitat de Catalunya" height="45" class="me-4" />
           </div>
 
           <h2 class="text-overline text-grey-darken-1 mb-2 font-weight-bold tracking-wide">
