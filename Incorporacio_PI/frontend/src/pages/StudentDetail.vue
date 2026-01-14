@@ -15,189 +15,197 @@
       <v-progress-circular indeterminate color="#D0021B" size="64"></v-progress-circular>
     </div>
 
-    <v-card v-else-if="student" class="mx-auto pa-6 gencat-card" max-width="900" elevation="0" rounded="lg">
+    <v-row v-else-if="student">
       
-      <v-card-title class="text-h5 font-weight-bold d-flex align-center px-0">
-        <v-avatar color="grey-lighten-4" class="mr-4 border" size="80">
-          <span class="text-h4 text-grey-darken-3 font-weight-bold d-flex align-center justify-center w-100 h-100" style="line-height: 1;">
-            {{ student.visual_identity?.iniciales }}
-          </span>
-        </v-avatar>
-        <div>
-          <div class="text-grey-darken-3 font-weight-bold">Detall de l'Estudiant</div>
-          <div class="text-caption text-grey-darken-1">ID: {{ student.hash_id }}</div>
-        </div>
-      </v-card-title>
-
-      <v-divider class="my-4"></v-divider>
-
-      <v-card-text class="px-0">
-        <v-row>
-          <v-col cols="12" md="4">
-            <v-list-item class="pa-0">
-              <template v-slot:prepend>
-                <v-icon icon="mdi-account-circle-outline" color="grey-darken-2" size="large"></v-icon>
-              </template>
-              <v-list-item-title class="text-caption font-weight-bold text-grey">INICIALS</v-list-item-title>
-              <v-list-item-subtitle class="text-body-1 text-black font-weight-medium">
+      <v-col cols="12" md="8">
+        <v-card class="pa-6 gencat-card h-100" elevation="0" rounded="lg">
+          
+          <v-card-title class="text-h5 font-weight-bold d-flex align-center px-0">
+            <v-avatar color="grey-lighten-4" class="mr-4 border" size="80">
+              <span class="text-h4 text-grey-darken-3 font-weight-bold d-flex align-center justify-center w-100 h-100" style="line-height: 1;">
                 {{ student.visual_identity?.iniciales }}
-              </v-list-item-subtitle>
-            </v-list-item>
-          </v-col>
-
-          <v-col cols="12" md="4">
-            <v-list-item class="pa-0">
-              <template v-slot:prepend>
-                <v-icon icon="mdi-identifier" color="grey-darken-2" size="large"></v-icon>
-              </template>
-              <v-list-item-title class="text-caption font-weight-bold text-grey">SUFIX RALC</v-list-item-title>
-              <v-list-item-subtitle class="text-body-1 text-black font-weight-medium">
-                {{ student.visual_identity?.ralc_suffix }}
-              </v-list-item-subtitle>
-            </v-list-item>
-          </v-col>
-
-          <v-col cols="12" md="4">
-            <v-list-item class="bg-grey-lighten-4 rounded border" lines="two">
-              <template v-slot:prepend>
-                <v-icon icon="mdi-school" color="grey-darken-3"></v-icon>
-              </template>
-              <v-list-item-title class="font-weight-bold text-grey-darken-3 text-body-2">
-                Centre Actual
-              </v-list-item-title>
-              <v-list-item-subtitle class="text-caption mt-1 text-black" style="white-space: normal;">
-                {{ currentSchoolName }}
-              </v-list-item-subtitle>
-              <template v-slot:append>
-                <v-btn 
-                  icon="mdi-pencil" 
-                  size="small" 
-                  variant="text" 
-                  color="#D0021B"
-                  @click="openTransferDialog" 
-                  title="Modificar Centre"
-                ></v-btn>
-              </template>
-            </v-list-item>
-          </v-col>
-
-          <v-col cols="12">
-            <v-alert 
-              :color="student.has_file ? 'green-lighten-5' : 'orange-lighten-5'"
-              :icon="student.has_file ? 'mdi-check-circle' : 'mdi-alert-circle'" 
-              variant="flat" 
-              density="compact"
-              class="mt-2 border"
-              :class="student.has_file ? 'text-green-darken-4' : 'text-orange-darken-4'"
-              style="border-color: rgba(0,0,0,0.1) !important;"
-            >
-              <span class="text-body-2 font-weight-bold">
-                {{ student.has_file ? "Pla Individual (PI) pujat correctament." : 'Pendent de pujar document PI.' }}
               </span>
-            </v-alert>
-          </v-col>
-        </v-row>
-
-        <v-divider class="my-6"></v-divider>
-
-        <div class="text-h6 mb-4 d-flex align-center text-grey-darken-3 font-weight-bold">
-          <v-icon icon="mdi-history" class="mr-2" color="grey-darken-2"></v-icon> Historial de Centres
-        </div>
-
-        <div class="history-container bg-white border rounded pa-2">
-          <v-timeline density="compact" side="end" align="start">
-            <v-timeline-item dot-color="green-darken-3" size="small">
-              <div class="d-flex justify-space-between">
-                <div>
-                  <div class="font-weight-bold text-green-darken-4">{{ currentSchoolName }}</div>
-                  <div class="text-caption text-grey-darken-1">Centre Actual</div>
-                </div>
-                <div class="text-caption text-grey-darken-1">Des d'avui</div>
-              </div>
-            </v-timeline-item>
-            <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey-lighten-1" size="x-small">
-              <div class="d-flex justify-space-between">
-                <div>
-                  <div class="font-weight-bold text-grey-darken-3">{{ getSchoolName(hist.codi_centre) }}</div>
-                  <div class="text-caption text-grey">Centre Anterior</div>
-                </div>
-                <div class="text-caption text-grey">
-                  Fins al: {{ new Date(hist.date_end).toLocaleDateString() }}
-                </div>
-              </div>
-            </v-timeline-item>
-          </v-timeline>
-        </div>
-
-      </v-card-text>
-    </v-card>
-
-    <v-card v-if="student" class="mx-auto pa-6 gencat-card" max-width="900" elevation="0" rounded="lg">
-      <v-card-title class="text-h6 d-flex align-center justify-space-between px-0">
-        <div class="d-flex align-center text-grey-darken-3 font-weight-bold">
-            <v-icon icon="mdi-folder-open" class="mr-2" color="grey-darken-2"></v-icon>
-            Documents Adjunts
-        </div>
-      </v-card-title>
-      
-      <v-divider class="my-2"></v-divider>
-      
-      <div class="pa-4 bg-grey-lighten-5 rounded mb-4 border border-dashed">
-         <v-file-input 
-            label="Pujar nou PI (PDF)" 
-            variant="outlined" 
-            density="compact"
-            accept=".pdf" 
-            prepend-icon=""
-            prepend-inner-icon="mdi-cloud-upload" 
-            hide-details="auto"
-            color="#D0021B"
-            base-color="grey-darken-1"
-            bg-color="white"
-            @update:model-value="handleUpload"
-        ></v-file-input>
-      </div>
-
-      <div v-if="normalizedFiles.length === 0" class="text-center text-grey py-4">
-        No hi ha documents adjunts.
-      </div>
-
-      <v-list lines="two" v-else class="pa-0">
-        <v-list-item v-for="(file, index) in normalizedFiles" :key="index" class="border-b">
-          <template v-slot:prepend>
-            <v-avatar color="red-lighten-5" rounded="lg">
-              <v-icon :icon="getFileIcon(file.filename)" color="#D0021B" size="large"></v-icon>
             </v-avatar>
-          </template>
+            <div>
+              <div class="text-grey-darken-3 font-weight-bold">Detall de l'Estudiant</div>
+              <div class="text-caption text-grey-darken-1">ID: {{ student.hash_id }}</div>
+            </div>
+          </v-card-title>
 
-          <v-list-item-title class="font-weight-bold text-grey-darken-3">
-            {{ file.originalName || file.filename }}
-          </v-list-item-title>
-          <v-list-item-subtitle class="text-caption text-grey-darken-1">
-            Pujat el: {{ formatDate(file.uploadDate) }}
-          </v-list-item-subtitle>
+          <v-divider class="my-4"></v-divider>
 
-          <template v-slot:append>
-             <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
-              icon="mdi-robot" variant="text" color="purple-darken-2" title="Generar Resum IA"
-              @click="goToSummary(file)">
-            </v-btn>
+          <v-card-text class="px-0">
+            <v-row>
+              <v-col cols="12" sm="4">
+                <v-list-item class="pa-0">
+                  <template v-slot:prepend>
+                    <v-icon icon="mdi-account-circle-outline" color="grey-darken-2" size="large"></v-icon>
+                  </template>
+                  <v-list-item-title class="text-caption font-weight-bold text-grey">INICIALS</v-list-item-title>
+                  <v-list-item-subtitle class="text-body-1 text-black font-weight-medium">
+                    {{ student.visual_identity?.iniciales }}
+                  </v-list-item-subtitle>
+                </v-list-item>
+              </v-col>
+
+              <v-col cols="12" sm="4">
+                <v-list-item class="pa-0">
+                  <template v-slot:prepend>
+                    <v-icon icon="mdi-identifier" color="grey-darken-2" size="large"></v-icon>
+                  </template>
+                  <v-list-item-title class="text-caption font-weight-bold text-grey">SUFIX RALC</v-list-item-title>
+                  <v-list-item-subtitle class="text-body-1 text-black font-weight-medium">
+                    {{ student.visual_identity?.ralc_suffix }}
+                  </v-list-item-subtitle>
+                </v-list-item>
+              </v-col>
+
+              <v-col cols="12" sm="4">
+                <v-list-item class="bg-grey-lighten-4 rounded border" lines="two">
+                  <template v-slot:prepend>
+                    <v-icon icon="mdi-school" color="grey-darken-3"></v-icon>
+                  </template>
+                  <v-list-item-title class="font-weight-bold text-grey-darken-3 text-body-2">
+                    Centre Actual
+                  </v-list-item-title>
+                  <v-list-item-subtitle class="text-caption mt-1 text-black" style="white-space: normal;">
+                    {{ currentSchoolName }}
+                  </v-list-item-subtitle>
+                  <template v-slot:append>
+                    <v-btn 
+                      icon="mdi-pencil" 
+                      size="small" 
+                      variant="text" 
+                      color="#D0021B"
+                      @click="openTransferDialog" 
+                      title="Modificar Centre"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-col>
+
+              <v-col cols="12">
+                <v-alert 
+                  :color="student.has_file ? 'green-lighten-5' : 'orange-lighten-5'"
+                  :icon="student.has_file ? 'mdi-check-circle' : 'mdi-alert-circle'" 
+                  variant="flat" 
+                  density="compact"
+                  class="mt-2 border"
+                  :class="student.has_file ? 'text-green-darken-4' : 'text-orange-darken-4'"
+                  style="border-color: rgba(0,0,0,0.1) !important;"
+                >
+                  <span class="text-body-2 font-weight-bold">
+                    {{ student.has_file ? "Pla Individual (PI) pujat correctament." : 'Pendent de pujar document PI.' }}
+                  </span>
+                </v-alert>
+              </v-col>
+            </v-row>
+
+            <v-divider class="my-6"></v-divider>
+
+            <div class="text-h6 mb-4 d-flex align-center text-grey-darken-3 font-weight-bold">
+              <v-icon icon="mdi-history" class="mr-2" color="grey-darken-2"></v-icon> Historial de Centres
+            </div>
+
+            <div class="history-container bg-white border rounded pa-2">
+              <v-timeline density="compact" side="end" align="start">
+                <v-timeline-item dot-color="green-darken-3" size="small">
+                  <div class="d-flex justify-space-between">
+                    <div>
+                      <div class="font-weight-bold text-green-darken-4">{{ currentSchoolName }}</div>
+                      <div class="text-caption text-grey-darken-1">Centre Actual</div>
+                    </div>
+                    <div class="text-caption text-grey-darken-1">Des d'avui</div>
+                  </div>
+                </v-timeline-item>
+                <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey-lighten-1" size="x-small">
+                  <div class="d-flex justify-space-between">
+                    <div>
+                      <div class="font-weight-bold text-grey-darken-3">{{ getSchoolName(hist.codi_centre) }}</div>
+                      <div class="text-caption text-grey">Centre Anterior</div>
+                    </div>
+                    <div class="text-caption text-grey">
+                      Fins al: {{ new Date(hist.date_end).toLocaleDateString() }}
+                    </div>
+                  </div>
+                </v-timeline-item>
+              </v-timeline>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <v-col cols="12" md="4">
+        <div style="position: sticky; top: 20px; z-index: 1;">
+          <v-card class="pa-6 gencat-card" elevation="0" rounded="lg">
+            <v-card-title class="text-h6 d-flex align-center justify-space-between px-0">
+              <div class="d-flex align-center text-grey-darken-3 font-weight-bold">
+                  <v-icon icon="mdi-folder-open" class="mr-2" color="grey-darken-2"></v-icon>
+                  Documents Adjunts
+              </div>
+            </v-card-title>
             
-            <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
-              variant="text" color="grey-darken-3" title="Obrir en nova pestanya">
-            </v-btn>
+            <v-divider class="my-2"></v-divider>
             
-            <v-btn icon="mdi-download" variant="text" color="green-darken-3" title="Descarregar"
-              @click="downloadFile(file.filename, file.originalName)">
-            </v-btn>
-            
-            <v-btn icon="mdi-delete" variant="text" color="#D0021B" title="Eliminar"
-              @click="deleteFile(file.filename)">
-            </v-btn>
-          </template>
-        </v-list-item>
-      </v-list>
-    </v-card>
+            <div class="pa-4 bg-grey-lighten-5 rounded mb-4 border border-dashed">
+              <v-file-input 
+                  label="Pujar nou PI (PDF)" 
+                  variant="outlined" 
+                  density="compact"
+                  accept=".pdf" 
+                  prepend-icon=""
+                  prepend-inner-icon="mdi-cloud-upload" 
+                  hide-details="auto"
+                  color="#D0021B"
+                  base-color="grey-darken-1"
+                  bg-color="white"
+                  @update:model-value="handleUpload"
+              ></v-file-input>
+            </div>
+
+            <div v-if="normalizedFiles.length === 0" class="text-center text-grey py-4">
+              No hi ha documents adjunts.
+            </div>
+
+            <v-list lines="two" v-else class="pa-0" style="max-height: 60vh; overflow-y: auto;">
+              <v-list-item v-for="(file, index) in normalizedFiles" :key="index" class="border-b">
+                <template v-slot:prepend>
+                  <v-avatar color="red-lighten-5" rounded="lg">
+                    <v-icon :icon="getFileIcon(file.filename)" color="#D0021B" size="large"></v-icon>
+                  </v-avatar>
+                </template>
+
+                <v-list-item-title class="font-weight-bold text-grey-darken-3">
+                  {{ file.originalName || file.filename }}
+                </v-list-item-title>
+                <v-list-item-subtitle class="text-caption text-grey-darken-1">
+                  Pujat el: {{ formatDate(file.uploadDate) }}
+                </v-list-item-subtitle>
+
+                <template v-slot:append>
+                  <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
+                    icon="mdi-robot" variant="text" size="small" color="purple-darken-2" title="Generar Resum IA"
+                    @click="goToSummary(file)">
+                  </v-btn>
+                  
+                  <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
+                    variant="text" size="small" color="grey-darken-3" title="Obrir en nova pestanya">
+                  </v-btn>
+                  
+                  <v-btn icon="mdi-download" variant="text" size="small" color="green-darken-3" title="Descarregar"
+                    @click="downloadFile(file.filename, file.originalName)">
+                  </v-btn>
+                  
+                  <v-btn icon="mdi-delete" variant="text" size="small" color="#D0021B" title="Eliminar"
+                    @click="deleteFile(file.filename)">
+                  </v-btn>
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </div>
+      </v-col>
+    </v-row>
 
     <v-dialog v-model="showTransferDialog" max-width="500px">
       <v-card class="gencat-card" rounded="lg">
@@ -244,6 +252,7 @@
         </div>
       </v-card>
     </v-dialog>
+
   </v-container>
 </template>
 
@@ -350,12 +359,7 @@ const handleUpload = async (files) => {
 };
 
 const goToSummary = (file) => {
-  router.push({ 
-    name: 'SummaryPage', 
-    params: { filename: file.filename },
-    // AQUI ESTÁ EL TRUCO: Pasamos el nombre real por la URL
-    query: { originalName: file.originalName || file.filename } 
-  });
+  router.push({ name: 'SummaryPage', params: { filename: file.filename } });
 };
 
 const downloadFile = async (filename, originalName) => {

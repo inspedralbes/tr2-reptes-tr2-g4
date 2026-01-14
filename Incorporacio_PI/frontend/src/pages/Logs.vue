@@ -61,7 +61,7 @@
                 <td class="text-body-2 font-weight-bold text-grey-darken-3">
                     <v-avatar color="grey-lighten-3" size="24" class="mr-2">
                         <span class="text-caption font-weight-bold text-grey-darken-2">
-                            {{ log.usuari.charAt(0).toUpperCase() }}
+                            {{ log.usuari ? log.usuari.charAt(0).toUpperCase() : '?' }}
                         </span>
                     </v-avatar>
                     {{ log.usuari }}
@@ -127,27 +127,39 @@ onMounted(() => {
 
 const formatDate = (date) => {
   if (!date) return '-';
-  // Format estil: 14/01/2026 10:30
   return new Date(date).toLocaleString('ca-ES', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
 };
 
-// Colors corporatius i semàntics
+// --- LOGICA DE COLORS CORREGIDA ---
 const getActionColor = (accio) => {
   if (!accio) return 'grey';
   const a = accio.toLowerCase();
   
+  // VERDE: Subidas
   if (a.includes('pujada') || a.includes('upload')) return 'green-lighten-4 text-green-darken-4';
+  
+  // AZUL: Creación
   if (a.includes('nou alumne') || a.includes('crear')) return 'blue-lighten-4 text-blue-darken-4';
+  
+  // NARANJA: Movimientos
   if (a.includes('trasllat') || a.includes('transfer')) return 'orange-lighten-4 text-orange-darken-4';
-  if (a.includes('esborrar') || a.includes('delete')) return 'red-lighten-4 text-red-darken-4';
+  
+  // ROJO: Eliminación (CORREGIDO: detecta "elimin" para cubrir "eliminació")
+  if (a.includes('esborrar') || a.includes('delete') || a.includes('elimin')) {
+      return 'red-lighten-4 text-red-darken-4';
+  }
+  
+  // GRIS CLARO: Login
   if (a.includes('login')) return 'grey-lighten-3 text-grey-darken-3';
   
+  // DEFECTO
   return 'grey-lighten-4 text-grey-darken-2';
 };
 
+// --- LOGICA DE ICONOS CORREGIDA ---
 const getActionIcon = (accio) => {
     if (!accio) return 'mdi-circle-small';
     const a = accio.toLowerCase();
@@ -155,7 +167,11 @@ const getActionIcon = (accio) => {
     if (a.includes('pujada')) return 'mdi-cloud-upload';
     if (a.includes('nou alumne')) return 'mdi-account-plus';
     if (a.includes('trasllat')) return 'mdi-transfer';
-    if (a.includes('esborrar')) return 'mdi-trash-can';
+
+    if (a.includes('esborrar') || a.includes('delete') || a.includes('elimin')) {
+        return 'mdi-trash-can';
+    }
+    
     if (a.includes('login')) return 'mdi-login';
     
     return 'mdi-information';
@@ -181,7 +197,6 @@ const getActionIcon = (accio) => {
     font-family: monospace;
 }
 
-/* Efecte hover suau a les files */
 .item-row:hover td {
     background-color: #f9f9f9 !important;
 }

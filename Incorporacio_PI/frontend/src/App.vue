@@ -11,10 +11,10 @@
       <div class="d-flex align-center cursor-pointer h-100 ps-4" @click="goDashboard">
         
         <img 
-          src="https://upload.wikimedia.org/wikipedia/commons/6/6d/Logo_Generalitat_de_Catalunya.svg" 
+          src="/logo_generalitat_blanc.svg" 
           alt="Generalitat de Catalunya" 
           height="45"
-          class="me-4 logo-white"
+          class="me-4"
         />
 
         <div class="d-none d-sm-flex border-s-md mx-2 h-50 align-self-center border-opacity-25" style="border-color: white !important;"></div>
@@ -32,7 +32,6 @@
       <v-spacer></v-spacer>
 
       <div class="d-flex align-center pe-2">
-        
         <NotificationBell class="me-1" />
 
         <v-tooltip text="Historial de registres" location="bottom">
@@ -86,19 +85,13 @@ const goDashboard = () => {
 </script>
 
 <style scoped>
-/* TRUC CSS: Inverteix els colors de la imatge (Negre -> Blanc) */
-/* Això serveix perquè el logo SVG original és negre, però sobre fons gris fosc necessitem que sigui blanc */
-.logo-white {
-  filter: brightness(0) invert(1);
-  opacity: 0.9;
-}
+/* JA NO NECESSITEM LA CLASSE .logo-white PERQUÈ L'SVG JA ÉS BLANC */
 
 .cursor-pointer {
   cursor: pointer;
   user-select: none; 
 }
 
-/* Assegurar tipografia oficial */
 .v-application {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }
