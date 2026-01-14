@@ -1,72 +1,148 @@
 <template>
-    <v-container>
-        <div class="d-flex justify-space-between align-center mb-4">
-            <h1>Bústia de Normalització PI</h1>
-        </div>
+    <v-container class="fill-height align-start bg-grey-lighten-5" fluid>
+        <v-row justify="center">
+            <v-col cols="12" lg="10" xl="8">
+                
+                <div class="mb-6 mt-4">
+                    <h1 class="text-h4 font-weight-black text-grey-darken-4 mb-1 gencat-font">
+                        Gestió d'Expedients PI
+                    </h1>
+                    <p class="text-subtitle-1 text-grey-darken-1">
+                        Consulteu, filtreu i actualitzeu la documentació dels alumnes.
+                    </p>
+                </div>
 
-        <v-row class="mb-2">
-            <v-col cols="12" md="6">
-                <v-text-field
-                    v-model="searchName"
-                    label="Buscar per Inicials"
-                    prepend-inner-icon="mdi-account-search"
-                    variant="outlined"
-                    clearable
-                    hide-details="auto"
-                ></v-text-field>
-            </v-col>
+                <v-card class="pa-6 mb-6 gencat-card" elevation="0" rounded="lg">
+                    <div class="d-flex align-center mb-4">
+                        <v-icon icon="mdi-filter-variant" color="#D0021B" class="mr-2"></v-icon>
+                        <h2 class="text-h6 font-weight-bold text-grey-darken-3">Filtres de cerca</h2>
+                    </div>
+                    
+                    <v-row dense>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="searchName"
+                                label="Cercar per Inicials"
+                                placeholder="Ex: J.M."
+                                prepend-inner-icon="mdi-account-search"
+                                variant="outlined"
+                                density="comfortable"
+                                clearable
+                                color="#D0021B"
+                                base-color="grey-darken-1"
+                                hide-details="auto"
+                                class="gencat-input"
+                            ></v-text-field>
+                        </v-col>
 
-            <v-col cols="12" md="6">
-                <v-text-field
-                    v-model="searchRalc"
-                    label="Buscar per RALC (últims dígits)"
-                    prepend-inner-icon="mdi-numeric"
-                    variant="outlined"
-                    clearable
-                    hide-details="auto"
-                ></v-text-field>
-            </v-col>
-        </v-row>
+                        <v-col cols="12" md="6">
+                            <v-text-field
+                                v-model="searchRalc"
+                                label="Cercar per RALC (últims dígits)"
+                                placeholder="Ex: ***123"
+                                prepend-inner-icon="mdi-numeric"
+                                variant="outlined"
+                                density="comfortable"
+                                clearable
+                                color="#D0021B"
+                                base-color="grey-darken-1"
+                                hide-details="auto"
+                                class="gencat-input"
+                            ></v-text-field>
+                        </v-col>
+                    </v-row>
+                </v-card>
 
-        <v-row>
-            <v-col cols="12">
-                <v-list lines="two">
-                    <v-list-item v-for="student in filteredStudents" :key="student.hash_id"
-                        :subtitle="student.visual_identity.ralc_suffix" :title="student.visual_identity.iniciales">
-                        <template v-slot:prepend>
-                            <v-avatar color="grey-lighten-1">
-                                <v-icon color="white">{{ student.has_file ? 'mdi-check-circle' : 'mdi-account' }}</v-icon>
-                            </v-avatar>
-                        </template>
+                <v-card class="gencat-card" elevation="0" rounded="lg">
+                    <div class="pa-4 border-b d-flex justify-space-between align-center bg-grey-lighten-5">
+                        <span class="font-weight-bold text-grey-darken-3">
+                            {{ filteredStudents.length }} Alumnes trobats
+                        </span>
+                        <v-btn icon="mdi-refresh" variant="text" size="small" color="grey-darken-1" @click="studentStore.fetchStudents()"></v-btn>
+                    </div>
 
-                        <template v-slot:append>
-                            <router-link :to="`/perfil/${student.hash_id}`">
-                                <v-btn icon="mdi-account-details" variant="text" color="primary" class="mr-2"></v-btn>
-                            </router-link>
+                    <v-list lines="two" class="pa-0">
+                        <template v-for="(student, index) in filteredStudents" :key="student.hash_id">
                             
-                            <v-chip v-if="student.has_file" 
-                                :to="`/perfil/${student.hash_id}`"
-                                link
-                                color="blue-grey-darken-1" 
-                                variant="outlined" 
-                                class="mr-4 font-weight-bold">
-                                <v-icon start icon="mdi-folder"></v-icon>
-                                {{ student.files?.length || 1 }} Docs
-                            </v-chip>
+                            <v-list-item class="py-3">
+                                <template v-slot:prepend>
+                                    <v-avatar :color="student.has_file ? 'green-lighten-5' : 'grey-lighten-4'" size="48" class="mr-3 border">
+                                        <v-icon :color="student.has_file ? 'green-darken-2' : 'grey-darken-1'">
+                                            {{ student.has_file ? 'mdi-check-bold' : 'mdi-account' }}
+                                        </v-icon>
+                                    </v-avatar>
+                                </template>
 
-                            <div style="width: 250px">
-                                <v-file-input label="Pujar PI (PDF)" variant="outlined" density="compact"
-                                    accept=".pdf" prepend-icon="mdi-cloud-upload" hide-details
-                                    @update:model-value="(files) => handleUpload(files, student.hash_id)"></v-file-input>
-                            </div>
+                                <v-list-item-title class="font-weight-bold text-grey-darken-3 text-body-1 mb-1">
+                                    {{ student.visual_identity.iniciales }}
+                                </v-list-item-title>
+                                
+                                <v-list-item-subtitle class="d-flex align-center">
+                                    <v-chip size="x-small" label class="mr-2 font-weight-medium bg-grey-lighten-3 text-grey-darken-3">
+                                        {{ student.visual_identity.ralc_suffix }}
+                                    </v-chip>
+                                    <span v-if="student.has_file" class="text-caption text-green-darken-2 d-flex align-center">
+                                        <v-icon start icon="mdi-file-document-outline" size="small"></v-icon>
+                                        {{ student.files?.length || 1 }} Document(s)
+                                    </span>
+                                    <span v-else class="text-caption text-orange-darken-3">
+                                        Pendent de documentació
+                                    </span>
+                                </v-list-item-subtitle>
+
+                                <template v-slot:append>
+                                    <div class="d-flex align-center gap-4">
+                                        
+                                        <div style="width: 200px" class="d-none d-sm-block">
+                                            <v-file-input 
+                                                label="Pujar PI (PDF)" 
+                                                variant="outlined" 
+                                                density="compact"
+                                                accept=".pdf" 
+                                                prepend-icon=""
+                                                prepend-inner-icon="mdi-cloud-upload" 
+                                                hide-details
+                                                color="#D0021B"
+                                                base-color="grey-lighten-1"
+                                                class="gencat-file-input"
+                                                @update:model-value="(files) => handleUpload(files, student.hash_id)"
+                                            ></v-file-input>
+                                        </div>
+
+                                        <v-tooltip text="Veure detalls complets" location="top">
+                                            <template v-slot:activator="{ props }">
+                                                <v-btn 
+                                                    icon="mdi-chevron-right" 
+                                                    variant="text" 
+                                                    color="grey-darken-2" 
+                                                    v-bind="props"
+                                                    :to="`/perfil/${student.hash_id}`"
+                                                ></v-btn>
+                                            </template>
+                                        </v-tooltip>
+                                    </div>
+                                </template>
+                            </v-list-item>
+                            
+                            <v-divider v-if="index < filteredStudents.length - 1" inset></v-divider>
                         </template>
-                    </v-list-item>
-                </v-list>
+
+                        <div v-if="filteredStudents.length === 0" class="text-center pa-8">
+                            <v-icon icon="mdi-account-search-outline" size="64" color="grey-lighten-2" class="mb-4"></v-icon>
+                            <h3 class="text-h6 text-grey-darken-2">No s'han trobat alumnes</h3>
+                            <p class="text-body-2 text-grey">Proveu de modificar els filtres de cerca.</p>
+                        </div>
+                    </v-list>
+                </v-card>
+
             </v-col>
         </v-row>
 
-        <v-snackbar v-model="showError" color="error">
-            {{ studentStore.error }}
+        <v-snackbar v-model="showError" color="#D0021B" location="top">
+            <div class="d-flex align-center">
+                <v-icon icon="mdi-alert-circle" color="white" class="mr-2"></v-icon>
+                {{ studentStore.error }}
+            </div>
         </v-snackbar>
     </v-container>
 </template>
@@ -78,28 +154,22 @@ import { useStudentStore } from '@/stores/studentStore';
 const studentStore = useStudentStore();
 const showError = ref(false);
 
-// CAMBIO 1: Creamos dos variables reactivas separadas
 const searchName = ref('');
 const searchRalc = ref('');
 
-// CAMBIO 2: Lógica de filtrado combinada
 const filteredStudents = computed(() => {
     return studentStore.students.filter(student => {
-        // Obtenemos los valores de búsqueda en minúsculas (o string vacío si es null)
         const nameInput = (searchName.value || '').toLowerCase();
         const ralcInput = (searchRalc.value || '').toLowerCase();
 
-        // 1. Verificamos si coincide el NOMBRE (Si el input está vacío, devuelve true automáticamente)
         const matchesName = !nameInput || 
                             (student.original_name || '').toLowerCase().includes(nameInput) ||
                             student.visual_identity.iniciales.toLowerCase().includes(nameInput);
 
-        // 2. Verificamos si coincide el RALC (Si el input está vacío, devuelve true automáticamente)
         const matchesRalc = !ralcInput || 
                             (student.original_id || '').includes(ralcInput) ||
                             student.visual_identity.ralc_suffix.toLowerCase().includes(ralcInput);
 
-        // 3. Devuelve el estudiante solo si cumple AMBAS condiciones
         return matchesName && matchesRalc;
     });
 });
@@ -119,7 +189,8 @@ const handleUpload = async (files, hashId) => {
         }
         const success = await studentStore.uploadStudentPI(file, hashId);
         if (success) {
-            console.log("Archivo subido correctamente");
+            console.log("Arxiu pujat correctament");
+            // Opcional: mostrar un missatge d'èxit o recarregar
         } else {
             showError.value = true;
         }
@@ -130,3 +201,29 @@ watch(() => studentStore.error, (newVal) => {
         if (newVal) showError.value = true;
 });
 </script>
+
+<style scoped>
+/* ESTILS CORPORATIUS GENCAT */
+
+.gencat-font {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+.gencat-card {
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  background-color: white;
+}
+
+/* Ajust fi per als inputs perquè semblin més nets */
+.gencat-input :deep(.v-field__outline__start),
+.gencat-input :deep(.v-field__outline__end),
+.gencat-input :deep(.v-field__outline__notch) {
+  border-color: rgba(0,0,0,0.2) !important;
+}
+
+/* El input de fitxer més petit */
+.gencat-file-input :deep(.v-field) {
+    font-size: 0.85rem;
+    border-radius: 4px;
+}
+</style>
