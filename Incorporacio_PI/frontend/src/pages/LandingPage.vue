@@ -99,11 +99,11 @@
             © 2026 Generalitat de Catalunya
           </p>
           <div class="d-flex justify-center flex-wrap gap-4">
-             <a href="#" class="text-caption text-grey-darken-1 mx-2 text-decoration-none hover-link">Avís legal</a>
-             <span class="text-grey-lighten-1">•</span>
-             <a href="#" class="text-caption text-grey-darken-1 mx-2 text-decoration-none hover-link">Privacitat</a>
-             <span class="text-grey-lighten-1">•</span>
-             <a href="#" class="text-caption text-grey-darken-1 mx-2 text-decoration-none hover-link">Accessibilitat</a>
+              <a href="#" class="text-caption text-grey-darken-1 mx-2 text-decoration-none hover-link">Avís legal</a>
+              <span class="text-grey-lighten-1">•</span>
+              <a href="#" class="text-caption text-grey-darken-1 mx-2 text-decoration-none hover-link">Privacitat</a>
+              <span class="text-grey-lighten-1">•</span>
+              <a href="#" class="text-caption text-grey-darken-1 mx-2 text-decoration-none hover-link">Accessibilitat</a>
           </div>
         </div>
 
