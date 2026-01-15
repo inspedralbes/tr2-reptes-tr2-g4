@@ -162,10 +162,11 @@ router.delete('/:hash/files/:filename', async (req, res) => {
     }
 });
 
-// PUT: Trasllat de centre (Cambiar centro y guardar historial)
+// PUT: Trasllat de centre (Modificar centre i guardar historial amb dates)
 router.put('/:hash/transfer', async (req, res) => {
     const { hash } = req.params;
-    const { new_center_id } = req.body;
+    // 1. RECOGEMOS LAS FECHAS DEL BODY
+    const { new_center_id, start_date, end_date } = req.body;
 
     if (!new_center_id) {
         return res.status(400).json({ error: "Falta el nou codi de centre" });
@@ -190,12 +191,14 @@ router.put('/:hash/transfer', async (req, res) => {
         await db.collection('students').updateOne(
             { hash_id: hash },
             {
+                // A) Movemos el centro ACTUAL al HISTORIAL
                 $push: {
                     school_history: {
                         codi_centre: student.codi_centre, // Centre vell
                         date_end: new Date()              // Data actual
                     }
                 },
+                // B) Establecemos el NUEVO centro como ACTUAL
                 $set: {
                     codi_centre: new_center_id            // Centre nou
                 }
@@ -209,6 +212,6 @@ router.put('/:hash/transfer', async (req, res) => {
         console.error(error);
         res.status(500).json({ error: 'Error al servidor al realitzar el trasllat' });
     }
-});
+});                                                                                                                                                                                                                                             
 
-module.exports = router;
+module.exports = router;                                                           

@@ -125,29 +125,92 @@
               <v-icon icon="mdi-history" class="mr-2" color="grey-darken-2"></v-icon> Historial de Centres
             </div>
 
-            <div class="history-container bg-white border rounded pa-2">
-              <v-timeline density="compact" side="end" align="start">
-                <v-timeline-item dot-color="green-darken-3" size="small">
-                  <div class="d-flex justify-space-between">
-                    <div>
-                      <div class="font-weight-bold text-green-darken-4">{{ currentSchoolName }}</div>
-                      <div class="text-caption text-grey-darken-1">Centre Actual</div>
-                    </div>
-                    <div class="text-caption text-grey-darken-1">Des d'avui</div>
-                  </div>
+            <div class="history-container bg-white border rounded pa-4">
+              
+              <v-timeline density="compact" side="end" align="start" line-color="grey-lighten-2" truncate-line="start">
+                
+                <v-timeline-item 
+                  dot-color="#D0021B" 
+                  size="small" 
+                  icon="mdi-school" 
+                  fill-dot
+                >
+                  <v-card class="elevation-0 border ml-3" rounded="0" style="border-left: 4px solid #D0021B !important;">
+                    <v-card-text class="pa-3 bg-grey-lighten-5">
+                      
+                      <div class="d-flex justify-space-between align-center mb-2">
+                        <span class="text-caption font-weight-bold text-grey-darken-1 text-uppercase">
+                          Centre Actual
+                        </span>
+                        <v-chip 
+                          color="green-darken-2" 
+                          size="x-small" 
+                          variant="tonal" 
+                          class="font-weight-bold border-green"
+                          style="border: 1px solid currentColor"
+                        >
+                          ACTIU
+                        </v-chip>
+                      </div>
+                      
+                      <div class="text-subtitle-1 font-weight-black text-grey-darken-4 mb-2">
+                        {{ currentSchoolName }}
+                      </div>
+
+                      <v-divider class="mb-2"></v-divider>
+
+                      <div class="d-flex align-center text-body-2 text-grey-darken-3">
+                        <v-icon icon="mdi-calendar-arrow-right" size="small" class="mr-2 text-grey-darken-1"></v-icon>
+                        <span class="text-caption">Data d'alta:</span>
+                        <strong class="ml-2">
+                          {{ (student.date_start || student.start_date) ? formatDate(student.date_start || student.start_date) : 'No registrada' }}
+                        </strong>
+                      </div>
+                    </v-card-text>
+                  </v-card>
                 </v-timeline-item>
-                <v-timeline-item v-for="(hist, i) in student.school_history" :key="i" dot-color="grey-lighten-1" size="x-small">
-                  <div class="d-flex justify-space-between">
-                    <div>
-                      <div class="font-weight-bold text-grey-darken-3">{{ getSchoolName(hist.codi_centre) }}</div>
-                      <div class="text-caption text-grey">Centre Anterior</div>
-                    </div>
-                    <div class="text-caption text-grey">
-                      Fins al: {{ new Date(hist.date_end).toLocaleDateString() }}
-                    </div>
-                  </div>
+                
+                <v-timeline-item 
+                  v-for="(hist, i) in student.school_history" 
+                  :key="i" 
+                  dot-color="grey-lighten-1" 
+                  size="x-small"
+                >
+                  <v-card class="elevation-0 border ml-3 bg-white" rounded="0">
+                    <v-card-text class="pa-3">
+                      <div class="text-caption font-weight-bold text-grey-lighten-1 text-uppercase mb-1">
+                        Històric
+                      </div>
+                      
+                      <div class="text-body-2 font-weight-bold text-grey-darken-2 mb-2">
+                        {{ getSchoolName(hist.codi_centre) }}
+                      </div>
+
+                      <div class="d-flex flex-wrap gap-4 text-caption text-grey-darken-1">
+                        <div class="d-flex align-center mr-4">
+                          <span class="text-grey mr-1">De:</span>
+                          <span class="font-weight-medium">
+                            {{ (hist.date_start || hist.start_date) ? formatDate(hist.date_start || hist.start_date) : '-' }}
+                          </span>
+                        </div>
+                        
+                        <div class="d-flex align-center">
+                          <span class="text-grey mr-1">A:</span>
+                          <span class="font-weight-medium">
+                            {{ (hist.date_end || hist.end_date) ? formatDate(hist.date_end || hist.end_date) : 'Avui' }}
+                          </span>
+                        </div>
+                      </div>
+                    </v-card-text>
+                  </v-card>
                 </v-timeline-item>
+
               </v-timeline>
+              
+              <div v-if="(!student.school_history || student.school_history.length === 0)" class="text-center mt-6">
+                 <p class="text-caption text-grey font-italic">No consta historial previ al centre actual.</p>
+              </div>
+
             </div>
           </v-card-text>
         </v-card>
@@ -225,29 +288,61 @@
       </v-col>
     </v-row>
 
-    <v-dialog v-model="showTransferDialog" max-width="500px">
+    <v-dialog v-model="showTransferDialog" max-width="600px">
       <v-card class="gencat-card" rounded="lg">
         <v-card-title class="bg-grey-lighten-5 pa-4 border-b font-weight-bold text-grey-darken-3">
-          Modificar Centre (Trasllat)
+          Modificar Centre / Historial
         </v-card-title>
+        
         <v-card-text class="pa-6">
-          <p class="text-body-2 text-grey-darken-1 mb-4">Selecciona el nou centre. L'actual es guardarà a l'historial.</p>
+          <p class="text-body-2 text-grey-darken-1 mb-4">
+            Selecciona el centre i el període d'assignació.
+          </p>
+
           <v-autocomplete 
             v-model="selectedNewSchool" 
             :items="schoolsList" 
             item-title="denominacio_completa"
             item-value="codi_centre" 
-            label="Buscar nou centre..." 
+            label="Buscar centre..." 
             variant="outlined" 
             color="#D0021B"
             prepend-inner-icon="mdi-school"
             clearable
+            class="mb-2"
           ></v-autocomplete>
+
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="transferStartDate"
+                label="Data d'inici"
+                type="date"
+                variant="outlined"
+                color="#D0021B"
+                density="comfortable"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model="transferEndDate"
+                label="Data de fi (Opcional)"
+                type="date"
+                variant="outlined"
+                color="#D0021B"
+                density="comfortable"
+                hint="Deixar buit si és el centre actual"
+                persistent-hint
+              ></v-text-field>
+            </v-col>
+          </v-row>
+
         </v-card-text>
+
         <v-card-actions class="pa-4 pt-0">
           <v-spacer></v-spacer>
           <v-btn color="grey-darken-1" variant="text" @click="showTransferDialog = false">Cancel·lar</v-btn>
-          <v-btn color="#D0021B" class="text-white" variant="flat" :disabled="!selectedNewSchool" @click="openConfirmDialog">
+          <v-btn color="#D0021B" class="text-white" variant="flat" :disabled="!selectedNewSchool || !transferStartDate" @click="openConfirmDialog">
             Guardar Canvi
           </v-btn>
         </v-card-actions>
@@ -273,7 +368,6 @@
 
   </v-container>
 </template>
-
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -287,6 +381,10 @@ const schoolsList = ref([]);
 const showTransferDialog = ref(false);
 const showConfirmDialog = ref(false);
 const selectedNewSchool = ref(null);
+
+// VARIABLES PARA LAS FECHAS
+const transferStartDate = ref('');
+const transferEndDate = ref('');
 
 const goToList = () => {
   router.push('/alumnos');
@@ -316,7 +414,8 @@ const getFileIcon = (filename) => {
 
 const getFileExtension = (filename) => filename.split('.').pop().toUpperCase();
 
-const formatDate = (d) => d ? new Date(d).toLocaleString() : '-';
+// FORMATEADOR DE FECHAS
+const formatDate = (d) => d ? new Date(d).toLocaleDateString() : '-';
 
 const normalizedFiles = computed(() => {
   const s = student.value;
@@ -328,6 +427,12 @@ const normalizedFiles = computed(() => {
 // --- LÓGICA DE TRANSFERENCIA ---
 const openTransferDialog = () => {
   selectedNewSchool.value = student.value.codi_centre;
+  
+  // AL ABRIR, PONEMOS LA FECHA DE HOY POR DEFECTO
+  const today = new Date().toISOString().split('T')[0];
+  transferStartDate.value = today;
+  transferEndDate.value = ''; 
+
   showTransferDialog.value = true;
 };
 
@@ -335,18 +440,25 @@ const openConfirmDialog = () => {
   showConfirmDialog.value = true;
 };
 
+// --- AQUÍ ESTABA LA CLAVE: ENVIAR LAS FECHAS AL BACKEND ---
 const executeTransfer = async () => {
   if (!selectedNewSchool.value) return;
+  
   try {
+    // ENVIAMOS start_date Y end_date EN EL BODY
     const response = await fetch(`http://localhost:3001/api/students/${student.value.hash_id}/transfer`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ new_center_id: selectedNewSchool.value })
+      body: JSON.stringify({ 
+        new_center_id: selectedNewSchool.value,
+        start_date: transferStartDate.value, // <--- IMPORTANTE
+        end_date: transferEndDate.value || null 
+      })
     });
 
     if (response.ok) {
-      console.log("✅ Trasllat guardat");
-      await studentStore.fetchStudents();
+      console.log("✅ Trasllat guardat amb dates");
+      await studentStore.fetchStudents(); // Recargamos datos para ver cambios
       showConfirmDialog.value = false;
       showTransferDialog.value = false;
     } else {
@@ -355,6 +467,7 @@ const executeTransfer = async () => {
       showConfirmDialog.value = false;
     }
   } catch (e) {
+    console.error(e);
     alert("Error de connexió");
   }
 };

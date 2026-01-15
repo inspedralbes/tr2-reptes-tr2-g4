@@ -18,10 +18,10 @@
             
             <div>
                 <h1 class="text-h5 font-weight-black text-grey-darken-3 gencat-font mb-0">
-                Auditoria i Registre d'Activitat
+                Auditoria i Registre
                 </h1>
                 <div class="text-caption text-grey-darken-1">
-                Històric dels darrers moviments registrats a la plataforma (#30)
+                Històric dels darrers moviments registrats a la plataforma
                 </div>
             </div>
           </div>
@@ -34,8 +34,26 @@
             @click="refreshData"
             :loading="loading"
           >
-            Actualitzar Dades
+            Actualitzar
           </v-btn>
+        </div>
+
+        <div class="mb-4">
+            <span class="text-caption font-weight-bold text-grey-darken-2 mr-2">FILTRAR PER TIPUS:</span>
+            <v-chip-group v-model="selectedFilter" selected-class="text-red-darken-4" mandatory>
+                <v-chip filter value="all" variant="outlined" color="grey-darken-1" size="small">
+                    Tots
+                </v-chip>
+                <v-chip filter value="trasllat" variant="outlined" color="orange-darken-4" size="small">
+                    <v-icon start icon="mdi-transfer" size="small"></v-icon> Trasllats
+                </v-chip>
+                <v-chip filter value="pujada" variant="outlined" color="green-darken-3" size="small">
+                    <v-icon start icon="mdi-cloud-upload" size="small"></v-icon> Pujades
+                </v-chip>
+                <v-chip filter value="nou" variant="outlined" color="blue-darken-3" size="small">
+                    <v-icon start icon="mdi-account-plus" size="small"></v-icon> Altes
+                </v-chip>
+            </v-chip-group>
         </div>
 
         <v-card class="gencat-card" elevation="0" rounded="lg">
@@ -45,12 +63,13 @@
               <tr class="bg-grey-lighten-4">
                 <th class="text-left text-caption font-weight-bold text-grey-darken-2 py-3">DATA I HORA</th>
                 <th class="text-left text-caption font-weight-bold text-grey-darken-2">USUARI</th>
-                <th class="text-left text-caption font-weight-bold text-grey-darken-2">TIPUS D'ACCIÓ</th>
+                <th class="text-left text-caption font-weight-bold text-grey-darken-2">ACCIÓ</th>
                 <th class="text-left text-caption font-weight-bold text-grey-darken-2">DETALL / RALC</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in studentStore.logs" :key="log._id" class="item-row">
+              <tr v-for="log in filteredLogs" :key="log._id" class="item-row">
+                
                 <td class="text-body-2 text-grey-darken-2" style="width: 180px;">
                     <div class="d-flex align-center">
                         <v-icon icon="mdi-clock-outline" size="small" class="mr-2 text-grey-lighten-1"></v-icon>
@@ -76,29 +95,36 @@
                     label
                   >
                     <v-icon start :icon="getActionIcon(log.accio)" size="small"></v-icon>
-                    {{ log.accio }}
+                    {{ cleanActionText(log.accio) }}
                   </v-chip>
                 </td>
 
                 <td class="text-body-2 text-grey-darken-1 font-mono">
-                    <span v-if="log.ralc_alumne">
-                        RALC: {{ log.ralc_alumne }}
-                    </span>
-                    <span v-else class="text-caption text-grey-lighten-1">
-                        -
-                    </span>
+                    <div class="d-flex flex-column">
+                        
+                        <div v-if="isTransfer(log.accio)" class="mb-1">
+                             <span class="text-caption text-orange-darken-3 font-weight-bold bg-orange-lighten-5 px-2 py-1 rounded">
+                                <v-icon icon="mdi-arrow-right" size="x-small" class="mr-1"></v-icon>
+                                {{ extractDestination(log.accio) }}
+                             </span>
+                        </div>
+
+                        <span v-if="log.ralc_alumne">
+                            RALC: <strong>{{ log.ralc_alumne }}</strong>
+                        </span>
+                    </div>
                 </td>
               </tr>
             </tbody>
           </v-table>
 
-          <div v-if="studentStore.logs.length === 0" class="text-center py-10">
-            <v-icon icon="mdi-history" size="48" color="grey-lighten-2" class="mb-2"></v-icon>
-            <p class="text-grey-darken-1">No hi ha registres d'activitat recents.</p>
+          <div v-if="filteredLogs.length === 0" class="text-center py-10">
+            <v-icon icon="mdi-filter-off" size="48" color="grey-lighten-2" class="mb-2"></v-icon>
+            <p class="text-grey-darken-1">No s'han trobat registres amb aquest filtre.</p>
           </div>
 
           <div class="bg-grey-lighten-5 pa-2 text-center border-t">
-              <span class="text-caption text-grey">Mostrant els últims 30 registres</span>
+              <span class="text-caption text-grey">Mostrant {{ filteredLogs.length }} registres</span>
           </div>
 
         </v-card>
@@ -109,17 +135,34 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { useStudentStore } from '@/stores/studentStore';
 
 const studentStore = useStudentStore();
 const loading = ref(false);
+const selectedFilter = ref('all'); // Filtro por defecto
 
 const refreshData = async () => {
     loading.value = true;
     await studentStore.fetchLogs();
     loading.value = false;
 };
+
+// --- LOGICA DE FILTRADO ---
+const filteredLogs = computed(() => {
+    const logs = studentStore.logs;
+    const filter = selectedFilter.value;
+
+    if (filter === 'all') return logs;
+    
+    return logs.filter(log => {
+        const action = (log.accio || '').toLowerCase();
+        if (filter === 'trasllat') return action.includes('trasllat') || action.includes('transfer');
+        if (filter === 'pujada') return action.includes('pujada') || action.includes('upload');
+        if (filter === 'nou') return action.includes('nou') || action.includes('crear');
+        return true;
+    });
+});
 
 onMounted(() => {
   refreshData();
@@ -133,46 +176,49 @@ const formatDate = (date) => {
   });
 };
 
-// --- LOGICA DE COLORS CORREGIDA ---
+// Helpers para Traslados
+const isTransfer = (text) => {
+    return (text || '').toLowerCase().includes('trasllat') || (text || '').toLowerCase().includes('transfer');
+};
+
+const cleanActionText = (text) => {
+    if(!text) return '';
+    // Si es traslado, simplificamos el texto del chip para que no sea enorme
+    if(isTransfer(text)) return 'Trasllat de Centre';
+    return text;
+};
+
+const extractDestination = (text) => {
+    // Si en el backend guardamos "Trasllat a 0801234", intentamos sacar el código
+    if (!text) return 'Nou Centre';
+    if (text.includes(' a ')) {
+        return 'A: ' + text.split(' a ')[1]; // Muestra lo que hay después de " a "
+    }
+    return 'Canvi de centre';
+};
+
+// --- COLORES ---
 const getActionColor = (accio) => {
   if (!accio) return 'grey';
   const a = accio.toLowerCase();
   
-  // VERDE: Subidas
   if (a.includes('pujada') || a.includes('upload')) return 'green-lighten-4 text-green-darken-4';
-  
-  // AZUL: Creación
   if (a.includes('nou alumne') || a.includes('crear')) return 'blue-lighten-4 text-blue-darken-4';
-  
-  // NARANJA: Movimientos
   if (a.includes('trasllat') || a.includes('transfer')) return 'orange-lighten-4 text-orange-darken-4';
+  if (a.includes('esborrar') || a.includes('delete') || a.includes('elimin')) return 'red-lighten-4 text-red-darken-4';
   
-  // ROJO: Eliminación (CORREGIDO: detecta "elimin" para cubrir "eliminació")
-  if (a.includes('esborrar') || a.includes('delete') || a.includes('elimin')) {
-      return 'red-lighten-4 text-red-darken-4';
-  }
-  
-  // GRIS CLARO: Login
-  if (a.includes('login')) return 'grey-lighten-3 text-grey-darken-3';
-  
-  // DEFECTO
   return 'grey-lighten-4 text-grey-darken-2';
 };
 
-// --- LOGICA DE ICONOS CORREGIDA ---
+// --- ICONOS ---
 const getActionIcon = (accio) => {
     if (!accio) return 'mdi-circle-small';
     const a = accio.toLowerCase();
 
     if (a.includes('pujada')) return 'mdi-cloud-upload';
     if (a.includes('nou alumne')) return 'mdi-account-plus';
-    if (a.includes('trasllat')) return 'mdi-transfer';
-
-    if (a.includes('esborrar') || a.includes('delete') || a.includes('elimin')) {
-        return 'mdi-trash-can';
-    }
-    
-    if (a.includes('login')) return 'mdi-login';
+    if (a.includes('trasllat')) return 'mdi-transfer'; // Icono específico
+    if (a.includes('esborrar') || a.includes('elimin')) return 'mdi-trash-can';
     
     return 'mdi-information';
 };
