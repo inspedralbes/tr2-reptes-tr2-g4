@@ -74,6 +74,7 @@ const router = createRouter({
 
 // GUARDIA DE SEGURIDAD (Igual que antes)
 router.beforeEach((to, from, next) => {
+  document.title = 'Plataforma PI';
   const necesitaAuth = to.matched.some(record => record.meta.requiresAuth)
   const isAuthenticated = localStorage.getItem('token')
 
