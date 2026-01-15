@@ -85,6 +85,23 @@
               </v-col>
 
               <v-col cols="12">
+                
+                <v-alert 
+                  v-if="!student.codi_centre"
+                  color="orange-lighten-5"
+                  icon="mdi-domain-off" 
+                  variant="flat" 
+                  density="compact"
+                  class="mt-2 border text-orange-darken-4"
+                  style="border-color: rgba(0,0,0,0.1) !important;"
+                >
+                  <div class="d-flex align-center justify-space-between w-100">
+                    <span class="text-body-2 font-weight-bold">
+                      Atenció: Aquest alumne no té centre assignat.
+                    </span>
+                  </div>
+                </v-alert>
+
                 <v-alert 
                   :color="student.has_file ? 'green-lighten-5' : 'orange-lighten-5'"
                   :icon="student.has_file ? 'mdi-check-circle' : 'mdi-alert-circle'" 
@@ -98,6 +115,7 @@
                     {{ student.has_file ? "Pla Individual (PI) pujat correctament." : 'Pendent de pujar document PI.' }}
                   </span>
                 </v-alert>
+
               </v-col>
             </v-row>
 

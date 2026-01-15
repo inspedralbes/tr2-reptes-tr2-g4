@@ -77,10 +77,22 @@
                                     {{ student.visual_identity.iniciales }}
                                 </v-list-item-title>
                                 
-                                <v-list-item-subtitle class="d-flex align-center">
+                                <v-list-item-subtitle class="d-flex align-center flex-wrap">
                                     <v-chip size="x-small" label class="mr-2 font-weight-medium bg-grey-lighten-3 text-grey-darken-3">
                                         {{ student.visual_identity.ralc_suffix }}
                                     </v-chip>
+
+                                    <v-chip 
+                                        v-if="!student.codi_centre"
+                                        color="orange-darken-3" 
+                                        variant="flat" 
+                                        size="x-small" 
+                                        class="mr-2 font-weight-bold"
+                                    >
+                                        <v-icon start icon="mdi-alert-circle-outline" size="small"></v-icon>
+                                        Sense Centre
+                                    </v-chip>
+
                                     <span v-if="student.has_file" class="text-caption text-green-darken-2 d-flex align-center">
                                         <v-icon start icon="mdi-file-document-outline" size="small"></v-icon>
                                         {{ student.files?.length || 1 }} Document(s)
@@ -92,7 +104,6 @@
 
                                 <template v-slot:append>
                                     <div class="d-flex align-center gap-4">
-                                        
                                         <div style="width: 200px" class="d-none d-sm-block">
                                             <v-file-input 
                                                 label="Pujar PI (PDF)" 
@@ -134,7 +145,6 @@
                         </div>
                     </v-list>
                 </v-card>
-
             </v-col>
         </v-row>
 
@@ -144,7 +154,8 @@
                 {{ studentStore.error }}
             </div>
         </v-snackbar>
-    </v-container>
+        
+        </v-container>
 </template>
 
 <script setup>
