@@ -1,34 +1,21 @@
 require('dotenv').config();
 const OpenAI = require("openai");
 
-// Configuració del client OpenRouter
+// Configuració del client per a IA LOCAL
 const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "http://localhost:3000", // Canviar pel domini real si cal
-    "X-Title": "Projecte Incorporacio PI",
-  }
+  baseURL: "http://llm:8080/v1", // Connecta amb el contenidor 'llm' del docker-compose
+  apiKey: "sk-no-key-required",  // La IA local no necessita clau real
 });
 
-// LLISTA DE MODELS GRATUÏTS D'OPENROUTER (Ordre de preferència)
-const MODELS = [
-  "mistralai/mistral-7b-instruct:free",           // Molt fiable i ràpid
-  "google/gemini-2.0-flash-lite-preview-02-05:free", // Molt potent (Google)
-  "meta-llama/llama-3.1-8b-instruct:free",        // L'estàndard actual de Meta
-  "qwen/qwen-2.5-7b-instruct-1m:free"             // Molt bo per a textos llargs
-];
-
 /**
- * Genera un resum utilitzant OpenRouter i l'envia per streaming a la resposta Express.
- * @param {string} text - Text a resumir
- * @param {object} res - Objecte Response d'Express per fer streaming
- * @param {number} modelIndex - Índex del model inicial per provar (per a rotació)
+ * Genera un resum utilitzant IA LOCAL (sense streaming HTTP directe).
+ * Retorna el text complet quan acaba.
+ * @param {function} onProgress - Callback opcional (textParcial, percentatge)
  */
-async function generateSummaryStream(text, res, modelIndex = 0) {
+async function generateSummaryLocal(text, onProgress) {
 
   // Retallem el text per no saturar el context del model
-  const MAX_CHARS = 100000; 
+  const MAX_CHARS = 25000; // Ajustat per a context de 8k tokens
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
   const messages = [
@@ -74,58 +61,44 @@ async function generateSummaryStream(text, res, modelIndex = 0) {
     }
   ];
 
-  // --- MODE NÚVOL (OPENROUTER) ---
-  if (!process.env.OPENROUTER_API_KEY) {
-    console.error("❌ Manca la OPENROUTER_API_KEY al fitxer .env");
-    res.write("[SYS_ERROR:Manca la clau API d'OpenRouter al servidor. Revisa el fitxer .env]");
-    res.end();
-    return;
-  }
+  try {
+    console.log("🤖 [aiService] Enviant petició a IA Local...");
+    const completion = await openai.chat.completions.create({
+      model: "default-model", // El nom és indiferent per a llama.cpp
+      messages: messages,
+      temperature: 0.1,
+      stream: true, // ACTIVEM STREAMING per veure el progrés
+    });
 
-  console.log("☁️  Iniciant cicle de models a OpenRouter...");
-  
-  // Intentem els models en ordre, començant pel sol·licitat (rotació)
-  let attempts = 0;
-  while (attempts < MODELS.length) {
-    const currentIdx = (modelIndex + attempts) % MODELS.length;
-    const model = MODELS[currentIdx];
-    attempts++;
+    let fullText = "";
+    // Seccions esperades per calcular el progrés (aprox 20% per secció)
+    const sections = ["PERFIL", "DIFICULTATS", "ADAPTACIONS", "AVALUACIÓ", "RECOMANACIONS"];
 
-    try {
-      console.log(`🤖 [aiService] Provant generació amb model [${currentIdx}] ${model}...`);
-      
-      const stream = await openai.chat.completions.create({
-        model: model,
-        messages: messages,
-        stream: true,
-        temperature: 0.2, // Baixa temperatura per ser més precís
-      });
-
-      for await (const chunk of stream) {
+    for await (const chunk of completion) {
         const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          res.write(content);
+        fullText += content;
+
+        if (onProgress) {
+            // Càlcul simple de progrés: Quantes seccions hem trobat ja?
+            let foundCount = 0;
+            sections.forEach(s => {
+                if (fullText.includes(s)) foundCount++;
+            });
+            
+            // Base 5% per començar, +19% per cada secció trobada
+            const progress = 5 + (foundCount * 19);
+            
+            // Enviem actualització
+            onProgress(fullText, Math.min(progress, 99));
         }
-      }
-      
-      console.log(`✅ [aiService] ÈXIT amb el model: ${model}`);
-      res.end();
-      return; 
-
-    } catch (error) {
-      console.warn(`⚠️ [aiService] Error amb el model ${model}: ${error.message}`);
-      
-      // Si és un error de límit de quota o servidor, esperem una mica
-      if (error.status === 429 || error.status >= 500) {
-         await new Promise(resolve => setTimeout(resolve, 1000));
-      }
     }
-  }
 
-  // Si arribem aquí, tots els models han fallat
-  console.warn("☁️❌ [aiService] Tots els models OpenRouter han fallat.");
-  res.write("[SYS_ERROR:No s'ha pogut generar el resum amb cap dels models disponibles al núvol.]");
-  res.end();
+    console.log(`🤖 [IA Local] Generació finalitzada amb èxit. Longitud: ${fullText.length} caràcters.`);
+    return fullText;
+  } catch (error) {
+    console.error("❌ Error IA Local:", error);
+    throw new Error("Error connectant amb el contenidor d'IA Local.");
+  }
 }
 
-module.exports = { generateSummaryStream };
+module.exports = { generateSummaryLocal };

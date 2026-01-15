@@ -12,7 +12,6 @@
         prepend-icon="mdi-robot" 
         color="primary" 
         variant="tonal" 
-        :loading="loadingAI"
         @click="regenerarResumenIA"
       >
         Regenerar Resum
@@ -21,7 +20,7 @@
 
     <!-- Estat de Càrrega -->
     <!-- Modificat: Només mostrem el spinner gran si NO tenim text encara -->
-    <div v-if="loading || (loadingAI && !resumenIA)" class="d-flex flex-column justify-center align-center pa-10">
+    <div v-if="loading || (loadingAI && !resumenIA)" class="d-flex flex-column justify-center align-center pa-10 text-center">
       <v-progress-circular indeterminate color="teal" size="64"></v-progress-circular>
       <span class="mt-4 text-h6 text-teal text-center">{{ currentStatus }}</span>
       <div class="mt-4" style="width: 100%; max-width: 300px">
@@ -30,6 +29,9 @@
             <strong>{{ Math.ceil(value) }}% completat</strong>
           </template>
         </v-progress-linear>
+      </div>
+      <div class="mt-2 text-caption text-grey">
+        Pots sortir d'aquesta pàgina, el procés continuarà en segon pla.
       </div>
     </div>
 
@@ -111,6 +113,7 @@ const fileNotFound = ref(false);
 const progress = ref(0);
 const currentStatus = ref('Iniciant...');
 const modelIndex = ref(0); // Per rotar models
+let pollingInterval = null; // Variable per guardar l'interval de comprovació
 
 const wordCount = computed(() => {
   return resumenIA.value ? resumenIA.value.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
@@ -173,8 +176,14 @@ onMounted(async () => {
       const data = await response.json();
       rawText.value = data.text_completo;
       
-      // 2. Un cop tenim el text, cridem automàticament a la IA amb el mode seleccionat
-      await regenerarResumenIA();
+      // 2. Comprovem si JA tenim un resum guardat a la BD (per no regenerar si no cal)
+      // Necessitem una ruta per obtenir l'estat actual de l'alumne.
+      // Com que no tenim ruta específica, fem servir la llista d'alumnes o una crida nova.
+      // Per simplificar, assumim que si entrem aquí volem veure l'estat.
+      
+      // Truc: Fem servir la ruta de fitxers o creem una funció de checkStatus
+      checkStatus(); 
+
     } else {
       if (response.status === 404) {
         fileNotFound.value = true;
@@ -188,6 +197,56 @@ onMounted(async () => {
   }
 });
 
+onUnmounted(() => {
+  if (pollingInterval) clearInterval(pollingInterval);
+});
+
+const checkStatus = async () => {
+  try {
+    // Obtenim la llista d'estudiants per buscar el nostre (no és el més eficient però funciona amb el backend actual)
+    const response = await fetch('http://localhost:3001/api/students');
+    const students = await response.json();
+    // Busquem l'alumne que tingui aquest fitxer
+    const student = students.find(s => s.filename === filename || (s.files && s.files.some(f => f.filename === filename)));
+    
+    if (student && student.ia_data) {
+      const estado = student.ia_data.estado;
+      
+      if (estado === 'COMPLETAT' && student.ia_data.resumen) {
+        resumenIA.value = student.ia_data.resumen;
+        loadingAI.value = false;
+        currentStatus.value = "Completat";
+        if (pollingInterval) clearInterval(pollingInterval);
+      } else if (estado === 'GENERANT...' || estado === 'A LA CUA') {
+        loadingAI.value = true;
+        
+        // ACTUALITZACIÓ EN TEMPS REAL
+        // Si tenim progrés a la BD, l'utilitzem. Si no, estimem.
+        const dbProgress = student.ia_data.progress || 0;
+        progress.value = estado === 'A LA CUA' ? 5 : Math.max(10, dbProgress);
+
+        // Si ja tenim text parcial, el mostrem (efecte streaming)
+        if (student.ia_data.resumen) {
+          resumenIA.value = student.ia_data.resumen;
+          currentStatus.value = `Generant resum... (${progress.value}%)`;
+        } else {
+          currentStatus.value = estado === 'A LA CUA' ? 'En cua d\'espera...' : 'Analitzant amb IA Local...';
+        }
+        
+        // Si no estem fent polling, comencem
+        if (!pollingInterval) {
+          pollingInterval = setInterval(checkStatus, 3000); // Comprovar cada 3 segons
+        }
+      } else {
+        // Si no hi ha estat, potser és la primera vegada
+        if (!loadingAI.value && !resumenIA.value) regenerarResumenIA();
+      }
+    }
+  } catch (e) {
+    console.error("Error comprovant estat:", e);
+  }
+};
+
 const regenerarResumenIA = async () => {
   if (!rawText.value) return;
   
@@ -198,61 +257,30 @@ const regenerarResumenIA = async () => {
   resumenIA.value = ''; // Netegem el resum anterior
   errorAI.value = null; // Netegem errors anteriors
   progress.value = 0;
-  currentStatus.value = 'Connectant amb IA al Núvol (això pot trigar uns segons)...';
+  currentStatus.value = 'Enviant document a la cua de processament...';
   
   try {
     const response = await fetch('http://localhost:3001/api/generate-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: rawText.value, modelIndex: modelIndex.value }) // Enviem índex per rotar
+      body: JSON.stringify({ 
+        text: rawText.value, 
+        filename: filename // Important per saber a qui actualitzar
+      })
     });
 
-    if (!response.ok) throw new Error("Error al servidor generant el resum");
+    if (!response.ok) throw new Error("Error enviant a la cua");
 
-    // Llegim el stream del backend
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    // Si tot va bé, iniciem el polling
+    checkStatus();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      const chunk = decoder.decode(value);
-      
-      // --- NOU: Processament d'etiquetes de sistema ---
-      const progressRegex = /\[SYS_PROGRESS:(\d+)\]/g;
-      const statusRegex = /\[SYS_STATUS:(.*?)\]/g;
-      const errorRegex = /\[SYS_ERROR:(.*?)\]/g;
-      let match;
-      
-      // NOU: Cerca i aplica missatges d'error des del stream
-      while ((match = errorRegex.exec(chunk)) !== null) {
-        errorAI.value = match[1];
-        console.error(`🤖 Error IA (from stream): ${match[1]}`);
-      }
-
-      // 1. Cerca i aplica missatges d'estat
-      while ((match = statusRegex.exec(chunk)) !== null) {
-        currentStatus.value = match[1];
-        console.log(`🤖 Estat IA: ${match[1]}`); // Log a la consola del navegador
-      }
-
-      // 3. Netegem les etiquetes i afegim el text real al resum
-      const cleanChunk = chunk.replace(progressRegex, '').replace(statusRegex, '').replace(errorRegex, '');
-      if (cleanChunk) {
-        resumenIA.value += cleanChunk;
-        // Actualitzem estat visual
-        currentStatus.value = "Escrivint resum...";
-      }
-    }
-
-    progress.value = 100;
   } catch (e) {
     console.error(e);
     // Mostramos el mensaje del error
-    errorAI.value = e.message || "Error connectant amb la IA. Revisa la teva connexió o el token.";
-  } finally {
+    errorAI.value = e.message || "Error connectant amb el servidor.";
     loadingAI.value = false;
+  } finally {
+    // No posem loadingAI = false aquí perquè volem que segueixi carregant mentre fa polling
   }
 };
 

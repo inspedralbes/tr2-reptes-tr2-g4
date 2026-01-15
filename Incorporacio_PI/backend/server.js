@@ -5,9 +5,11 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto'); // Del teu company
+const amqp = require('amqplib'); // CLIENT RABBITMQ
+const AdmZip = require('adm-zip'); // PER LLEGIR ODT
 const { connectDB, getDB } = require('./db'); // La teva DB
 const { extractTextFromPDF } = require('./fileReader'); // Corregit: Coincideix amb fileReader.js
-const { generateSummaryStream } = require('./aiService'); // Importem el servei d'IA
+const { generateSummaryLocal } = require('./aiService'); // Importem el servei d'IA Local
 
 const app = express();
 const PORT = 3001;
@@ -29,6 +31,98 @@ const obtenerIniciales = (nombre) => {
         .join('.') + '.';      // 4. Uneix amb punts i afegeix el punt final
 };
 
+// --- HELPER: LLEGIR ODT ---
+function extractTextFromODT(buffer) {
+    try {
+        const zip = new AdmZip(buffer);
+        const contentXml = zip.readAsText("content.xml");
+        // Neteja bàsica de XML: Reemplaça etiquetes de paràgraf per salts de línia i esborra la resta
+        return contentXml
+            .replace(/<text:p[^>]*>/g, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .trim();
+    } catch (e) {
+        console.error("Error llegint ODT:", e);
+        return "";
+    }
+}
+
+// --- CONFIGURACIÓ RABBITMQ ---
+const RABBIT_URL = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
+const QUEUE_NAME = 'summary_jobs';
+let channel = null;
+
+async function connectRabbit() {
+    try {
+        const conn = await amqp.connect(RABBIT_URL);
+        channel = await conn.createChannel();
+        await channel.assertQueue(QUEUE_NAME, { durable: true });
+        console.log("🐰 Connectat a RabbitMQ. Cua:", QUEUE_NAME);
+
+        // --- CONSUMER (WORKER) ---
+        // Aquest codi s'executa quan hi ha un missatge a la cua
+        channel.consume(QUEUE_NAME, async (msg) => {
+            if (msg !== null) {
+                const { text, filename } = JSON.parse(msg.content.toString());
+                console.log(`🐰 [Worker] Processant resum per: ${filename}`);
+
+                try {
+                    const db = getDB();
+                    // 1. Actualitzem estat a "PROCESSANT"
+                    await db.collection('students').updateOne(
+                        { filename: filename }, // Busquem pel nom del fitxer (o hash si el tenim)
+                        { $set: { "ia_data.estado": "GENERANT..." } }
+                    );
+
+                    // 2. Cridem a la IA (Això triga minuts)
+                    // Ara passem un callback per actualitzar el progrés en temps real
+                    let lastUpdate = 0;
+                    const summary = await generateSummaryLocal(text, async (partialText, progress) => {
+                        // Actualitzem la BD cada 2 segons com a màxim per no saturar
+                        const now = Date.now();
+                        if (now - lastUpdate > 2000) {
+                            lastUpdate = now;
+                            await db.collection('students').updateOne(
+                                { filename: filename },
+                                { $set: { 
+                                    "ia_data.estado": "GENERANT...",
+                                    "ia_data.progress": progress, // % de progrés
+                                    "ia_data.resumen": partialText // Text parcial perquè es vegi escriure
+                                } }
+                            );
+                            console.log(`🐰 [Worker] ${filename}: ${progress}% completat`);
+                        }
+                    });
+
+                    // 3. Guardem resultat
+                    await db.collection('students').updateOne(
+                        { filename: filename },
+                        { 
+                            $set: { 
+                                "ia_data.estado": "COMPLETAT",
+                                "ia_data.resumen": summary,
+                                "ia_data.fecha": new Date()
+                            } 
+                        }
+                    );
+                    console.log(`✅ [Worker] Resum completat i guardat a MongoDB per: ${filename}`);
+                    channel.ack(msg); // Confirmem que hem acabat
+                    console.log(`🏁 [RabbitMQ] Tasca finalitzada i treta de la cua: ${filename}`);
+
+                } catch (error) {
+                    console.error(`❌ [Worker] Error processant ${filename}:`, error);
+                    // Opcional: channel.nack(msg) per reintentar, però compte amb bucles infinits
+                    channel.ack(msg); // L'eliminem per no bloquejar la cua
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error("❌ Error connectant RabbitMQ (Reintentant en 5s...)", error.message);
+        setTimeout(connectRabbit, 5000);
+    }
+}
+
 // --- 1. CONFIGURACIÓ MULTER ---
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
@@ -46,10 +140,13 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage: storage,
     fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
+        // Acceptem PDF i ODT (OpenDocument Text)
+        if (file.mimetype === 'application/pdf' || 
+            file.mimetype === 'application/vnd.oasis.opendocument.text' ||
+            file.originalname.endsWith('.odt')) {
             cb(null, true);
         } else {
-            cb(null, false); // Rebutja el fitxer si no és PDF
+            cb(null, false); // Rebutja altres fitxers
         }
     }
 });
@@ -302,7 +399,14 @@ app.get('/api/analyze/:filename', async (req, res) => {
 
         // Llegim i processem
         const dataBuffer = fs.readFileSync(filePath);
-        const text = await extractTextFromPDF(dataBuffer);
+        let text = "";
+
+        // Detectem tipus de fitxer
+        if (filename.toLowerCase().endsWith('.odt')) {
+            text = extractTextFromODT(dataBuffer);
+        } else {
+            text = await extractTextFromPDF(dataBuffer);
+        }
 
         // Retornem el JSON
         res.json({ text_completo: text });
@@ -315,15 +419,30 @@ app.get('/api/analyze/:filename', async (req, res) => {
 
 // --- RUTA GENERACIÓ RESUM (IA) ---
 app.post('/api/generate-summary', async (req, res) => {
-    const { text, modelIndex } = req.body; // Rebem l'índex del model per rotar
-    if (!text) return res.status(400).json({ error: 'Falta el text' });
+    const { text, filename } = req.body;
+    if (!text || !filename) return res.status(400).json({ error: 'Falta text o filename' });
 
-    // Configurem capçaleres per a Streaming
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
+    if (!channel) return res.status(500).json({ error: 'RabbitMQ no connectat' });
 
-    // Cridem al servei que escriurà directament a 'res'
-    await generateSummaryStream(text, res, modelIndex || 0);
+    try {
+        // Envia a la cua
+        const jobData = { text, filename };
+        channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
+        
+        // Actualitza estat inicial a la BD
+        const db = getDB();
+        await db.collection('students').updateOne(
+            { filename: filename },
+            { $set: { "ia_data.estado": "A LA CUA" } }
+        );
+
+        console.log(`📤 [API] Feina enviada a RabbitMQ: ${filename}`);
+        res.json({ success: true, message: "Processament iniciat en segon pla" });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Error enviant a la cua" });
+    }
 });
 
 // --- 4. SEED (Dades del company cap a MongoDB) ---
@@ -361,6 +480,7 @@ connectDB().then(async () => {
 
     app.listen(PORT, () => {
         console.log(`🚀 Server Mongo + Logic Company running on http://localhost:${PORT}`);
+        connectRabbit(); // Iniciem RabbitMQ en arrencar
     });
 }).catch(console.error);
 
