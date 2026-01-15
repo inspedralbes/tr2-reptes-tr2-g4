@@ -64,7 +64,7 @@
                 ></v-text-field>
               </div>
 
-              <div class="mb-6">
+              <div class="mb-4">
                 <v-label class="text-caption font-weight-bold text-grey-darken-2 mb-1">UBICACIÓ</v-label>
                 <v-autocomplete
                   v-model="student.codi_centre"
@@ -86,6 +86,22 @@
                     <v-list-item v-bind="props" :subtitle="`Codi: ${item.raw.codi_centre}`"></v-list-item>
                   </template>
                 </v-autocomplete>
+              </div>
+
+              <div class="mb-6">
+                <v-label class="text-caption font-weight-bold text-grey-darken-2 mb-1">DATA D'ALTA AL CENTRE</v-label>
+                <v-text-field
+                  v-model="student.start_date"
+                  type="date"
+                  variant="outlined"
+                  color="#D0021B"
+                  base-color="grey-darken-1"
+                  prepend-inner-icon="mdi-calendar-start"
+                  hint="Data en què l'alumne va començar a aquest centre."
+                  persistent-hint
+                  :rules="dateRules"
+                  required
+                ></v-text-field>
               </div>
 
               <v-alert
@@ -148,14 +164,20 @@ const centrosList = ref([]);
 const student = reactive({
   nombre: '',
   id: '',
-  codi_centre: null 
+  codi_centre: null,
+  start_date: '' // NUEVO CAMPO
 });
 
+// Reglas de validación
 const nameRules = [v => !!v || "El nom és obligatori"];
 const idRules = [v => !!v || "L'ID (RALC) és obligatori"];
 const centerRules = [v => !!v || 'Has de seleccionar un centre'];
+const dateRules = [v => !!v || "La data d'inici és obligatòria"];
 
 onMounted(async () => {
+  // Ponemos la fecha de hoy por defecto para agilizar
+  student.start_date = new Date().toISOString().split('T')[0];
+
   try {
     const response = await fetch('http://localhost:3001/api/centros');
     if (response.ok) {
@@ -180,7 +202,7 @@ const submitForm = async () => {
     const response = await fetch('http://localhost:3001/api/students', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(student)
+      body: JSON.stringify(student) // Enviamos 'start_date' dentro del objeto student
     });
 
     const data = await response.json();

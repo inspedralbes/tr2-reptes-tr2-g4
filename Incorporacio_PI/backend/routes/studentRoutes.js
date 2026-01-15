@@ -96,10 +96,11 @@ router.delete('/:hash/files/:filename', async (req, res) => {
     }
 });
 
-// PUT: Trasllat de centre (Cambiar centro y guardar historial)
+// PUT: Trasllat de centre (Modificar centre i guardar historial amb dates)
 router.put('/:hash/transfer', async (req, res) => {
     const { hash } = req.params;
-    const { new_center_id } = req.body;
+    // 1. RECOGEMOS LAS FECHAS DEL BODY
+    const { new_center_id, start_date, end_date } = req.body;
 
     if (!new_center_id) {
         return res.status(400).json({ error: "Falta el nou codi de centre" });
@@ -107,46 +108,54 @@ router.put('/:hash/transfer', async (req, res) => {
 
     try {
         const db = getDB();
-        
-        // 1. Primero buscamos al alumno para saber cuál es su centro ACTUAL
         const student = await db.collection('students').findOne({ hash_id: hash });
 
         if (!student) {
             return res.status(404).json({ error: "Alumne no trobat" });
         }
 
-        // 2. Evitamos hacer nada si el centro es el mismo
         if (student.codi_centre === new_center_id) {
             return res.status(400).json({ error: "L'alumne ja pertany a aquest centre" });
         }
 
-        // 3. ACTUALIZACIÓN ATÓMICA:
-        // - $push: Añade el centro viejo al array 'school_history' (si no existe, Mongo lo crea solo)
-        // - $set: Cambia el 'codi_centre' actual por el nuevo
+        // Definimos las fechas
+        // La fecha de INICIO del nuevo centro, será la fecha de FIN del antiguo (continuidad)
+        const transferDate = start_date ? new Date(start_date) : new Date();
+        const transferEndDate = end_date ? new Date(end_date) : null;
+
+        // 2. ACTUALIZAMOS:
         await db.collection('students').updateOne(
             { hash_id: hash },
             {
+                // A) Movemos el centro ACTUAL al HISTORIAL
                 $push: {
                     school_history: {
-                        codi_centre: student.codi_centre, // El centro viejo
-                        date_end: new Date()              // Fecha de hoy
+                        codi_centre: student.codi_centre,
+                        // Si el alumno ya tenía una fecha de inicio guardada, la movemos al historial
+                        date_start: student.date_start || null, 
+                        // El centro antiguo acaba cuando empieza el nuevo
+                        date_end: transferDate 
                     }
                 },
+                // B) Establecemos el NUEVO centro como ACTUAL
                 $set: {
-                    codi_centre: new_center_id            // El centro nuevo
+                    codi_centre: new_center_id,
+                    // Guardamos la fecha de inicio en la raíz para el futuro
+                    date_start: transferDate,
+                    // Si nos han pasado fecha de fin (opcional), la guardamos también
+                    date_end: transferEndDate
                 }
             }
         );
 
-        console.log(`🔄 Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id}`);
+        console.log(`🔄 Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id} [Data: ${start_date}]`);
         
-        // 4. Devolvemos éxito
         res.json({ success: true, message: "Centre modificat i historial guardat" });
 
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error al servidor al realitzar el trasllat' });
     }
-});
+});                                                                                                                                                                                                                                             
 
-module.exports = router;
+module.exports = router;                                                           
