@@ -24,15 +24,17 @@ async function generateSummaryLocal(text, onProgress) {
   const processingSpeed = 40; 
   const estimatedDurationSecs = Math.max(5, estimatedTokens / processingSpeed);
   
-  const READING_PHASE_MAX = 30; // Reservem el primer 30% per a la fase de lectura
   let currentProgress = 0;
   let readingInterval = null;
 
-  // Iniciem un temporitzador que actualitza la barra mentre esperem la IA
+  // FASE 1: LECTURA (0% -> 99%)
+  // La barra s'omple completament mentre la IA "llegeix" el document
   readingInterval = setInterval(() => {
-      const increment = READING_PHASE_MAX / estimatedDurationSecs; 
+      const increment = 100 / estimatedDurationSecs; 
       currentProgress += increment;
-      if (currentProgress > READING_PHASE_MAX) currentProgress = READING_PHASE_MAX; // Topall
+      if (currentProgress > 99) currentProgress = 99; // No passar de 99 fins que acabi
+      
+      // Enviem text buit -> Servidor marca "LLEGINT..."
       if (onProgress) onProgress("", Math.floor(currentProgress));
   }, 1000);
 
@@ -95,20 +97,17 @@ async function generateSummaryLocal(text, onProgress) {
     let chunkCount = 0;
 
     for await (const chunk of completion) {
-        // Si rebem el primer chunk, la lectura ha acabat!
-        if (readingInterval) {
+        // FASE 2: ESCRIPTURA (Reset a 0% -> 100%)
+        if (isFirst) {
             clearInterval(readingInterval);
-            readingInterval = null;
+            console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
+            isFirst = false;
+            currentProgress = 0; // Reiniciem la barra per a la fase d'escriptura
         }
 
         chunkCount++;
         const content = chunk.choices[0]?.delta?.content || "";
         
-        if (isFirst && content) {
-            console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
-            isFirst = false;
-        }
-
         // Log de "batec" cada 50 chunks per veure que està viu a la terminal
         if (chunkCount % 50 === 0) {
             console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
@@ -123,15 +122,15 @@ async function generateSummaryLocal(text, onProgress) {
                 if (fullText.includes(s)) foundCount++;
             });
             
-            // CÀLCUL DE PROGRÉS DE GENERACIÓ (Del 30% al 100%)
-            // Base: READING_PHASE_MAX (30%)
-            // +12% per cada secció trobada (5 seccions * 12 = 60%) -> Arribem al 90%
-            // +10% extra per volum de text generat
-            const chunkProgress = Math.min(chunkCount / 10, 10); 
-            const progress = READING_PHASE_MAX + (foundCount * 12) + chunkProgress;
+            // Càlcul de progrés d'escriptura (0 a 100)
+            // 1000 tokens aprox per un resum complet -> 100%
+            const chunkProgress = Math.min(chunkCount / 10, 80); 
+            const sectionProgress = foundCount * 4;
             
-            // Enviem actualització
-            onProgress(fullText, Math.min(progress, 99));
+            let writeProgress = chunkProgress + sectionProgress;
+            
+            // Enviem text ple -> Servidor marca "GENERANT..."
+            onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
         }
     }
 

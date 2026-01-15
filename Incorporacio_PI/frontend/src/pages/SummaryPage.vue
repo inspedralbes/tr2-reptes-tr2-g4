@@ -19,8 +19,8 @@
     </div>
 
     <!-- Estat de Càrrega -->
-    <!-- Modificat: Només mostrem el spinner gran si NO tenim text encara -->
-    <div v-if="loading || (loadingAI && !resumenIA)" class="d-flex flex-column justify-center align-center pa-10 text-center">
+    <!-- Modificat: Ara mostrem això SEMPRE que estigui carregant, amagant el text parcial -->
+    <div v-if="loading || loadingAI" class="d-flex flex-column justify-center align-center pa-10 text-center">
       <v-progress-circular indeterminate color="teal" size="64"></v-progress-circular>
       <span class="mt-4 text-h6 text-teal text-center">{{ currentStatus }}</span>
       <div class="mt-4" style="width: 100%; max-width: 300px">
@@ -36,29 +36,8 @@
     </div>
 
     <!-- Resultat de la IA -->
-    <!-- CANVI: Ara fem servir un contenidor transparent en lloc d'una card única -->
+    <!-- Només mostrem el resultat quan NO estem carregant -->
     <div v-else-if="resumenIA">
-      <!-- Barra de progrés dinàmica mentre s'escriu -->
-      <div v-if="loadingAI" class="mb-4">
-        <v-card class="pa-4 mb-4" border>
-        <div class="d-flex justify-space-between text-body-2 text-primary mb-1">
-          <span class="d-flex align-center">
-            <v-icon icon="mdi-pencil" size="small" class="mr-2 start-animation"></v-icon>
-            {{ currentStatus }}
-          </span>
-          <span class="text-caption text-grey">{{ wordCount }} paraules generades</span>
-        </div>
-        <!-- BARRA DE PROGRÉS HONESTA (Indeterminada mentre genera) -->
-        <v-progress-linear 
-          indeterminate
-          color="primary" 
-          height="6" 
-          rounded 
-          striped
-        ></v-progress-linear>
-        </v-card>
-      </div>
-
       <!-- COMPONENT VISUAL (Restaurat) -->
       <PiSummary :analysis="parsedAnalysis" />
       
@@ -91,7 +70,11 @@
 
     <!-- Error -->
     <v-alert v-else type="error" variant="tonal" class="mt-4">
-      No s'ha pogut analitzar el document. Potser és una imatge o està protegit.
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-alert-circle-outline" class="mr-2"></v-icon>
+        <div>No s'ha pogut analitzar el document. Potser el servidor s'està reiniciant.</div>
+      </div>
+      <v-btn class="mt-2 ml-8" variant="outlined" size="small" @click="analyzeDocument">Tornar a provar</v-btn>
     </v-alert>
   </v-container>
 </template>
@@ -165,8 +148,9 @@ const parsedAnalysis = computed(() => {
   return result;
 });
 
-onMounted(async () => {
+const analyzeDocument = async () => {
   if (!filename) return;
+  loading.value = true;
 
   try {
     // 1. Obtenim el text del PDF des del backend
@@ -195,6 +179,10 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+};
+
+onMounted(() => {
+  analyzeDocument();
 });
 
 onUnmounted(() => {

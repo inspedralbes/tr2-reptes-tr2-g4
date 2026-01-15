@@ -55,6 +55,17 @@ let channel = null;
 async function connectRabbit() {
     try {
         const conn = await amqp.connect(RABBIT_URL);
+        
+        // NOU: Gestió d'errors de connexió per evitar que el servidor caigui si RabbitMQ es reinicia
+        conn.on('error', (err) => {
+            console.error("❌ [RabbitMQ] Error de connexió:", err.message);
+        });
+        conn.on('close', () => {
+            console.warn("⚠️ [RabbitMQ] Connexió tancada. Reintentant en 5s...");
+            channel = null; // Marquem el canal com a no disponible
+            setTimeout(connectRabbit, 5000);
+        });
+
         channel = await conn.createChannel();
         await channel.assertQueue(QUEUE_NAME, { durable: true });
         console.log("🐰 Connectat a RabbitMQ. Cua:", QUEUE_NAME);
@@ -442,7 +453,7 @@ app.post('/api/generate-summary', async (req, res) => {
         const db = getDB();
         await db.collection('students').updateOne(
             { filename: filename },
-            { $set: { "ia_data.estado": "A LA CUA" } }
+            { $set: { "ia_data.estado": "A LA CUA", "ia_data.resumen": "", "ia_data.progress": 0 } }
         );
 
         console.log(`📤 [API] Feina enviada a RabbitMQ: ${filename}`);
