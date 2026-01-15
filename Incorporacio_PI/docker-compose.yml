@@ -10,7 +10,6 @@ services:
       - 8.8.4.4
     environment:
       - MONGODB_URI=${MONGODB_URI} # Leerá esto de tu archivo .env o del sistema
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     volumes:
       - ./backend:/app # Hot Reload: Lo que edites en tu PC se ve en Docker

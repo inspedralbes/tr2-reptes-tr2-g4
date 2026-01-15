@@ -1,4 +1,3 @@
-require('dotenv').config();
 const OpenAI = require("openai");
 
 // Configuració del client per a IA LOCAL
