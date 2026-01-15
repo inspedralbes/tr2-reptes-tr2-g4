@@ -157,11 +157,19 @@ const showError = ref(false);
 const searchName = ref('');
 const searchRalc = ref('');
 
-const filteredStudents = computed(() => {
-    return studentStore.students.filter(student => {
-        const nameInput = (searchName.value || '').toLowerCase();
-        const ralcInput = (searchRalc.value || '').toLowerCase();
+// Recuperamos el código del centro logueado
+const currentUserCenter = localStorage.getItem('userCenterCode');
 
+const filteredStudents = computed(() => {
+    // 1. Preparamos los términos de búsqueda
+    const nameInput = (searchName.value || '').trim().toLowerCase();
+    const ralcInput = (searchRalc.value || '').trim().toLowerCase();
+
+    // 2. Detectamos si el usuario está usando el buscador
+    const isSearching = nameInput.length > 0 || ralcInput.length > 0;
+
+    return studentStore.students.filter(student => {
+        // --- LÓGICA DE COINCIDENCIA DE TEXTO ---
         const matchesName = !nameInput || 
                             (student.original_name || '').toLowerCase().includes(nameInput) ||
                             student.visual_identity.iniciales.toLowerCase().includes(nameInput);
@@ -170,7 +178,22 @@ const filteredStudents = computed(() => {
                             (student.original_id || '').includes(ralcInput) ||
                             student.visual_identity.ralc_suffix.toLowerCase().includes(ralcInput);
 
-        return matchesName && matchesRalc;
+        // --- LÓGICA DE VISIBILIDAD FINAL ---
+        
+        if (isSearching) {
+            // CASO A: ESTÁ BUSCANDO
+            // Si hay texto en los inputs, buscamos en TODOS los centros (Global)
+            // Solo devolvemos si coinciden los filtros de texto.
+            return matchesName && matchesRalc;
+        } else {
+            // CASO B: LISTA POR DEFECTO (NO BUSCA)
+            // Si no escribe nada, aplicamos el filtro de seguridad estricto (Solo mi centro)
+            if (currentUserCenter) {
+                return String(student.codi_centre) === String(currentUserCenter);
+            }
+            // Si no hay usuario logueado (o es admin), mostramos todo por defecto
+            return true;
+        }
     });
 });
 
@@ -190,7 +213,6 @@ const handleUpload = async (files, hashId) => {
         const success = await studentStore.uploadStudentPI(file, hashId);
         if (success) {
             console.log("Arxiu pujat correctament");
-            // Opcional: mostrar un missatge d'èxit o recarregar
         } else {
             showError.value = true;
         }

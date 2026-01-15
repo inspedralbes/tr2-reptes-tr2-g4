@@ -138,15 +138,22 @@ const submit = async () => {
 
   if (valid) {
     let emailToSend = '';
+    let centerCodeToSend = null; // Variable nueva
+
+    // Si ha seleccionado un objeto del desplegable (es un centro)
     if (typeof selectedItem.value === 'object' && selectedItem.value !== null) {
       emailToSend = selectedItem.value.email;
+      centerCodeToSend = selectedItem.value.codi_centre; // CAPTURAMOS EL CÓDIGO
     } else {
+      // Si ha escrito un email manual
       emailToSend = selectedItem.value;
     }
 
+    // Enviamos el código junto con el email
     emit('submitted', { 
         email: emailToSend.trim().toLowerCase(),
-        token: recaptchaToken.value 
+        token: recaptchaToken.value,
+        codiCentre: centerCodeToSend 
     });
   }
 };

@@ -70,6 +70,7 @@ import { sendVerificationCode, verifyCode } from '@/services/authService';
 const router = useRouter();
 const step = ref('email');
 const email = ref('');
+const tempCenterCode = ref(null);
 const isLoading = ref(false);
 
 // Per mostrar errors
@@ -80,7 +81,10 @@ const handleEmailSubmit = async (payload) => {
   isLoading.value = true;
   try {
     await sendVerificationCode(payload.email, payload.token);
+    
     email.value = payload.email;
+    tempCenterCode.value = payload.codiCentre; // 1. Guardamos el código del centro temporalmente
+    
     step.value = 'code';
   } catch (error) {
     console.error(error);
@@ -101,11 +105,22 @@ const handleCodeVerification = async (code) => {
   isLoading.value = true; 
   try {
     const response = await verifyCode(email.value, code); 
+    
     if (response.token) {
         localStorage.setItem('token', response.token);
     }
+    
     localStorage.setItem('userEmail', email.value);
-    router.push('/dashboard'); 
+
+    // 2. Si el login es correcto y tenemos un código de centro, lo guardamos
+    if (tempCenterCode.value) {
+        localStorage.setItem('userCenterCode', tempCenterCode.value);
+    } else {
+        // Si entra como admin o manual, nos aseguramos de limpiar cualquier código anterior
+        localStorage.removeItem('userCenterCode');
+    }
+
+    router.push('/dashboard');
   } catch (error) {
     if (error.response && error.response.data && error.response.data.message) {
         errorMessage.value = error.response.data.message;
