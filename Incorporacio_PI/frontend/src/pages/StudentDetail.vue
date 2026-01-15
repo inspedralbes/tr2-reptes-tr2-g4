@@ -441,24 +441,29 @@ const openConfirmDialog = () => {
 };
 
 // --- AQUÍ ESTABA LA CLAVE: ENVIAR LAS FECHAS AL BACKEND ---
+// Pages/StudentDetail.vue
+
 const executeTransfer = async () => {
   if (!selectedNewSchool.value) return;
   
+  // 1. Recuperamos quién está conectado
+  const currentUserEmail = localStorage.getItem('userEmail') || 'Usuari';
+
   try {
-    // ENVIAMOS start_date Y end_date EN EL BODY
     const response = await fetch(`http://localhost:3001/api/students/${student.value.hash_id}/transfer`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         new_center_id: selectedNewSchool.value,
-        start_date: transferStartDate.value, // <--- IMPORTANTE
-        end_date: transferEndDate.value || null 
+        start_date: transferStartDate.value, 
+        end_date: transferEndDate.value || null,
+        userEmail: currentUserEmail // <--- 2. ENVIAMOS EL EMAIL AQUÍ
       })
     });
 
     if (response.ok) {
       console.log("✅ Trasllat guardat amb dates");
-      await studentStore.fetchStudents(); // Recargamos datos para ver cambios
+      await studentStore.fetchStudents(); 
       showConfirmDialog.value = false;
       showTransferDialog.value = false;
     } else {
