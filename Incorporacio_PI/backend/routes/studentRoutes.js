@@ -8,7 +8,7 @@ const { generarHash, obtenerIniciales } = require('../utils/helpers');
 const { registrarAcces } = require('../utils/logger');
 
 // ==========================================
-// 1. RUTES ESTÀTIQUES I DE CERCA (La meva part)
+// 1. RUTES ESTÀTIQUES I DE CERCA (La teva part)
 // Han d'anar PRIMER per evitar conflictes amb /:hash
 // ==========================================
 
@@ -28,34 +28,27 @@ router.get('/search/advanced', async (req, res) => {
         if (term) {
             conditions.push({
                 $or: [
-                    // Dot notation per accedir a objectes imbricats
                     { "visual_identity.iniciales": { $regex: term, $options: 'i' } },
                     { "hash_id": term },
-                    // Cerca dins l'array de perfils extrets per la IA (si existeix)
                     { "ia_data.perfil": { $regex: term, $options: 'i' } }
                 ]
             });
         }
 
         // 2. REQUISIT ESPECÍFIC: $elemMatch (Consultes en arrays d'objectes)
-        // Busca alumnes que tinguin ALMENYS un fitxer PDF (encara que en tinguin d'altres)
         if (hasFile === 'true') {
              conditions.push({
                 files: { 
-                    $elemMatch: { 
-                        mimetype: "application/pdf"
-                    } 
+                    $elemMatch: { mimetype: "application/pdf" } 
                 }
              });
         }
 
-        // 3. REQUISIT ESPECÍFIC: Accés a 3+ nivells de profunditat o arrays
-        // Comprovem si existeix l'element 'n' de l'array de dificultats
+        // 3. REQUISIT ESPECÍFIC: Accés a 3+ nivells de profunditat
         if (minDificultats) {
             conditions.push({ [`ia_data.dificultats.${parseInt(minDificultats)}`]: { $exists: true } });
         }
 
-        // Combinar tot amb $and
         if (conditions.length > 0) {
             filter.$and = conditions;
         }
@@ -71,7 +64,7 @@ router.get('/search/advanced', async (req, res) => {
 });
 
 // ==========================================
-// 2. RUTES GENERALS I CRUD (Part del company)
+// 2. RUTES GENERALS (Part Comuna)
 // ==========================================
 
 // GET: Llistat complet
@@ -126,7 +119,6 @@ router.post('/', async (req, res) => {
 
 // ==========================================
 // 3. RUTES ESPECÍFIQUES PER ID (:hash)
-// Aquestes han d'anar al final perquè capturen qualsevol URL
 // ==========================================
 
 // DELETE: Eliminar fitxer
@@ -150,7 +142,6 @@ router.delete('/:hash/files/:filename', async (req, res) => {
         const hasFiles = (studentUpdated.files && studentUpdated.files.length > 0) || (!!studentUpdated.filename);
         await db.collection('students').updateOne({ hash_id: hash }, { $set: { has_file: hasFiles } });
 
-        // Eliminar físic
         const filePath = path.join(UPLOADS_DIR, filename);
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
@@ -162,10 +153,10 @@ router.delete('/:hash/files/:filename', async (req, res) => {
     }
 });
 
-// PUT: Trasllat de centre (Modificar centre i guardar historial amb dates)
+// PUT: Trasllat de centre (PART DEL TEU COMPANY - MILLORADA AMB DATES)
 router.put('/:hash/transfer', async (req, res) => {
     const { hash } = req.params;
-    // 1. RECOGEMOS LAS FECHAS DEL BODY
+    // Recollim dates del body (Millora del company)
     const { new_center_id, start_date, end_date } = req.body;
 
     if (!new_center_id) {
@@ -174,33 +165,36 @@ router.put('/:hash/transfer', async (req, res) => {
 
     try {
         const db = getDB();
-        
-        // 1. Busquem l'alumne
         const student = await db.collection('students').findOne({ hash_id: hash });
 
         if (!student) {
             return res.status(404).json({ error: "Alumne no trobat" });
         }
 
-        // 2. Verifiquem si és el mateix centre
         if (student.codi_centre === new_center_id) {
             return res.status(400).json({ error: "L'alumne ja pertany a aquest centre" });
         }
 
-        // 3. ACTUALIZACIÓN ATÓMICA ($push + $set)
+        // Gestió de dates
+        const transferDate = start_date ? new Date(start_date) : new Date();
+        const transferEndDate = end_date ? new Date(end_date) : null;
+
         await db.collection('students').updateOne(
             { hash_id: hash },
             {
                 // A) Movemos el centro ACTUAL al HISTORIAL
                 $push: {
                     school_history: {
-                        codi_centre: student.codi_centre, // Centre vell
-                        date_end: new Date()              // Data actual
+                        codi_centre: student.codi_centre,
+                        date_start: student.date_start || null, 
+                        date_end: transferDate 
                     }
                 },
                 // B) Establecemos el NUEVO centro como ACTUAL
                 $set: {
-                    codi_centre: new_center_id            // Centre nou
+                    codi_centre: new_center_id,
+                    date_start: transferDate,
+                    date_end: transferEndDate
                 }
             }
         );
@@ -212,6 +206,6 @@ router.put('/:hash/transfer', async (req, res) => {
         console.error(error);
         res.status(500).json({ error: 'Error al servidor al realitzar el trasllat' });
     }
-});                                                                                                                                                                                                                                             
+});
 
-module.exports = router;                                                           
+module.exports = router;
