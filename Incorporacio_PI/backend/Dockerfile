@@ -1,5 +1,5 @@
 # Usamos una versión ligera de Node
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Creamos la carpeta de trabajo dentro del contenedor
 WORKDIR /app
@@ -21,4 +21,3 @@ EXPOSE 3001
 
 # Comando para iniciar el servidor
 CMD ["node", "server.js"]
-

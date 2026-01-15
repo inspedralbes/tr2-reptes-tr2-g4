@@ -14,8 +14,27 @@ const openai = new OpenAI({
 async function generateSummaryLocal(text, onProgress) {
 
   // Retallem el text per no saturar el context del model
-  const MAX_CHARS = 25000; // Ajustat per a context de 8k tokens
+  const MAX_CHARS = 6000; // Reduït encara més per garantir resposta ràpida en CPU
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
+
+  // --- CÀLCUL DE PROGRÉS DE LECTURA (REALISTA) ---
+  // Estimació: 4 caràcters ~= 1 token.
+  const estimatedTokens = truncatedText.length / 4;
+  // Velocitat conservadora en CPU: ~40 tokens/segon per processar el prompt
+  const processingSpeed = 40; 
+  const estimatedDurationSecs = Math.max(5, estimatedTokens / processingSpeed);
+  
+  const READING_PHASE_MAX = 30; // Reservem el primer 30% per a la fase de lectura
+  let currentProgress = 0;
+  let readingInterval = null;
+
+  // Iniciem un temporitzador que actualitza la barra mentre esperem la IA
+  readingInterval = setInterval(() => {
+      const increment = READING_PHASE_MAX / estimatedDurationSecs; 
+      currentProgress += increment;
+      if (currentProgress > READING_PHASE_MAX) currentProgress = READING_PHASE_MAX; // Topall
+      if (onProgress) onProgress("", Math.floor(currentProgress));
+  }, 1000);
 
   const messages = [
     {
@@ -72,9 +91,29 @@ async function generateSummaryLocal(text, onProgress) {
     let fullText = "";
     // Seccions esperades per calcular el progrés (aprox 20% per secció)
     const sections = ["PERFIL", "DIFICULTATS", "ADAPTACIONS", "AVALUACIÓ", "RECOMANACIONS"];
+    let isFirst = true;
+    let chunkCount = 0;
 
     for await (const chunk of completion) {
+        // Si rebem el primer chunk, la lectura ha acabat!
+        if (readingInterval) {
+            clearInterval(readingInterval);
+            readingInterval = null;
+        }
+
+        chunkCount++;
         const content = chunk.choices[0]?.delta?.content || "";
+        
+        if (isFirst && content) {
+            console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
+            isFirst = false;
+        }
+
+        // Log de "batec" cada 50 chunks per veure que està viu a la terminal
+        if (chunkCount % 50 === 0) {
+            console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
+        }
+
         fullText += content;
 
         if (onProgress) {
@@ -84,8 +123,12 @@ async function generateSummaryLocal(text, onProgress) {
                 if (fullText.includes(s)) foundCount++;
             });
             
-            // Base 5% per començar, +19% per cada secció trobada
-            const progress = 5 + (foundCount * 19);
+            // CÀLCUL DE PROGRÉS DE GENERACIÓ (Del 30% al 100%)
+            // Base: READING_PHASE_MAX (30%)
+            // +12% per cada secció trobada (5 seccions * 12 = 60%) -> Arribem al 90%
+            // +10% extra per volum de text generat
+            const chunkProgress = Math.min(chunkCount / 10, 10); 
+            const progress = READING_PHASE_MAX + (foundCount * 12) + chunkProgress;
             
             // Enviem actualització
             onProgress(fullText, Math.min(progress, 99));
@@ -95,6 +138,7 @@ async function generateSummaryLocal(text, onProgress) {
     console.log(`🤖 [IA Local] Generació finalitzada amb èxit. Longitud: ${fullText.length} caràcters.`);
     return fullText;
   } catch (error) {
+    if (readingInterval) clearInterval(readingInterval);
     console.error("❌ Error IA Local:", error);
     throw new Error("Error connectant amb el contenidor d'IA Local.");
   }

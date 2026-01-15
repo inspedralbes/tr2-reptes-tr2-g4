@@ -71,26 +71,35 @@ async function connectRabbit() {
                     // 1. Actualitzem estat a "PROCESSANT"
                     await db.collection('students').updateOne(
                         { filename: filename }, // Busquem pel nom del fitxer (o hash si el tenim)
-                        { $set: { "ia_data.estado": "GENERANT..." } }
+                        { $set: { 
+                            "ia_data.estado": "LLEGINT...", // Canviem l'estat inicial per ser més precisos
+                            "ia_data.resumen": "", // Netegem el text antic perquè no confongui
+                            "ia_data.progress": 0
+                        } }
                     );
 
                     // 2. Cridem a la IA (Això triga minuts)
+                    console.log(`⏳ [Worker] Iniciant generació IA per ${filename} (Això pot trigar uns minuts en CPU)...`);
                     // Ara passem un callback per actualitzar el progrés en temps real
                     let lastUpdate = 0;
                     const summary = await generateSummaryLocal(text, async (partialText, progress) => {
                         // Actualitzem la BD cada 2 segons com a màxim per no saturar
                         const now = Date.now();
-                        if (now - lastUpdate > 2000) {
+                        if (now - lastUpdate > 1000) { // Actualitzem cada 1 segon per veure més moviment
                             lastUpdate = now;
+                            
+                            // Si tenim text parcial, estem generant. Si no, estem llegint.
+                            const estatActual = partialText.length > 0 ? "GENERANT..." : "LLEGINT...";
+
                             await db.collection('students').updateOne(
                                 { filename: filename },
                                 { $set: { 
-                                    "ia_data.estado": "GENERANT...",
+                                    "ia_data.estado": estatActual,
                                     "ia_data.progress": progress, // % de progrés
                                     "ia_data.resumen": partialText // Text parcial perquè es vegi escriure
                                 } }
                             );
-                            console.log(`🐰 [Worker] ${filename}: ${progress}% completat`);
+                            console.log(`🐰 [Worker] Actualitzant DB per ${filename}: ${progress}% (${estatActual})`);
                         }
                     });
 
@@ -461,6 +470,13 @@ const dbAlumnosRaw = [
 connectDB().then(async () => {
     const db = getDB();
     const count = await db.collection('students').countDocuments();
+
+    // NOU: Neteja d'estats "zombies" en arrencar el servidor
+    console.log("🧹 Netejant tasques interrompudes a la BD...");
+    await db.collection('students').updateMany(
+        { "ia_data.estado": { $in: ["GENERANT...", "A LA CUA"] } },
+        { $set: { "ia_data.estado": "INTERROMPUT", "ia_data.resumen": "El procés es va interrompre pel reinici del servidor. Torna a generar-lo." } }
+    );
     
     // Si la BD està buida, la omplim amb les dades del company
     if (count === 0) {

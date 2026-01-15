@@ -209,6 +209,8 @@ const checkStatus = async () => {
     // Busquem l'alumne que tingui aquest fitxer
     const student = students.find(s => s.filename === filename || (s.files && s.files.some(f => f.filename === filename)));
     
+    if (student) console.log("🔍 [Frontend] Estat rebut:", student.ia_data);
+
     if (student && student.ia_data) {
       const estado = student.ia_data.estado;
       
@@ -217,20 +219,28 @@ const checkStatus = async () => {
         loadingAI.value = false;
         currentStatus.value = "Completat";
         if (pollingInterval) clearInterval(pollingInterval);
-      } else if (estado === 'GENERANT...' || estado === 'A LA CUA') {
+      } else if (estado === 'INTERROMPUT') {
+        loadingAI.value = false;
+        errorAI.value = student.ia_data.resumen || "Procés interromput.";
+        if (pollingInterval) clearInterval(pollingInterval);
+      } else if (['GENERANT...', 'A LA CUA', 'LLEGINT...'].includes(estado)) {
         loadingAI.value = true;
         
         // ACTUALITZACIÓ EN TEMPS REAL
         // Si tenim progrés a la BD, l'utilitzem. Si no, estimem.
         const dbProgress = student.ia_data.progress || 0;
-        progress.value = estado === 'A LA CUA' ? 5 : Math.max(10, dbProgress);
+
+        // Ara el backend calcula el progrés real (lectura + escriptura), així que confiem en ell
+        progress.value = estado === 'A LA CUA' ? 0 : dbProgress;
 
         // Si ja tenim text parcial, el mostrem (efecte streaming)
         if (student.ia_data.resumen) {
           resumenIA.value = student.ia_data.resumen;
-          currentStatus.value = `Generant resum... (${progress.value}%)`;
+          currentStatus.value = `Generant resum... (${Math.ceil(progress.value)}%)`;
         } else {
-          currentStatus.value = estado === 'A LA CUA' ? 'En cua d\'espera...' : 'Analitzant amb IA Local...';
+          if (estado === 'A LA CUA') currentStatus.value = 'En cua d\'espera...';
+          else if (estado === 'LLEGINT...') currentStatus.value = 'Llegint i processant document (això pot trigar)...';
+          else currentStatus.value = 'Iniciant generació...';
         }
         
         // Si no estem fent polling, comencem

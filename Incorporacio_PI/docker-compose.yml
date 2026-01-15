@@ -8,8 +8,9 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    env_file:
+      - ./backend/.env
     environment:
-      - MONGODB_URI=${MONGODB_URI} # Leerá esto de tu archivo .env o del sistema
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     volumes:
       - ./backend:/app # Hot Reload: Lo que edites en tu PC se ve en Docker
@@ -42,14 +43,18 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    volumes:
+      - ./backend/rabbitmq_data:/var/lib/rabbitmq # Persistència de la cua
 
   # --- SERVEI IA LOCAL (Llama.cpp Server) ---
   llm:
-    image: ghcr.io/ggerganov/llama.cpp:server
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.llm
     container_name: pi_llm
     volumes:
       - ./backend/models:/models # Mapegem la carpeta on has posat el fitxer .gguf
     ports:
       - "8080:8080"
     # Ajusta el nom del fitxer .gguf si és diferent
-    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c 8192 --host 0.0.0.0 --port 8080
+    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c 8192 --host 0.0.0.0 --port 8080 --threads 6
