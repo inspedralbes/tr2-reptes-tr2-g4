@@ -5,32 +5,33 @@ const path = require('path');
 const { connectDB } = require('./db');
 const { runSeed } = require('./utils/seeder');
 
-// Importar rutes
 const authRoutes = require('./routes/authRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const miscRoutes = require('./routes/miscRoutes');
+const statsRoutes = require('./routes/statsRoutes'); // Per les agregacions i estadístiques
 
 const app = express();
 const PORT = 3001;
 
-// MIDDLEWARES
 app.use(cors());
 app.use(express.json());
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// RUTES
-app.use('/api/login', authRoutes);
-app.use('/api/students', studentRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api', miscRoutes); // Agafa /logs, /centros i /analyze
+app.use('/api/login', authRoutes);       // Login i codis
+app.use('/api/students', studentRoutes); // CRUD Alumnes + Cerca Avançada
+app.use('/api/upload', uploadRoutes);    // Pujada de fitxers
+app.use('/api/stats', statsRoutes);      // NOU: Dashboard i Estadístiques (Agregacions)
+app.use('/api', miscRoutes);             // Logs, manteniment, etc.
 
 // START SERVER
 connectDB().then(async () => {
-    // Executar llavor si cal
     await runSeed();
 
     app.listen(PORT, () => {
-        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`Server corrent en http://localhost:${PORT}`);
     });
-}).catch(console.error);
+}).catch((err) => {
+    console.error("Error crític iniciant el servidor:", err);
+});

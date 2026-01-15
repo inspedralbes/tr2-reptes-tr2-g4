@@ -7,7 +7,74 @@ const { upload, UPLOADS_DIR } = require('../config/multer');
 const { generarHash, obtenerIniciales } = require('../utils/helpers');
 const { registrarAcces } = require('../utils/logger');
 
-// GET: Llistat
+// ==========================================
+// 1. RUTES ESTÀTIQUES I DE CERCA (La meva part)
+// Han d'anar PRIMER per evitar conflictes amb /:hash
+// ==========================================
+
+/**
+ * REQUISIT 4: CONSULTES AVANÇADES (Checklist PDF)
+ * Demostració de: $or, Dot Notation ("a.b"), $elemMatch i Regex
+ */
+router.get('/search/advanced', async (req, res) => {
+    const { term, hasFile, minDificultats } = req.query;
+
+    try {
+        const db = getDB();
+        const filter = {};
+        const conditions = [];
+
+        // 1. Ús de $or i Regex (cerca flexible en múltiples camps)
+        if (term) {
+            conditions.push({
+                $or: [
+                    // Dot notation per accedir a objectes imbricats
+                    { "visual_identity.iniciales": { $regex: term, $options: 'i' } },
+                    { "hash_id": term },
+                    // Cerca dins l'array de perfils extrets per la IA (si existeix)
+                    { "ia_data.perfil": { $regex: term, $options: 'i' } }
+                ]
+            });
+        }
+
+        // 2. REQUISIT ESPECÍFIC: $elemMatch (Consultes en arrays d'objectes)
+        // Busca alumnes que tinguin ALMENYS un fitxer PDF (encara que en tinguin d'altres)
+        if (hasFile === 'true') {
+             conditions.push({
+                files: { 
+                    $elemMatch: { 
+                        mimetype: "application/pdf"
+                    } 
+                }
+             });
+        }
+
+        // 3. REQUISIT ESPECÍFIC: Accés a 3+ nivells de profunditat o arrays
+        // Comprovem si existeix l'element 'n' de l'array de dificultats
+        if (minDificultats) {
+            conditions.push({ [`ia_data.dificultats.${parseInt(minDificultats)}`]: { $exists: true } });
+        }
+
+        // Combinar tot amb $and
+        if (conditions.length > 0) {
+            filter.$and = conditions;
+        }
+
+        const results = await db.collection('students').find(filter).toArray();
+        console.log(`🔎 Cerca avançada: ${results.length} resultats.`);
+        res.json(results);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error en cerca avançada' });
+    }
+});
+
+// ==========================================
+// 2. RUTES GENERALS I CRUD (Part del company)
+// ==========================================
+
+// GET: Llistat complet
 router.get('/', async (req, res) => {
     try {
         const db = getDB();
@@ -20,7 +87,6 @@ router.get('/', async (req, res) => {
 
 // POST: Crear alumne
 router.post('/', async (req, res) => {
-    // 1. AÑADIMOS codi_centre AQUÍ
     const { nombre, id, codi_centre } = req.body; 
 
     if (!nombre || !id) return res.status(400).json({ error: "Falten dades" });
@@ -35,10 +101,7 @@ router.post('/', async (req, res) => {
         
         const newStudent = {
             hash_id: hash,
-            
-            // 2. AÑADIMOS EL CAMPO AL OBJETO
             codi_centre: codi_centre || null, 
-
             visual_identity: {
                 iniciales: iniciales,
                 ralc_suffix: `***${id.slice(-3)}`
@@ -50,9 +113,7 @@ router.post('/', async (req, res) => {
         };
 
         await db.collection('students').insertOne(newStudent);
-        // --- NUEVO: REGISTRAR EN EL LOG ---
-        // Usamos 'Nou Alumne' como palabra clave para filtrar luego
-        // Si tienes el email del usuario en el body, úsalo. Si no, pon 'Admin' o 'Sistema'.
+        
         const userEmail = req.body.userEmail || 'Sistema'; 
         await registrarAcces(userEmail, 'Nou Alumne', newStudent.visual_identity.ralc_suffix);
 
@@ -62,6 +123,11 @@ router.post('/', async (req, res) => {
         res.status(500).json({ error: 'Error al servidor' });
     }
 });
+
+// ==========================================
+// 3. RUTES ESPECÍFIQUES PER ID (:hash)
+// Aquestes han d'anar al final perquè capturen qualsevol URL
+// ==========================================
 
 // DELETE: Eliminar fitxer
 router.delete('/:hash/files/:filename', async (req, res) => {
@@ -108,39 +174,35 @@ router.put('/:hash/transfer', async (req, res) => {
     try {
         const db = getDB();
         
-        // 1. Primero buscamos al alumno para saber cuál es su centro ACTUAL
+        // 1. Busquem l'alumne
         const student = await db.collection('students').findOne({ hash_id: hash });
 
         if (!student) {
             return res.status(404).json({ error: "Alumne no trobat" });
         }
 
-        // 2. Evitamos hacer nada si el centro es el mismo
+        // 2. Verifiquem si és el mateix centre
         if (student.codi_centre === new_center_id) {
             return res.status(400).json({ error: "L'alumne ja pertany a aquest centre" });
         }
 
-        // 3. ACTUALIZACIÓN ATÓMICA:
-        // - $push: Añade el centro viejo al array 'school_history' (si no existe, Mongo lo crea solo)
-        // - $set: Cambia el 'codi_centre' actual por el nuevo
+        // 3. ACTUALIZACIÓN ATÓMICA ($push + $set)
         await db.collection('students').updateOne(
             { hash_id: hash },
             {
                 $push: {
                     school_history: {
-                        codi_centre: student.codi_centre, // El centro viejo
-                        date_end: new Date()              // Fecha de hoy
+                        codi_centre: student.codi_centre, // Centre vell
+                        date_end: new Date()              // Data actual
                     }
                 },
                 $set: {
-                    codi_centre: new_center_id            // El centro nuevo
+                    codi_centre: new_center_id            // Centre nou
                 }
             }
         );
 
         console.log(`🔄 Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id}`);
-        
-        // 4. Devolvemos éxito
         res.json({ success: true, message: "Centre modificat i historial guardat" });
 
     } catch (error) {

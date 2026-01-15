@@ -56,4 +56,34 @@ router.get('/analyze/:filename', async (req, res) => {
     }
 });
 
+/**
+ * REQUISIT 3: OPERACIONS CRUD COMPLETES
+ * deleteMany per neteja de logs antics
+ */
+router.delete('/maintenance/logs', async (req, res) => {
+    try {
+        const db = getDB();
+        
+        // Calculem data de fa 30 dies
+        const dateLimit = new Date();
+        dateLimit.setDate(dateLimit.getDate() - 30);
+
+        // Esborrar logs més vells de 30 dies
+        const result = await db.collection('access_logs').deleteMany({
+            timestamp: { $lt: dateLimit }
+        });
+
+        console.log(`🧹 Manteniment: ${result.deletedCount} logs antics esborrats.`);
+        
+        res.json({ 
+            success: true, 
+            message: `S'han eliminat ${result.deletedCount} registres antics.`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Error en manteniment' });
+    }
+});
+
+// Assegura't de tenir exportat el router
 module.exports = router;
