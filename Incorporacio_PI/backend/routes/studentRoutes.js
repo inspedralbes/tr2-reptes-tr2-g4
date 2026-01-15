@@ -96,4 +96,57 @@ router.delete('/:hash/files/:filename', async (req, res) => {
     }
 });
 
+// PUT: Trasllat de centre (Cambiar centro y guardar historial)
+router.put('/:hash/transfer', async (req, res) => {
+    const { hash } = req.params;
+    const { new_center_id } = req.body;
+
+    if (!new_center_id) {
+        return res.status(400).json({ error: "Falta el nou codi de centre" });
+    }
+
+    try {
+        const db = getDB();
+        
+        // 1. Primero buscamos al alumno para saber cuál es su centro ACTUAL
+        const student = await db.collection('students').findOne({ hash_id: hash });
+
+        if (!student) {
+            return res.status(404).json({ error: "Alumne no trobat" });
+        }
+
+        // 2. Evitamos hacer nada si el centro es el mismo
+        if (student.codi_centre === new_center_id) {
+            return res.status(400).json({ error: "L'alumne ja pertany a aquest centre" });
+        }
+
+        // 3. ACTUALIZACIÓN ATÓMICA:
+        // - $push: Añade el centro viejo al array 'school_history' (si no existe, Mongo lo crea solo)
+        // - $set: Cambia el 'codi_centre' actual por el nuevo
+        await db.collection('students').updateOne(
+            { hash_id: hash },
+            {
+                $push: {
+                    school_history: {
+                        codi_centre: student.codi_centre, // El centro viejo
+                        date_end: new Date()              // Fecha de hoy
+                    }
+                },
+                $set: {
+                    codi_centre: new_center_id            // El centro nuevo
+                }
+            }
+        );
+
+        console.log(`🔄 Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id}`);
+        
+        // 4. Devolvemos éxito
+        res.json({ success: true, message: "Centre modificat i historial guardat" });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al servidor al realitzar el trasllat' });
+    }
+});
+
 module.exports = router;

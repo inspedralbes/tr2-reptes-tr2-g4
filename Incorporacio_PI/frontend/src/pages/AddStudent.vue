@@ -1,92 +1,141 @@
 <template>
-  <v-container class="fill-height d-flex align-center justify-center bg-grey-lighten-5">
-    <v-card width="100%" max-width="500" elevation="4" class="pa-4 rounded-xl">
-      
-      <v-card-title class="text-h5 font-weight-bold text-primary d-flex align-center">
-        <v-icon start icon="mdi-account-plus" color="green-darken-2"></v-icon>
-        Registrar Nou Alumne
-      </v-card-title>
-      
-      <v-card-subtitle class="mt-1">
-        Introdueix les dades bàsiques i assigna un centre.
-      </v-card-subtitle>
-
-      <v-card-text class="mt-4">
-        <v-form ref="form" v-model="valid" @submit.prevent="submitForm">
-          
-          <v-text-field
-            v-model="student.nombre"
-            label="Nom i Cognoms"
-            prepend-inner-icon="mdi-account"
-            variant="outlined"
-            :rules="nameRules"
-            required
-            class="mb-2"
-          ></v-text-field>
-          
-          <v-text-field
-            v-model="student.id"
-            label="ID Alumne: RALC"
-            prepend-inner-icon="mdi-identifier"
-            variant="outlined"
-            hint="Aquest ID serà la referència única."
-            persistent-hint
-            :rules="idRules"
-            required
-            class="mb-4" 
-          ></v-text-field>
-
-          <v-autocomplete
-            v-model="student.codi_centre"
-            :items="centrosList"
-            item-title="denominacio_completa"
-            item-value="codi_centre"
-            label="Selecciona el Centre Educatiu"
-            prepend-inner-icon="mdi-school"
-            variant="outlined"
-            :rules="centerRules"
-            clearable
-            required
-          >
-            <template v-slot:item="{ props, item }">
-              <v-list-item v-bind="props" :subtitle="item.raw.codi_centre"></v-list-item>
-            </template>
-          </v-autocomplete>
-          <v-alert
-            v-if="errorMessage"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mt-4"
-            closable
-          >
-            {{ errorMessage }}
-          </v-alert>
-
-        </v-form>
-      </v-card-text>
-
-      <v-card-actions class="justify-space-between pt-2 px-4">
-        <v-btn variant="text" color="grey-darken-1" @click="$router.back()">
-          Cancel·lar
-        </v-btn>
+  <v-container class="fill-height align-start bg-grey-lighten-5" fluid>
+    <v-row justify="center">
+      <v-col cols="12" sm="10" md="8" lg="6">
         
-        <v-btn 
-          color="green-darken-1" 
-          variant="elevated" 
-          :loading="loading"
-          :disabled="!valid"
-          @click="submitForm"
-        >
-          Guardar Alumne
-        </v-btn>
-      </v-card-actions>
-    </v-card>
+        <div class="mb-6 mt-4">
+          <v-btn 
+            variant="text" 
+            prepend-icon="mdi-arrow-left" 
+            @click="$router.back()" 
+            color="grey-darken-3"
+            class="text-none font-weight-bold pl-0"
+          >
+            Cancel·lar i tornar
+          </v-btn>
+        </div>
+
+        <v-card class="gencat-card pa-8" elevation="0" rounded="lg">
+          
+          <div class="text-center mb-8">
+            <v-avatar color="red-lighten-5" size="80" class="mb-4">
+              <v-icon icon="mdi-account-plus-outline" color="#D0021B" size="40"></v-icon>
+            </v-avatar>
+            <h1 class="text-h5 font-weight-black text-grey-darken-3 gencat-font mb-2">
+              Alta de Nou Alumne
+            </h1>
+            <p class="text-body-2 text-grey-darken-1">
+              Completeu el formulari per registrar un nou expedient a la base de dades.
+            </p>
+          </div>
+
+          <v-card-text class="pa-0">
+            <v-form ref="form" v-model="valid" @submit.prevent="submitForm">
+              
+              <div class="mb-4">
+                <v-label class="text-caption font-weight-bold text-grey-darken-2 mb-1">DADES PERSONALS</v-label>
+                <v-text-field
+                  v-model="student.nombre"
+                  label="Nom i Cognoms de l'alumne"
+                  placeholder="Ex: Joan Garcia..."
+                  variant="outlined"
+                  color="#D0021B"
+                  base-color="grey-darken-1"
+                  prepend-inner-icon="mdi-account"
+                  :rules="nameRules"
+                  required
+                ></v-text-field>
+              </div>
+              
+              <div class="mb-4">
+                <v-label class="text-caption font-weight-bold text-grey-darken-2 mb-1">IDENTIFICACIÓ</v-label>
+                <v-text-field
+                  v-model="student.id"
+                  label="ID Alumne (RALC)"
+                  placeholder="Ex: 123456789"
+                  variant="outlined"
+                  color="#D0021B"
+                  base-color="grey-darken-1"
+                  prepend-inner-icon="mdi-identifier"
+                  hint="Aquest ID serà la referència única de l'expedient."
+                  persistent-hint
+                  :rules="idRules"
+                  required
+                ></v-text-field>
+              </div>
+
+              <div class="mb-6">
+                <v-label class="text-caption font-weight-bold text-grey-darken-2 mb-1">UBICACIÓ</v-label>
+                <v-autocomplete
+                  v-model="student.codi_centre"
+                  :items="centrosList"
+                  item-title="denominacio_completa"
+                  item-value="codi_centre"
+                  label="Centre Educatiu Assignat"
+                  placeholder="Cercar centre..."
+                  variant="outlined"
+                  color="#D0021B"
+                  base-color="grey-darken-1"
+                  prepend-inner-icon="mdi-school"
+                  :rules="centerRules"
+                  clearable
+                  required
+                  no-data-text="No s'han trobat centres"
+                >
+                  <template v-slot:item="{ props, item }">
+                    <v-list-item v-bind="props" :subtitle="`Codi: ${item.raw.codi_centre}`"></v-list-item>
+                  </template>
+                </v-autocomplete>
+              </div>
+
+              <v-alert
+                v-if="errorMessage"
+                type="error"
+                variant="tonal"
+                color="#D0021B"
+                density="comfortable"
+                class="mb-6 border-red"
+                closable
+              >
+                {{ errorMessage }}
+              </v-alert>
+
+              <v-divider class="mb-6"></v-divider>
+
+              <div class="d-flex justify-end gap-4">
+                <v-btn 
+                  variant="text" 
+                  color="grey-darken-2" 
+                  @click="$router.back()"
+                  class="text-none font-weight-bold"
+                >
+                  Cancel·lar
+                </v-btn>
+                
+                <v-btn 
+                  color="#D0021B" 
+                  variant="flat" 
+                  size="large"
+                  class="text-white text-none font-weight-bold gencat-btn"
+                  :loading="loading"
+                  :disabled="!valid"
+                  @click="submitForm"
+                >
+                  Guardar Alumne
+                </v-btn>
+              </div>
+
+            </v-form>
+          </v-card-text>
+        </v-card>
+
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'; // <--- 1. AÑADIMOS onMounted
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -94,7 +143,6 @@ const valid = ref(false);
 const loading = ref(false);
 const errorMessage = ref('');
 
-// 2. LA LISTA EMPIEZA VACÍA (Se llenará sola)
 const centrosList = ref([]); 
 
 const student = reactive({
@@ -103,26 +151,22 @@ const student = reactive({
   codi_centre: null 
 });
 
-const nameRules = [v => !!v || 'El nom és obligatori'];
-const idRules = [v => !!v || "L'ID és obligatori"];
+const nameRules = [v => !!v || "El nom és obligatori"];
+const idRules = [v => !!v || "L'ID (RALC) és obligatori"];
 const centerRules = [v => !!v || 'Has de seleccionar un centre'];
 
-// 3. NUEVO: CARGAR DATOS AL INICIAR EL COMPONENTE
 onMounted(async () => {
   try {
-    // Llamamos a tu nueva ruta del backend
     const response = await fetch('http://localhost:3001/api/centros');
-    
     if (response.ok) {
-      // Guardamos el JSON recibido en nuestra variable reactiva
       centrosList.value = await response.json();
-      console.log("Centros cargados:", centrosList.value.length);
     } else {
       console.error("Error al cargar centros:", response.statusText);
+      errorMessage.value = "Error carregant la llista de centres.";
     }
   } catch (error) {
     console.error("Error de conexión:", error);
-    errorMessage.value = "No se pudo cargar la lista de centros.";
+    errorMessage.value = "No s'ha pogut connectar amb el servidor.";
   }
 });
 
@@ -142,7 +186,7 @@ const submitForm = async () => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || 'Error desconegut');
+      throw new Error(data.error || 'Error desconegut al crear l\'alumne');
     }
 
     router.push('/alumnos'); 
@@ -154,3 +198,23 @@ const submitForm = async () => {
   }
 };
 </script>
+
+<style scoped>
+/* ESTILS GENCAT */
+.gencat-font {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+.gencat-card {
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  background-color: white;
+}
+
+.gencat-btn {
+  border-radius: 4px !important;
+}
+
+.border-red {
+  border: 1px solid #ffcdd2 !important;
+}
+</style>

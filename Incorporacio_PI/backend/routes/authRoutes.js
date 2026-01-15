@@ -1,18 +1,70 @@
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../db');
-// 1. IMPORTAMOS LA FUNCIÓN DE CORREO
-// Asegúrate de que la ruta '../nodemailer' sea correcta según donde tengas el archivo
 const { sendVerificationCode } = require('../utils/nodemailer');
 
-router.post('/send-code', async (req, res) => {
-    const { email } = req.body;
+// --- NOUS IMPORTS DE SEGURETAT ---
+const rateLimit = require('express-rate-limit');
+const axios = require('axios');
+require('dotenv').config(); // Per llegir RECAPTCHA_SECRET_KEY del .env
+
+// --- CONFIGURACIÓ DE LIMITADORS (RATE LIMITING) ---
+
+// 1. LIMITADOR D'IP (El que has demanat)
+// Si una IP fa més de 10 peticions en 15 minuts, es bloqueja durant 15 minuts.
+const loginIpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minuts
+    max: 10, // Màxim 10 intents
+    message: { success: false, error: "Massa intents des d'aquesta IP. Torna-ho a provar en 15 minuts." },
+    standardHeaders: true, // Retorna info als headers `RateLimit-*`
+    legacyHeaders: false,
+});
+
+// 2. LIMITADOR D'EMAIL (Protecció extra per les escoles)
+// Encara que l'atacant canviï d'IP, no podrà enviar més de 3 emails a la mateixa escola en 1 hora.
+const emailLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 3, // Màxim 3 intents al mateix email
+    message: { success: false, error: "Ja hem enviat massa codis a aquest correu. Espera una hora." },
+    keyGenerator: (req) => req.body.email, // Utilitza l'email com a clau única
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// --- RUTES ---
+
+// Ruta per ENVIAR el codi (Protegida amb IP, Email i Captcha)
+router.post('/send-code', loginIpLimiter, emailLimiter, async (req, res) => {
+    const { email, recaptchaToken } = req.body;
+
+    // 1. VALIDACIÓ RECAPTCHA (Google)
+    if (!recaptchaToken) {
+        return res.status(400).json({ success: false, error: 'Has de completar el Captcha.' });
+    }
+
+    try {
+        const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+        // Connectem amb Google per veure si el token és real
+        const verificationUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaToken}`;
+        
+        const googleResponse = await axios.post(verificationUrl);
+        
+        // Si Google diu que no és vàlid o és un bot:
+        if (!googleResponse.data.success) {
+            return res.status(400).json({ success: false, error: 'Verificació Captcha fallida. Ets un robot?' });
+        }
+    } catch (error) {
+        console.error("Error connectant amb Google Recaptcha:", error);
+        return res.status(500).json({ success: false, error: 'Error intern verificant seguretat.' });
+    }
+
+    // 2. LÒGICA D'ENVIAMENT (Només s'executa si el Captcha és vàlid)
     try {
         const db = getDB();
-        // Generar código aleatorio
+        // Generar codi aleatori de 6 xifres
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         
-        // Guardar en Base de Datos (Esto ya lo tenías bien)
+        // Guardar a Base de Dades
         await db.collection('login_codes').updateOne(
             { email: email },
             { $set: { code: code, createdAt: new Date(), used: false } },
@@ -21,14 +73,13 @@ router.post('/send-code', async (req, res) => {
 
         console.log(`📨 (Debug) Codi generat per ${email}: ${code}`);
 
-        // 2. ENVIAR EL CORREO REAL
+        // Enviar email real
         const emailSent = await sendVerificationCode(email, code);
 
         if (emailSent) {
             res.json({ success: true, message: 'Codi enviat al correu' });
         } else {
-            // Si falla el envío de correo, avisamos al frontend
-            res.status(500).json({ success: false, error: 'Error enviant el correu' });
+            res.status(500).json({ success: false, error: 'Error enviant el correu electrònic' });
         }
 
     } catch (e) {
@@ -37,24 +88,25 @@ router.post('/send-code', async (req, res) => {
     }
 });
 
-router.post('/verify-code', async (req, res) => {
+// Ruta per VERIFICAR el codi (També protegida per IP per evitar força bruta)
+router.post('/verify-code', loginIpLimiter, async (req, res) => {
     const { email, code } = req.body;
     try {
         const db = getDB();
         const reg = await db.collection('login_codes').findOne({ email });
 
-        if (!reg) return res.status(401).json({ success: false, message: 'Email no trobat' });
+        if (!reg) return res.status(401).json({ success: false, message: 'Email no trobat o codi caducat' });
         
-        // Verificar código
+        // Verificar coincidència
         if (String(reg.code) !== String(code)) return res.status(401).json({ success: false, message: 'Codi incorrecte' });
         
-        // Verificar si ya se usó
-        if (reg.used) return res.status(401).json({ success: false, message: 'Codi ja usat' });
+        // Verificar si ja s'ha utilitzat
+        if (reg.used) return res.status(401).json({ success: false, message: 'Aquest codi ja s\'ha utilitzat' });
 
-        // Marcar como usado
+        // Marcar com a usat
         await db.collection('login_codes').updateOne({ email }, { $set: { used: true } });
 
-        // Devolver token (Aquí mantengo tu fake-jwt, si usas jsonwebtoken real cámbialo aquí)
+        // Retornar èxit
         res.json({ success: true, token: 'fake-jwt', user: { email } });
 
     } catch (e) {
