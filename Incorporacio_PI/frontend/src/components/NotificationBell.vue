@@ -8,9 +8,7 @@
       </v-btn>
     </template>
 
-
     <v-card min-width="380" max-width="400" class="gencat-card" elevation="4" rounded="lg">
-
       <div class="d-flex justify-space-between align-center pa-4 border-b bg-white">
         <div class="d-flex align-center">
           <v-icon icon="mdi-bell-ring-outline" size="small" class="mr-2" color="#D0021B"></v-icon>
@@ -19,19 +17,15 @@
             Notificacions
           </span>
         </div>
-
         <v-btn icon="mdi-refresh" size="x-small" variant="text" color="grey-darken-1" @click="refreshLogs"
           title="Actualitzar"></v-btn>
       </div>
 
-
       <v-list lines="two" max-height="400" class="overflow-y-auto py-0 bg-white">
-
         <div v-if="notifications.length === 0" class="d-flex flex-column align-center justify-center py-10 text-center">
           <v-icon icon="mdi-bell-sleep-outline" color="grey-lighten-2" size="40" class="mb-2"></v-icon>
           <span class="text-caption text-grey font-weight-medium">No tens notificacions noves</span>
         </div>
-
 
         <template v-else>
           <v-list-item v-for="(log, i) in notifications" :key="i" class="py-3 border-b item-hover"
@@ -43,7 +37,6 @@
                   size="small"></v-icon>
               </v-avatar>
             </template>
-
 
             <v-list-item-title
               class="text-body-2 font-weight-bold text-grey-darken-4 mb-1 d-flex align-center justify-space-between">
@@ -71,65 +64,58 @@
           Veure tot l'historial
         </v-btn>
       </div>
-
-
     </v-card>
   </v-menu>
-</template>
 
+  <v-snackbar v-model="showSnackbar" color="grey-darken-4" location="bottom left" timeout="4000">
+    <div class="d-flex align-center">
+      <v-icon icon="mdi-bell-ring" color="red-accent-2" class="mr-2"></v-icon>
+      <span class="text-caption font-weight-bold">{{ snackbarText }}</span>
+    </div>
+    <template v-slot:actions>
+      <v-btn color="white" variant="text" size="small" @click="showSnackbar = false">Tancar</v-btn>
+    </template>
+  </v-snackbar>
+</template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-
+import { io } from 'socket.io-client'; // Asegúrate de haber instalado: npm install socket.io-client
 
 const logs = ref([]);
 const lastReadTimestamp = ref(0);
-const isAuthenticated = ref(false); // Estado de autenticación local
-let pollingInterval = null;
+const isAuthenticated = ref(false);
+let socket = null;
 
+// Estados para el Snackbar
+const showSnackbar = ref(false);
+const snackbarText = ref('');
 
-// Helper para detectar login
-const checkAuth = () => {
-  return !!localStorage.getItem('token');
-};
-
+const checkAuth = () => !!localStorage.getItem('token');
 
 const loadLastRead = () => {
   const stored = localStorage.getItem('lastNotificationRead');
   lastReadTimestamp.value = stored ? parseInt(stored) : Date.now();
 };
 
-
 const fetchLogs = async () => {
-  if (!isAuthenticated.value) return; 
+  if (!isAuthenticated.value) return;
 
-  // 1. OBTENEMOS EL CÓDIGO DE MI CENTRO (Guardado al hacer Login)
-  const myCenterCode = localStorage.getItem('userCenterCode'); 
+  const myCenterCode = localStorage.getItem('userCenterCode');
   const myEmail = localStorage.getItem('userEmail');
 
   try {
     const res = await fetch('http://localhost:3001/api/logs');
     if (res.ok) {
       const data = await res.json();
-      
       logs.value = data
         .filter(l => {
-            // A. Solo nos interesan Altas y Traslados
             const isTypeRelevant = l.accio.includes('Nou Alumne') || l.accio.includes('Trasllat');
             if (!isTypeRelevant) return false;
-
-            // B. Si no hay código de centro guardado, mostramos todo (por seguridad)
             if (!myCenterCode) return true;
-
-            // C. Si la acción la hice YO, la quiero ver siempre
             if (l.usuari === myEmail) return true;
-
-            // D. FILTRO CLAVE: ¿El texto del log menciona mi centro?
-            // - Backend envía: "Nou Alumne (080123)" -> Contiene "080123"? SÍ.
-            // - Backend envía: "Trasllat a 080123"   -> Contiene "080123"? SÍ.
             if (l.accio.includes(myCenterCode)) return true;
-
-            return false; // Si no es mío ni de mi centro, lo oculto.
+            return false;
         })
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 10);
@@ -139,22 +125,14 @@ const fetchLogs = async () => {
   }
 };
 
-
 const notifications = computed(() => {
   return logs.value.map(log => {
     const logTime = new Date(log.timestamp).getTime();
-    return {
-      ...log,
-      isNew: logTime > lastReadTimestamp.value
-    };
+    return { ...log, isNew: logTime > lastReadTimestamp.value };
   });
 });
 
-
-const unreadCount = computed(() => {
-  return notifications.value.filter(n => n.isNew).length;
-});
-
+const unreadCount = computed(() => notifications.value.filter(n => n.isNew).length);
 
 const markAsRead = () => {
   const now = Date.now();
@@ -162,19 +140,15 @@ const markAsRead = () => {
   localStorage.setItem('lastNotificationRead', now.toString());
 };
 
-
-const refreshLogs = () => {
-  fetchLogs();
-};
-
+const refreshLogs = () => fetchLogs();
 
 const formatTime = (isoString) => {
   const date = new Date(isoString);
   const isToday = new Date().toDateString() === date.toDateString();
-  if (isToday) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return isToday 
+    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+    : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
-
 
 // Helpers Visuales
 const getActionIcon = (action) => {
@@ -183,21 +157,14 @@ const getActionIcon = (action) => {
   return 'mdi-information-variant';
 };
 
-
 const cleanActionTitle = (action) => {
-    // Si es traslado
     if (action.includes('Trasllat')) return 'Trasllat d\'Alumne';
-    
-    // Si es nuevo alumno (aunque tenga código entre paréntesis, el includes funciona)
     if (action.includes('Nou Alumne')) return 'Alta d\'Expedient';
-    
     return action;
 };
 
-
 const getDetailText = (log) => {
   if (log.accio.includes('Trasllat')) {
-    // Extraemos el destino si está en el texto
     const parts = log.accio.split(' a ');
     const dest = parts.length > 1 ? parts[1] : 'Nou Centre';
     return `enviat a: ${dest}`;
@@ -205,50 +172,54 @@ const getDetailText = (log) => {
   return `ha registrat RALC: ${log.ralc_alumne}`;
 };
 
+// --- LIFECYCLE & SOCKETS ---
 
 onMounted(() => {
-  isAuthenticated.value = checkAuth(); // Comprobar al montar
+  isAuthenticated.value = checkAuth();
+  
   if (isAuthenticated.value) {
     loadLastRead();
-    fetchLogs();
-    pollingInterval = setInterval(fetchLogs, 15000);
+    fetchLogs(); // Carga inicial
+    
+    // Conectar WebSocket
+    socket = io('http://localhost:3001'); // Ajusta puerto si es necesario
+
+    socket.on('connect', () => {
+      console.log('✅ Socket conectado');
+    });
+
+    // Escuchar notificaciones en tiempo real
+    socket.on('new_log', (data) => {
+      console.log('🔔 Socket Event:', data);
+      
+      // 1. Recargar lista
+      fetchLogs();
+      
+      // 2. Mostrar Snackbar si no fui yo quien hizo la acción (opcional, o mostrar siempre)
+      const myEmail = localStorage.getItem('userEmail');
+      
+      // Filtramos para que no te salte una alerta si la acción la acabas de hacer tú mismo
+      if (data.usuari !== myEmail) {
+         snackbarText.value = `${cleanActionTitle(data.accio)} - ${data.ralc_alumne}`;
+         showSnackbar.value = true;
+      }
+    });
   }
 });
 
-
 onUnmounted(() => {
-  if (pollingInterval) clearInterval(pollingInterval);
+  if (socket) {
+    socket.disconnect();
+    console.log('❌ Socket desconectado');
+  }
 });
 </script>
 
-
 <style scoped>
-.bell-btn:hover :deep(.v-icon) {
-  opacity: 0.8;
-}
-
-
-.gencat-card {
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  background-color: white !important;
-}
-
-
-.v-list::-webkit-scrollbar {
-  width: 5px;
-}
-
-.v-list::-webkit-scrollbar-track {
-  background: white;
-}
-
-.v-list::-webkit-scrollbar-thumb {
-  background: #e0e0e0;
-  border-radius: 4px;
-}
-
-
-.item-hover:hover {
-  background-color: #f9f9f9;
-}
+.bell-btn:hover :deep(.v-icon) { opacity: 0.8; }
+.gencat-card { border: 1px solid rgba(0, 0, 0, 0.08) !important; background-color: white !important; }
+.v-list::-webkit-scrollbar { width: 5px; }
+.v-list::-webkit-scrollbar-track { background: white; }
+.v-list::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
+.item-hover:hover { background-color: #f9f9f9; }
 </style>

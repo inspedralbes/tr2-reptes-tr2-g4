@@ -30,9 +30,9 @@ router.get('/search/advanced', async (req, res) => {
         }
 
         if (hasFile === 'true') {
-             conditions.push({
+            conditions.push({
                 files: { $elemMatch: { mimetype: "application/pdf" } }
-             });
+            });
         }
 
         if (minDificultats) {
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
 // POST: Crear alumne
 router.post('/', async (req, res) => {
     // 1. AÑADIMOS start_date A LA EXTRACCIÓN
-    const { nombre, id, codi_centre, start_date, userEmail } = req.body; 
+    const { nombre, id, codi_centre, start_date, userEmail } = req.body;
 
     if (!nombre || !id) return res.status(400).json({ error: "Falten dades" });
 
@@ -81,15 +81,15 @@ router.post('/', async (req, res) => {
 
         const existing = await db.collection('students').findOne({ hash_id: hash });
         if (existing) return res.status(409).json({ error: "Alumne ja existent" });
-        
+
         // 2. GESTIÓN DE LA FECHA DE INICIO AL CREAR
         // Si el frontend envía fecha, la usamos. Si no, usamos 'ahora'.
         const fechaInicio = start_date ? new Date(start_date) : new Date();
 
         const newStudent = {
             hash_id: hash,
-            codi_centre: codi_centre || null, 
-            
+            codi_centre: codi_centre || null,
+
             // 3. GUARDAMOS date_start PARA QUE EL HISTORIAL EMPIECE BIEN
             date_start: codi_centre ? fechaInicio : null,
 
@@ -105,14 +105,24 @@ router.post('/', async (req, res) => {
         };
 
         await db.collection('students').insertOne(newStudent);
-        
+
         // Log de creación
         // CAMBIO RECOMENDADO en POST /
         await registrarAcces(
-            userEmail || 'Sistema', 
-            `Nou Alumne (${codi_centre || 'Sense Centre'})`, // Añadimos el centro aquí
+            userEmail || 'Sistema',
+            `Nou Alumne (${codi_centre || 'Sense Centre'})`,
             newStudent.visual_identity.ralc_suffix
         );
+
+        // --- NUEVO: EMITIR SOCKET ---
+        // Emitimos los datos básicos para que el frontend decida si mostrarlo
+        req.io.emit('new_log', {
+            accio: `Nou Alumne (${codi_centre || 'Sense Centre'})`,
+            usuari: userEmail || 'Sistema',
+            ralc_alumne: newStudent.visual_identity.ralc_suffix,
+            timestamp: new Date()
+        });
+        // ----
 
         console.log(`✨ Nou alumne creat: ${iniciales}`);
         res.json({ success: true, student: newStudent });
@@ -129,7 +139,7 @@ router.post('/', async (req, res) => {
 // DELETE: Eliminar fitxer
 router.delete('/:hash/files/:filename', async (req, res) => {
     const { hash, filename } = req.params;
-    const { userEmail } = req.body; 
+    const { userEmail } = req.body;
 
     try {
         const db = getDB();
@@ -142,7 +152,7 @@ router.delete('/:hash/files/:filename', async (req, res) => {
         );
 
         await db.collection('students').updateOne({ hash_id: hash, filename: filename }, { $unset: { filename: "" } });
-        
+
         // Recalcular has_file
         const studentUpdated = await db.collection('students').findOne({ hash_id: hash });
         const hasFiles = (studentUpdated.files && studentUpdated.files.length > 0);
@@ -191,8 +201,8 @@ router.put('/:hash/transfer', async (req, res) => {
                 $push: {
                     school_history: {
                         codi_centre: student.codi_centre,
-                        date_start: student.date_start || null, 
-                        date_end: transferDate 
+                        date_start: student.date_start || null,
+                        date_end: transferDate
                     }
                 },
                 $set: {
@@ -206,12 +216,19 @@ router.put('/:hash/transfer', async (req, res) => {
         // 2. REGISTRAR EN EL LOG (¡ESTO ES LO QUE FALTABA!)
         // Usamos el formato "Trasllat a [CODI]" para que Logs.vue lo detecte bien
         await registrarAcces(
-            userEmail || 'Desconegut', 
-            `Trasllat a ${new_center_id}`, 
+            userEmail || 'Desconegut',
+            `Trasllat a ${new_center_id}`,
             student.visual_identity.ralc_suffix
         );
 
-        console.log(`🔄 Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id}`);
+        // --- NUEVO: EMITIR SOCKET ---
+        req.io.emit('new_log', {
+            accio: `Trasllat a ${new_center_id}`,
+            usuari: userEmail || 'Desconegut',
+            ralc_alumne: student.visual_identity.ralc_suffix,
+            timestamp: new Date()
+        });
+        console.log(`🔄 Trasllat realitzat: ...`);
         res.json({ success: true, message: "Centre modificat i historial guardat" });
 
     } catch (error) {
