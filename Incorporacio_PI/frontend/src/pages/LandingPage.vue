@@ -85,7 +85,7 @@
                     color="grey-darken-2"
                     size="small"
                     class="text-none text-decoration-underline"
-                    href="#"
+                    href="/Guia_Usuari_PI.pdf"
                 >
                     Guia d'usuari i suport tècnic
                 </v-btn>
