@@ -1,0 +1,8 @@
+# Variables d'entorn (Secrets)
+.env
+.env.local
+.env.*.local
+
+# Builds de producció (Frontend/Backend)
+dist/
+build/

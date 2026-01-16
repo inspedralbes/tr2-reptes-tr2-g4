@@ -1,0 +1,23 @@
+# Etapa Base
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copiamos package.json
+COPY package*.json ./
+
+# Instalamos SOLO dependencias de producción (más rápido y ligero)
+RUN npm ci --only=production
+
+# Copiamos el código
+COPY . .
+
+# Creamos carpeta uploads y asignamos permisos al usuario 'node' (seguridad)
+RUN mkdir -p uploads && chown -R node:node /app
+
+# Cambiamos al usuario 'node' para no usar root
+USER node
+
+EXPOSE 3001
+
+CMD ["node", "server.js"]
