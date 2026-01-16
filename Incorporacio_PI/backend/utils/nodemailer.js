@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-// Configuración con Contraseña de Aplicación (Simple y Efectiva)
+// Configuración del Transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -11,39 +11,62 @@ const transporter = nodemailer.createTransport({
 
 async function sendVerificationCode(email, code) {
   const mailOptions = {
-    // He canviat el nom del remitent a "Incorporació PI" (amb accent)
-    from: `"Incorporació PI" <${process.env.EMAIL_USER}>`,
+    // Remitente con nombre oficial
+    from: `"Plataforma PI - Generalitat de Catalunya" <${process.env.EMAIL_USER}>`,
     to: email,
-    subject: 'Codi de verificació per a l\'accés', // Assumpte més professional
-    text: `El vostre codi de verificació és: ${code}. Aquest codi caducarà en 10 minuts.`, // Versió text pla
+    subject: 'Codi de verificació d\'accés a la Plataforma PI',
+    text: `Codi de verificació: ${code}. Aquest codi caducarà en 10 minuts. Si no l'heu sol·licitat, ignoreu aquest missatge.`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;">
-        <h2 style="color: #2c3e50; text-align: center;">Verificació de Seguretat</h2>
-        <p style="font-size: 16px; color: #333;">Benvolgut/da,</p>
-        
-        <p style="font-size: 16px; color: #555; line-height: 1.5;">
-          Hem rebut una sol·licitud per iniciar sessió al vostre compte de la plataforma <strong>Incorporació PI</strong>.
-          Per continuar amb el procés d'accés, utilitzeu el següent codi de verificació:
-        </p>
+      <!DOCTYPE html>
+      <html lang="ca">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
+          .container { max-width: 600px; margin: 20px auto; background-color: #ffffff; border: 1px solid #e0e0e0; }
+          .header { background-color: #ffffff; padding: 20px 30px; border-top: 4px solid #D0021B; border-bottom: 1px solid #eeeeee; }
+          .header-title { color: #333333; font-size: 18px; font-weight: bold; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+          .header-subtitle { color: #666666; font-size: 14px; margin-top: 5px; }
+          .content { padding: 30px; color: #333333; line-height: 1.6; }
+          .code-box { background-color: #f8f9fa; border: 1px solid #dee2e6; border-left: 4px solid #333; padding: 20px; text-align: center; margin: 25px 0; }
+          .code { font-size: 32px; font-weight: bold; color: #D0021B; letter-spacing: 4px; font-family: 'Courier New', monospace; }
+          .warning { font-size: 13px; color: #666; background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 20px; }
+          .footer { background-color: #333333; color: #ffffff; padding: 20px; text-align: center; font-size: 12px; }
+          .footer a { color: #ffffff; text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 class="header-title">Generalitat de Catalunya</h1>
+            <div class="header-subtitle">Departament d'Educació i Formació Professional</div>
+          </div>
 
-        <div style="text-align: center; margin: 30px 0;">
-          <span style="font-size: 32px; font-weight: bold; color: #4CAF50; letter-spacing: 5px; background-color: #fff; padding: 10px 20px; border: 1px solid #ccc; border-radius: 5px;">
-            ${code}
-          </span>
+          <div class="content">
+            <p style="margin-top: 0;">Benvolgut/da,</p>
+            
+            <p>Us informem que s'ha iniciat un procés d'autenticació per accedir a la <strong>Plataforma de Gestió de Plans Individualitzats (PI)</strong>.</p>
+            
+            <p>Per completar l'accés, introduïu el següent codi de verificació d'un sol ús:</p>
+
+            <div class="code-box">
+              <span class="code">${code}</span>
+            </div>
+
+            <p style="font-size: 14px;">Aquest codi té una validesa de <strong>10 minuts</strong>.</p>
+
+            <div class="warning">
+              <strong>Avís de seguretat:</strong> Si no heu sol·licitat aquest accés, si us plau, no compartiu aquest codi i contacteu immediatament amb el suport tècnic o ignoreu aquest missatge.
+            </div>
+          </div>
+
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Generalitat de Catalunya. Tots els drets reservats.<br>
+            Aquest missatge s'ha enviat automàticament, si us plau no hi respongueu.
+          </div>
         </div>
-
-        <p style="font-size: 14px; color: #777;">
-          ⚠️ Aquest codi és vàlid només durant els pròxims <strong>10 minuts</strong>.
-        </p>
-
-        <p style="font-size: 14px; color: #777; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px;">
-          Si no heu sol·licitat aquest codi, és possible que algú estigui intentant accedir al vostre compte. Si us plau, ignoreu aquest missatge o contacteu amb l'administrador del sistema.
-        </p>
-        
-        <p style="text-align: center; font-size: 12px; color: #aaa; margin-top: 30px;">
-          © 2026 Incorporació PI. Tots els drets reservats.
-        </p>
-      </div>
+      </body>
+      </html>
     `
   };
 
@@ -53,11 +76,6 @@ async function sendVerificationCode(email, code) {
     return true;
   } catch (error) {
     console.error('❌ Error enviant el correu:', error);
-    // Debug per veure si llegeix les variables (sense mostrar la contrasenya sencera)
-    console.log("DEBUG:", { 
-      user: process.env.EMAIL_USER, 
-      passLength: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.length : 0 
-    });
     return false;
   }
 }

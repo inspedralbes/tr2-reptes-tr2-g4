@@ -146,7 +146,7 @@
                     </v-list>
                 </v-card>
             </v-col>
-        </v-row>
+         </v-row>
 
         <v-snackbar v-model="showError" color="#D0021B" location="top">
             <div class="d-flex align-center">
