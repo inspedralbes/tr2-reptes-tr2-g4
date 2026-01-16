@@ -107,7 +107,12 @@ router.post('/', async (req, res) => {
         await db.collection('students').insertOne(newStudent);
         
         // Log de creación
-        await registrarAcces(userEmail || 'Sistema', 'Nou Alumne', newStudent.visual_identity.ralc_suffix);
+        // CAMBIO RECOMENDADO en POST /
+        await registrarAcces(
+            userEmail || 'Sistema', 
+            `Nou Alumne (${codi_centre || 'Sense Centre'})`, // Añadimos el centro aquí
+            newStudent.visual_identity.ralc_suffix
+        );
 
         console.log(`✨ Nou alumne creat: ${iniciales}`);
         res.json({ success: true, student: newStudent });

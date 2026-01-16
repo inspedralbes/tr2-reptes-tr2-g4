@@ -101,19 +101,38 @@ const loadLastRead = () => {
 
 
 const fetchLogs = async () => {
-  if (!isAuthenticated.value) return; // Parar si no está logueado
+  if (!isAuthenticated.value) return; 
 
+  // 1. OBTENEMOS EL CÓDIGO DE MI CENTRO (Guardado al hacer Login)
+  const myCenterCode = localStorage.getItem('userCenterCode'); 
+  const myEmail = localStorage.getItem('userEmail');
 
   try {
     const res = await fetch('http://localhost:3001/api/logs');
     if (res.ok) {
       const data = await res.json();
-
-      // Filtramos para mostrar cosas interesantes: Nuevos alumnos Y Traslados
+      
       logs.value = data
-        .filter(l => l.accio === 'Nou Alumne' || l.accio.includes('Trasllat'))
+        .filter(l => {
+            // A. Solo nos interesan Altas y Traslados
+            const isTypeRelevant = l.accio.includes('Nou Alumne') || l.accio.includes('Trasllat');
+            if (!isTypeRelevant) return false;
+
+            // B. Si no hay código de centro guardado, mostramos todo (por seguridad)
+            if (!myCenterCode) return true;
+
+            // C. Si la acción la hice YO, la quiero ver siempre
+            if (l.usuari === myEmail) return true;
+
+            // D. FILTRO CLAVE: ¿El texto del log menciona mi centro?
+            // - Backend envía: "Nou Alumne (080123)" -> Contiene "080123"? SÍ.
+            // - Backend envía: "Trasllat a 080123"   -> Contiene "080123"? SÍ.
+            if (l.accio.includes(myCenterCode)) return true;
+
+            return false; // Si no es mío ni de mi centro, lo oculto.
+        })
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 10); // Solo las últimas 10 para no saturar
+        .slice(0, 10);
     }
   } catch (e) {
     console.error("Error fetching notifications", e);
@@ -166,8 +185,13 @@ const getActionIcon = (action) => {
 
 
 const cleanActionTitle = (action) => {
-  if (action.includes('Trasllat')) return 'Trasllat d\'Alumne';
-  return action;
+    // Si es traslado
+    if (action.includes('Trasllat')) return 'Trasllat d\'Alumne';
+    
+    // Si es nuevo alumno (aunque tenga código entre paréntesis, el includes funciona)
+    if (action.includes('Nou Alumne')) return 'Alta d\'Expedient';
+    
+    return action;
 };
 
 
