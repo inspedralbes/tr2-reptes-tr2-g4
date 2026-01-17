@@ -72,7 +72,7 @@
         <v-col cols="12" v-if="analysis.dificultats?.length">
           <div class="d-flex align-center mb-2">
             <v-icon color="orange-darken-2" class="mr-2">mdi-alert-circle-outline</v-icon>
-            <h3 class="text-subtitle-1 font-weight-bold text-orange-darken-2">Dificultats Principals</h3>
+            <h3 class="text-subtitle-1 font-weight-bold text-orange-darken-2">Diagnòstic</h3>
             <v-btn variant="text" icon="mdi-volume-high" size="small" color="orange-darken-2" class="ml-2"
               @click="speak(analysis.dificultats.join('. '))">
             </v-btn>
@@ -96,11 +96,60 @@
           </div>
         </v-col>
 
-        <!-- 3. Adaptacions -->
+        <!-- 3. Justificació del PI (Només Orientador) -->
+        <v-col cols="12" v-if="analysis.justificacio?.length">
+          <div class="d-flex align-center mb-2">
+            <v-icon color="deep-orange-darken-2" class="mr-2">mdi-text-box-search-outline</v-icon>
+            <h3 class="text-subtitle-1 font-weight-bold text-deep-orange-darken-2">Justificació del PI</h3>
+            <v-btn variant="text" icon="mdi-volume-high" size="small" color="deep-orange-darken-2" class="ml-2"
+              @click="speak(analysis.justificacio.join('. '))">
+            </v-btn>
+          </div>
+          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+            <template v-for="(item, i) in cleanList(analysis.justificacio)" :key="i">
+              <span class="mr-1">
+                <span v-html="highlightKeywords(getMainText(item))"></span>
+                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
+                <!-- Detall popup code... -->
+                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                  (+ Font)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
+                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                    </v-card>
+                  </v-menu>
+                </span>
+              </span>
+            </template>
+          </div>
+        </v-col>
+
+        <!-- 4. Orientació a l'Aula -->
+        <v-col cols="12" v-if="analysis.recomanacions?.length">
+          <div class="d-flex align-center mb-2">
+            <v-icon color="purple-darken-2" class="mr-2">mdi-lightbulb-on-outline</v-icon>
+            <h3 class="text-subtitle-1 font-weight-bold text-purple-darken-2">Orientació a l'Aula</h3>
+            <v-btn variant="text" icon="mdi-volume-high" size="small" color="purple-darken-2" class="ml-2"
+              @click="speak(analysis.recomanacions.join('. '))">
+            </v-btn>
+          </div>
+          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+            <template v-for="(item, i) in cleanList(analysis.recomanacions)" :key="i">
+              <span class="mr-1">
+                <span v-html="highlightKeywords(getMainText(item))"></span>
+                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
+                <!-- Detall popup code... -->
+              </span>
+            </template>
+          </div>
+        </v-col>
+
+        <!-- 5. Assignatures / Matèries -->
         <v-col cols="12" v-if="analysis.adaptacions?.length">
           <div class="d-flex align-center mb-2">
             <v-icon color="green-darken-2" class="mr-2">mdi-hand-heart-outline</v-icon>
-            <h3 class="text-subtitle-1 font-weight-bold text-green-darken-2">Adaptacions Metodològiques</h3>
+            <h3 class="text-subtitle-1 font-weight-bold text-green-darken-2">{{ role === 'orientador' ? 'Matèries' : 'Assignatures' }}</h3>
             <v-btn variant="text" icon="mdi-volume-high" size="small" color="green-darken-2" class="ml-2"
               @click="speak(analysis.adaptacions.join('. '))">
             </v-btn>
@@ -142,7 +191,7 @@
           </div>
         </v-col>
 
-        <!-- 4. Avaluació -->
+        <!-- 6. Criteris d'Avaluació -->
         <v-col cols="12" v-if="analysis.avaluacio?.length">
           <div class="d-flex align-center mb-2">
             <v-icon color="blue-darken-2" class="mr-2">mdi-clipboard-check-outline</v-icon>
@@ -153,34 +202,6 @@
           </div>
           <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
             <template v-for="(item, i) in cleanList(analysis.avaluacio)" :key="i">
-              <span class="mr-1">
-                <span v-html="highlightKeywords(getMainText(item))"></span>
-                <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
-                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                  (+ Font)
-                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
-                    </v-card>
-                  </v-menu>
-                </span>
-              </span>
-            </template>
-          </div>
-        </v-col>
-
-        <!-- 5. Recomanacions -->
-        <v-col cols="12" v-if="analysis.recomanacions?.length">
-          <div class="d-flex align-center mb-2">
-            <v-icon color="purple-darken-2" class="mr-2">mdi-lightbulb-on-outline</v-icon>
-            <h3 class="text-subtitle-1 font-weight-bold text-purple-darken-2">Recomanacions i Traspàs</h3>
-            <v-btn variant="text" icon="mdi-volume-high" size="small" color="purple-darken-2" class="ml-2"
-              @click="speak(analysis.recomanacions.join('. '))">
-            </v-btn>
-          </div>
-          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
-            <template v-for="(item, i) in cleanList(analysis.recomanacions)" :key="i">
               <span class="mr-1">
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
@@ -210,8 +231,12 @@ const props = defineProps({
     type: Object,
     required: true,
     default: () => ({
-      perfil: [], dificultats: [], adaptacions: [], avaluacio: [], recomanacions: []
+      perfil: [], dificultats: [], justificacio: [], adaptacions: [], avaluacio: [], recomanacions: []
     })
+  },
+  role: {
+    type: String,
+    default: 'docent'
   }
 });
 

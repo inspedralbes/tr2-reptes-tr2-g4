@@ -5,6 +5,10 @@
       <div>
         <h1 class="text-h4">Anàlisi IA del Document</h1>
         <p class="text-subtitle-1 text-grey-darken-1">{{ filename }}</p>
+        <v-chip size="small" :color="currentRole === 'docent' ? 'indigo' : 'teal'" class="mt-1">
+          <v-icon start size="small">{{ currentRole === 'docent' ? 'mdi-school' : 'mdi-compass-outline' }}</v-icon>
+          Perfil: {{ currentRole.toUpperCase() }}
+        </v-chip>
       </div>
       <v-spacer></v-spacer>
       <!-- Botón para regenerar con IA -->
@@ -24,7 +28,14 @@
       <v-progress-circular indeterminate color="teal" size="64"></v-progress-circular>
       <span class="mt-4 text-h6 text-teal text-center">{{ currentStatus }}</span>
       <div class="mt-4" style="width: 100%; max-width: 300px">
-        <v-progress-linear v-model="progress" color="teal" height="25" rounded striped>
+        <!-- Barra indeterminada durant la lectura (LLEGINT...) -->
+        <v-progress-linear v-if="currentStatus.includes('Llegint')" indeterminate color="teal" height="25" rounded striped>
+          <template v-slot:default>
+            <strong>Processant...</strong>
+          </template>
+        </v-progress-linear>
+        <!-- Barra real durant la generació -->
+        <v-progress-linear v-else v-model="progress" color="teal" height="25" rounded striped>
           <template v-slot:default="{ value }">
             <strong>{{ Math.ceil(value) }}% completat</strong>
           </template>
@@ -39,10 +50,7 @@
     <!-- Només mostrem el resultat quan NO estem carregant -->
     <div v-else-if="resumenIA">
       <!-- COMPONENT VISUAL (Restaurat) -->
-      <PiSummary :analysis="parsedAnalysis" />
-      
-      <!-- Debug (opcional, per si vols veure el text cru mentre es genera) -->
-      <!-- <div class="text-caption text-grey mt-4">Text cru: {{ resumenIA.length }} caràcters</div> -->
+      <PiSummary :analysis="parsedAnalysis" :role="currentRole" />
     </div>
 
     <!-- Error específic de la IA -->
@@ -86,6 +94,7 @@ import PiSummary from '@/components/PiSummary.vue';
 
 const route = useRoute();
 const filename = route.params.filename;
+const currentRole = computed(() => route.query.role || 'docent'); // Rol per defecte
 
 const loading = ref(true);
 const loadingAI = ref(false);
@@ -108,6 +117,7 @@ const parsedAnalysis = computed(() => {
   const result = {
     perfil: [],
     dificultats: [],
+    justificacio: [],
     adaptacions: [],
     avaluacio: [],
     recomanacions: []
@@ -115,11 +125,13 @@ const parsedAnalysis = computed(() => {
 
   // Definim els marcadors amb REGEX per detectar les seccions que genera la IA
   const markers = [
-    { key: 'perfil', regex: /(?:^|\n)\s*(?:[\*#]*\s*1\.\s*)?(?:PERFIL DE L'ALUMNE|PERFIL|Dades de l['’]alumne|Diagnòstic).*/i },
-    { key: 'dificultats', regex: /(?:^|\n)\s*(?:[\*#]*\s*2\.\s*)?(?:DIFICULTATS I BARRERES|Dificultats Principals|DIFICULTATS|Motiu del pla|Motiu del PI|Punts febles|Observacions|Habilitats).*/i },
-    { key: 'adaptacions', regex: /(?:^|\n)\s*(?:[\*#]*\s*3\.\s*)?(?:ADAPTACIONS METODOLÒGIQUES|ADAPTACIONS|Mesures|Estratègies|Adaptacions curriculars).*/i },
-    { key: 'avaluacio', regex: /(?:^|\n)\s*(?:[\*#]*\s*4\.\s*)?(?:AVALUACIÓ I QUALIFICACIÓ|AVALUACIÓ|Qualificació|Criteris d'Avaluació|Criteris).*/i },
-    { key: 'recomanacions', regex: /(?:^|\n)\s*(?:[\*#]*\s*5\.\s*)?(?:RECOMANACIONS I TRASPÀS|RECOMANACIONS|Orientacions|Consells).*/i }
+    // MODIFICAT: Regex arreglades. Ara accepten '.' com a separador i NO tenen '.*' al final per no menjar-se el text.
+    { key: 'perfil', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:PERFIL DE L'ALUMNE|DADES PERSONALS)/i },
+    { key: 'dificultats', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:DIAGNÒSTIC|DIFICULTATS)/i },
+    { key: 'justificacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:JUSTIFICACIÓ DEL PI|JUSTIFICACIÓ)/i },
+    { key: 'recomanacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ORIENTACIÓ A L'AULA|ORIENTACIONS)/i },
+    { key: 'adaptacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ASSIGNATURES|MATÈRIES|ADAPTACIONS)/i },
+    { key: 'avaluacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:CRITERIS D'AVALUACIÓ|AVALUACIÓ)/i }
   ];
 
   // Busquem on comença cada secció
@@ -204,10 +216,18 @@ const checkStatus = async () => {
       
       if (estado === 'COMPLETAT' && student.ia_data.resumen) {
         resumenIA.value = student.ia_data.resumen;
+        
+        // Si el rol guardat és diferent del que volem, regenerem automàticament
+        if (student.ia_data.role && student.ia_data.role !== currentRole.value) {
+            console.log(`🔄 Rol diferent detectat (DB: ${student.ia_data.role} vs ACTUAL: ${currentRole.value}). Regenerant...`);
+            regenerarResumenIA();
+            return;
+        }
+
         loadingAI.value = false;
         currentStatus.value = "Completat";
         if (pollingInterval) clearInterval(pollingInterval);
-      } else if (estado === 'INTERROMPUT') {
+      } else if (estado === 'INTERROMPUT' || estado === 'ERROR') { // NOU: Detectem també ERROR
         loadingAI.value = false;
         errorAI.value = student.ia_data.resumen || "Procés interromput.";
         if (pollingInterval) clearInterval(pollingInterval);
@@ -227,8 +247,11 @@ const checkStatus = async () => {
           currentStatus.value = `Generant resum... (${Math.ceil(progress.value)}%)`;
         } else {
           if (estado === 'A LA CUA') currentStatus.value = 'En cua d\'espera...';
-          else if (estado === 'LLEGINT...') currentStatus.value = 'Llegint i processant document (això pot trigar)...';
-          else currentStatus.value = 'Iniciant generació...';
+          else if (estado === 'LLEGINT...') {
+            // Missatge fix durant la lectura real (sense simulació)
+            currentStatus.value = 'Llegint document (això pot trigar uns minuts)...';
+          }
+          else currentStatus.value = 'Preparant resposta...';
         }
         
         // Si no estem fent polling, comencem
@@ -263,7 +286,8 @@ const regenerarResumenIA = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         text: rawText.value, 
-        filename: filename // Important per saber a qui actualitzar
+        filename: filename, // Important per saber a qui actualitzar
+        role: currentRole.value // NOU: Enviem el rol seleccionat
       })
     });
 

@@ -2,77 +2,113 @@ const OpenAI = require("openai");
 
 // Configuració del client per a IA LOCAL
 const openai = new OpenAI({
-  baseURL: "http://llm:8080/v1", // Connecta amb el contenidor 'llm' del docker-compose
+  baseURL: "http://pi_llm:8080/v1", // MODIFICAT: Connecta amb 'pi_llm' (nom real del contenidor)
   apiKey: "sk-no-key-required",  // La IA local no necessita clau real
+  timeout: 30 * 60 * 1000,       // NOU: 30 minuts de timeout (augmentat per si va lent)
 });
+
+/**
+ * Comprova si el contenidor de la IA està disponible.
+ * Ho intenta 5 vegades abans de rendir-se.
+ */
+async function checkConnection(retries = 100) {
+    const url = "http://pi_llm:8080/health"; // Endpoint de salut de llama.cpp
+    console.log(`🔍 [aiService] Comprovant connexió amb IA Local (${url})...`);
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                console.log("✅ [aiService] IA Local ONLINE (Port 8080 obert).");
+                
+                // NOU: Test real de generació per confirmar que "pensa"
+                console.log("🧪 [aiService] Fent prova de generació ràpida (Warm-up)...");
+                try {
+                    await openai.chat.completions.create({
+                        model: "default-model",
+                        messages: [{ role: "user", content: "Test" }],
+                        max_tokens: 1
+                    });
+                    console.log("🚀 [aiService] TEST SUPERAT! La IA està generant text correctament.");
+                } catch (e) {
+                    console.warn("⚠️ [aiService] El test de generació ha fallat (potser està carregant model):", e.message);
+                }
+
+                return true;
+            }
+            // Si respon però no és OK (ex: 503 Loading...), avisem
+            console.warn(`⚠️ [aiService] La IA està carregant models (Status: ${response.status})...`);
+        } catch (error) {
+            console.warn(`⚠️ [aiService] Intent ${i+1}/${retries} fallit: ${error.message}`);
+        }
+        // MOGUT: Esperem 3s SEMPRE si no hem acabat, tant si falla la xarxa com si està carregant
+        if (i < retries - 1) await new Promise(r => setTimeout(r, 3000));
+    }
+    console.error("❌ [aiService] IMPOSSIBLE CONNECTAR AMB LA IA. Revisa que el contenidor 'pi_llm' estigui encès i a la mateixa xarxa.");
+    return false;
+}
 
 /**
  * Genera un resum utilitzant IA LOCAL (sense streaming HTTP directe).
  * Retorna el text complet quan acaba.
+ * @param {string} role - 'docent' o 'orientador'
  * @param {function} onProgress - Callback opcional (textParcial, percentatge)
  */
-async function generateSummaryLocal(text, onProgress) {
+async function generateSummaryLocal(text, role, onProgress) {
 
   // Retallem el text per no saturar el context del model
   const MAX_CHARS = 6000; // Reduït encara més per garantir resposta ràpida en CPU
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
-  // --- CÀLCUL DE PROGRÉS DE LECTURA (REALISTA) ---
-  // Estimació: 4 caràcters ~= 1 token.
-  const estimatedTokens = truncatedText.length / 4;
-  // Velocitat conservadora en CPU: ~40 tokens/segon per processar el prompt
-  const processingSpeed = 40; 
-  const estimatedDurationSecs = Math.max(5, estimatedTokens / processingSpeed);
-  
   let currentProgress = 0;
-  let readingInterval = null;
+  
+  // FASE 1: LECTURA
+  // Eliminem la simulació. No enviarem progrés fals. El frontend mostrarà "Llegint..." sense barra o amb barra indeterminada.
 
-  // FASE 1: LECTURA (0% -> 99%)
-  // La barra s'omple completament mentre la IA "llegeix" el document
-  readingInterval = setInterval(() => {
-      const increment = 100 / estimatedDurationSecs; 
-      currentProgress += increment;
-      if (currentProgress > 99) currentProgress = 99; // No passar de 99 fins que acabi
+  // --- SELECCIÓ DE PROMPT SEGONS ROL ---
+  let systemPrompt = "";
+  
+  if (role === 'orientador') {
+    // PROMPT PER A ORIENTADORS
+    systemPrompt = `Ets un assistent expert per a orientadors educatius.
+      OBJECTIU: Extreure informació clau per a l'orientació i seguiment de l'alumne.
       
-      // Enviem text buit -> Servidor marca "LLEGINT..."
-      if (onProgress) onProgress("", Math.floor(currentProgress));
-  }, 1000);
+      ESTRUCTURA OBLIGATÒRIA (5 SECCIONS):
+      1. PERFIL DE L'ALUMNE (Dades personals i acadèmiques)
+      2. DIAGNÒSTIC (Problemes detectats)
+      3. JUSTIFICACIÓ DEL PI (Motiu del pla)
+      4. ORIENTACIÓ A L'AULA (Pautes d'actuació)
+      5. MATÈRIES (Adaptacions curriculars)
+
+      FORMAT: "Idea clau molt breu. [[Detall: Text original...]]"`;
+  } else {
+    // PROMPT PER A DOCENTS (Defecte)
+    systemPrompt = `Ets un assistent expert per a docents.
+      OBJECTIU: Facilitar informació pràctica per a l'aula i l'avaluació.
+      
+      ESTRUCTURA OBLIGATÒRIA (5 SECCIONS):
+      1. PERFIL DE L'ALUMNE (Dades personals i acadèmiques)
+      2. DIAGNÒSTIC (Problemes detectats)
+      3. ORIENTACIÓ A L'AULA (Pautes d'actuació)
+      4. ASSIGNATURES (Adaptacions específiques)
+      5. CRITERIS D'AVALUACIÓ (Com avaluar)
+
+      FORMAT: "Idea clau molt breu. [[Detall: Text original...]]"`;
+  }
 
   const messages = [
     {
       role: "system",
-      content: `Ets un analista documental expert. La teva missió és facilitar el traspàs d'informació d'alumnes que passen de Secundària a Formació Professional (FP).
+      content: `${systemPrompt}
       
-      OBJECTIU PRINCIPAL: El nou centre ha de rebre informació clara sobre:
-      1. Les adaptacions educatives aplicades.
-      2. Quines han funcionat i en quin context.
-      3. Quines es podrien aplicar o adaptar al nou centre (FP).
-
-      ESTRUCTURA OBLIGATÒRIA: Has de generar CINC seccions. Cada secció ha de començar AMB EL TÍTOL EXACTE en una línia separada, sense text addicional en aquella línia. Els títols són:
-      1. PERFIL DE L'ALUMNE
-      2. DIFICULTATS I BARRERES
-      3. ADAPTACIONS METODOLÒGIQUES
-      4. AVALUACIÓ I QUALIFICACIÓ
-      5. RECOMANACIONS I TRASPÀS
-
-      REGLA D'OR DEL FORMAT "DETALL":
-      Per a cada punt, has de seguir aquest format: "Idea principal resumida. [[Detall: **[Font: Secció]** Copia aquí el text original complet del PDF per si el docent necessita més context o informació extra.]]".
-      NO resumeixis en excés, extreu les frases clau literals.
-
-      INSTRUCCIONS ESPECÍFIQUES:
-      - **Perfil**: Resum breu (2-3 línies) amb dades acadèmiques, diagnòstic i motiu.
-      - **Adaptacions per Matèries**: 
-        - FORMAT: Fes una llista on cada punt comenci amb l'assignatura o àmbit seguit de dos punts.
-        - Exemple: "- Matemàtiques: Ús de calculadora..."
-        - NO facis taules Markdown. Utilitza llistes per aprofitar millor l'espai en columnes.
-      - **Recomanacions**: Redacta un text fluid però MOLT ESPECÍFIC. NO facis servir frases genèriques com "continuar amb les adaptacions". Has d'explicar QUINES són (ex: "Donar més temps", "Ús de calculadora", "Pautes escrites").
-      - **Exhaustivitat**: Processa totes les pàgines.
-      - **Taules Originals**: Si detectes taules amb 'X' al PDF, indica clarament què està marcat dins del detall.
-      - **Noms**: Ignora noms de professionals.
-
-      Exemple de sortida desitjada:
-      - Matemàtiques: Ús de calculadora. [[Detall: **[Font: Adaptacions]** L'alumne millora amb calculadora...]]
-
+      INSTRUCCIONS CRÍTIQUES DE FORMAT I CONTINGUT:
+      1. TÍTOLS: Fes servir EXACTAMENT els títols de secció llistats amunt (en majúscules). Són OBLIGATORIS.
+      2. FORMAT: Separa clarament cada secció amb un salt de línia.
+      3. CONTINGUT COMPLET: Has d'incloure TOTA la informació rellevant que trobis al document per a cada secció. No resumeixis tant que es perdin dades.
+      4. ESTIL LLISTA: Fes servir guions (-) o asteriscs (*) per a cada punt. Exemple: "- Més temps als exàmens". Evita paràgrafs llargs.
+      5. NO COPIÏS LLISTES DE FORMULARI: Si veus opcions com "1r ESO, 2n ESO...", tria només la marcada o vigent.
+      6. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
+      
       Processa tot el text proporcionat.`
     },
     {
@@ -82,24 +118,27 @@ async function generateSummaryLocal(text, onProgress) {
   ];
 
   try {
-    console.log("🤖 [aiService] Enviant petició a IA Local...");
+    console.log(`🤖 [aiService] Enviant petició a IA Local (http://pi_llm:8080/v1)...`);
     const completion = await openai.chat.completions.create({
       model: "default-model", // El nom és indiferent per a llama.cpp
       messages: messages,
       temperature: 0.1,
+      max_tokens: 1000, // LIMITAT: Evita que s'enrotlli (la "chapa") i fa que acabi abans
       stream: true, // ACTIVEM STREAMING per veure el progrés
     });
 
+    console.log("🤖 [aiService] Connexió establerta amb LLM! Esperant el primer token (Fase de Lectura/Pre-fill)...");
+
     let fullText = "";
     // Seccions esperades per calcular el progrés (aprox 20% per secció)
-    const sections = ["PERFIL", "DIFICULTATS", "ADAPTACIONS", "AVALUACIÓ", "RECOMANACIONS"];
+    // MODIFICAT: Keywords actualitzades segons els nous prompts (Docent/Orientador)
+    const sections = ["PERFIL", "DADES", "DIAGNÒSTIC", "ORIENTACIÓ", "ADAPTACIONS", "MATÈRIES", "ASSIGNATURES", "CRITERIS", "JUSTIFICACIÓ"];
     let isFirst = true;
     let chunkCount = 0;
 
     for await (const chunk of completion) {
         // FASE 2: ESCRIPTURA (Reset a 0% -> 100%)
         if (isFirst) {
-            clearInterval(readingInterval);
             console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
             isFirst = false;
             currentProgress = 0; // Reiniciem la barra per a la fase d'escriptura
@@ -108,8 +147,8 @@ async function generateSummaryLocal(text, onProgress) {
         chunkCount++;
         const content = chunk.choices[0]?.delta?.content || "";
         
-        // Log de "batec" cada 50 chunks per veure que està viu a la terminal
-        if (chunkCount % 50 === 0) {
+        // Log de "batec" cada 10 chunks per veure que està viu a la terminal (Més freqüent)
+        if (chunkCount % 10 === 0) {
             console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
         }
 
@@ -123,24 +162,25 @@ async function generateSummaryLocal(text, onProgress) {
             });
             
             // Càlcul de progrés d'escriptura (0 a 100)
-            // 1000 tokens aprox per un resum complet -> 100%
-            const chunkProgress = Math.min(chunkCount / 10, 80); 
-            const sectionProgress = foundCount * 4;
+            // MODIFICAT: Ajustem a 800 tokens (resum curt) perquè la barra sigui realista
+            // (chunkCount / 8) -> 800 tokens = 100%
+            const chunkProgress = (chunkCount / 8); 
+            const sectionProgress = foundCount * 5; // Més pes a les seccions per compensar
             
             let writeProgress = chunkProgress + sectionProgress;
             
             // Enviem text ple -> Servidor marca "GENERANT..."
-            onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
+            // AWAIT IMPORTANT: Esperem que s'actualitzi la BD abans de continuar per evitar race conditions al final
+            await onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
         }
     }
 
     console.log(`🤖 [IA Local] Generació finalitzada amb èxit. Longitud: ${fullText.length} caràcters.`);
     return fullText;
   } catch (error) {
-    if (readingInterval) clearInterval(readingInterval);
     console.error("❌ Error IA Local:", error);
     throw new Error("Error connectant amb el contenidor d'IA Local.");
   }
 }
 
-module.exports = { generateSummaryLocal };
+module.exports = { generateSummaryLocal, checkConnection };

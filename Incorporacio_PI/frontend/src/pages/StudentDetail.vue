@@ -103,7 +103,7 @@
             <!-- Botó per obrir el diàleg de selecció -->
             <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
               icon="mdi-robot" variant="text" color="purple" title="Generar Resum IA"
-              @click="goToSummary(file)">
+              @click="openRoleDialog(file)">
             </v-btn>
 
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
@@ -134,6 +134,34 @@
       </v-col>
     </v-row>
 
+    <!-- DIÀLEG SELECCIÓ DE PERFIL -->
+    <v-dialog v-model="showRoleDialog" max-width="500">
+      <v-card>
+        <v-card-title class="text-h5 bg-primary text-white">
+          Escull el perfil
+        </v-card-title>
+        <v-card-text class="pt-4">
+          <p class="mb-4">Quin tipus de resum necessites?</p>
+          <v-row>
+            <v-col cols="6">
+              <v-btn block color="indigo-lighten-1" height="60" @click="selectRole('docent')">
+                <v-icon start>mdi-school</v-icon> Docent
+              </v-btn>
+            </v-col>
+            <v-col cols="6">
+              <v-btn block color="teal-lighten-1" height="60" @click="selectRole('orientador')">
+                <v-icon start>mdi-compass-outline</v-icon> Orientador
+              </v-btn>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="showRoleDialog = false">Cancel·lar</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
@@ -146,6 +174,21 @@ const route = useRoute();
 const router = useRouter(); // <--- Inicializamos router
 const studentStore = useStudentStore();
 
+// --- ESTAT PER AL DIÀLEG DE ROLS ---
+const showRoleDialog = ref(false);
+const selectedFileForSummary = ref(null);
+
+const openRoleDialog = (file) => {
+  selectedFileForSummary.value = file;
+  showRoleDialog.value = true;
+};
+
+const selectRole = (role) => {
+  showRoleDialog.value = false;
+  if (selectedFileForSummary.value) {
+    goToSummary(selectedFileForSummary.value, role);
+  }
+};
 
 // --- NUEVA FUNCIÓN PARA VOLVER ---
 const goToList = () => {
@@ -202,9 +245,13 @@ watch(normalizedFiles, (newFiles) => {
   console.log('🔄 VISTA ACTUALIZADA: La lista de documentos ha cambiado.', newFiles);
 });
 
-const goToSummary = (file) => {
+const goToSummary = (file, role = 'docent') => {
   // Redirigim a la nova pàgina de resum amb el mode seleccionat a la URL
-  router.push({ name: 'SummaryPage', params: { filename: file.filename } });
+  router.push({ 
+    name: 'SummaryPage', 
+    params: { filename: file.filename },
+    query: { role: role } // Passem el rol com a paràmetre
+  });
 };
 
 const downloadFile = async (filename, originalName) => {

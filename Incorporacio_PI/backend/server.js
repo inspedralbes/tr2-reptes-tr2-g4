@@ -9,7 +9,7 @@ const amqp = require('amqplib'); // CLIENT RABBITMQ
 const AdmZip = require('adm-zip'); // PER LLEGIR ODT
 const { connectDB, getDB } = require('./db'); // La teva DB
 const { extractTextFromPDF } = require('./fileReader'); // Corregit: Coincideix amb fileReader.js
-const { generateSummaryLocal } = require('./aiService'); // Importem el servei d'IA Local
+const { generateSummaryLocal, checkConnection } = require('./aiService'); // Importem el servei d'IA Local i el test
 
 const app = express();
 const PORT = 3001;
@@ -68,14 +68,15 @@ async function connectRabbit() {
 
         channel = await conn.createChannel();
         await channel.assertQueue(QUEUE_NAME, { durable: true });
+        channel.prefetch(1); // IMPORTANT: Processar d'un en un per no saturar la IA
         console.log("🐰 Connectat a RabbitMQ. Cua:", QUEUE_NAME);
 
         // --- CONSUMER (WORKER) ---
         // Aquest codi s'executa quan hi ha un missatge a la cua
         channel.consume(QUEUE_NAME, async (msg) => {
             if (msg !== null) {
-                const { text, filename } = JSON.parse(msg.content.toString());
-                console.log(`🐰 [Worker] Processant resum per: ${filename}`);
+                const { text, filename, role } = JSON.parse(msg.content.toString());
+                console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${filename}`);
 
                 try {
                     const db = getDB();
@@ -85,15 +86,16 @@ async function connectRabbit() {
                         { $set: { 
                             "ia_data.estado": "LLEGINT...", // Canviem l'estat inicial per ser més precisos
                             "ia_data.resumen": "", // Netegem el text antic perquè no confongui
-                            "ia_data.progress": 0
+                            "ia_data.progress": 0,
+                            "ia_data.role": role || 'docent' // Guardem el rol
                         } }
                     );
 
                     // 2. Cridem a la IA (Això triga minuts)
-                    console.log(`⏳ [Worker] Iniciant generació IA per ${filename} (Això pot trigar uns minuts en CPU)...`);
+                    console.log(`⏳ [Worker] Iniciant generació IA (${role}) per ${filename}...`);
                     // Ara passem un callback per actualitzar el progrés en temps real
                     let lastUpdate = 0;
-                    const summary = await generateSummaryLocal(text, async (partialText, progress) => {
+                    const summary = await generateSummaryLocal(text, role, async (partialText, progress) => {
                         // Actualitzem la BD cada 2 segons com a màxim per no saturar
                         const now = Date.now();
                         if (now - lastUpdate > 1000) { // Actualitzem cada 1 segon per veure més moviment
@@ -131,8 +133,18 @@ async function connectRabbit() {
 
                 } catch (error) {
                     console.error(`❌ [Worker] Error processant ${filename}:`, error);
-                    // Opcional: channel.nack(msg) per reintentar, però compte amb bucles infinits
-                    channel.ack(msg); // L'eliminem per no bloquejar la cua
+                    
+                    // NOU: Actualitzem la BD perquè el frontend sàpiga que ha fallat
+                    const db = getDB();
+                    await db.collection('students').updateOne(
+                        { filename: filename },
+                        { $set: { 
+                            "ia_data.estado": "ERROR",
+                            "ia_data.resumen": error.message || "Error desconegut al processar"
+                        } }
+                    );
+
+                    channel.ack(msg); // Confirmem el missatge per treure'l de la cua
                 }
             }
         });
@@ -439,25 +451,31 @@ app.get('/api/analyze/:filename', async (req, res) => {
 
 // --- RUTA GENERACIÓ RESUM (IA) ---
 app.post('/api/generate-summary', async (req, res) => {
-    const { text, filename } = req.body;
+    const { text, filename, role } = req.body;
     if (!text || !filename) return res.status(400).json({ error: 'Falta text o filename' });
 
+    // REACTIVAT: Ara sí que depenem de RabbitMQ per protegir la IA
     if (!channel) return res.status(500).json({ error: 'RabbitMQ no connectat' });
 
     try {
-        // Envia a la cua
-        const jobData = { text, filename };
+        // 1. Envia a la cua
+        const jobData = { text, filename, role: role || 'docent' };
         channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
-        
-        // Actualitza estat inicial a la BD
+
+        // 2. Actualitza estat inicial a la BD
         const db = getDB();
         await db.collection('students').updateOne(
             { filename: filename },
-            { $set: { "ia_data.estado": "A LA CUA", "ia_data.resumen": "", "ia_data.progress": 0 } }
+            { $set: { 
+                "ia_data.estado": "A LA CUA", // Estat d'espera
+                "ia_data.resumen": "", 
+                "ia_data.progress": 0,
+                "ia_data.role": role || 'docent'
+            } }
         );
 
         console.log(`📤 [API] Feina enviada a RabbitMQ: ${filename}`);
-        res.json({ success: true, message: "Processament iniciat en segon pla" });
+        res.json({ success: true, message: "Afegit a la cua de processament" });
 
     } catch (e) {
         console.error(e);
@@ -508,6 +526,7 @@ connectDB().then(async () => {
     app.listen(PORT, () => {
         console.log(`🚀 Server Mongo + Logic Company running on http://localhost:${PORT}`);
         connectRabbit(); // Iniciem RabbitMQ en arrencar
+        checkConnection(); // NOU: Testeig de connexió amb la IA a l'inici
     });
 }).catch(console.error);
 
