@@ -1,5 +1,9 @@
-// src/stores/studentStore.js
 import { defineStore } from 'pinia';
+
+// 1. DEFINIMOS LA URL BASE
+// Si existe la variable de entorno (en el servidor), usa esa. 
+// Si no (en tu PC), usa localhost:3001.
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const useStudentStore = defineStore('student', {
   // 1. STATE
@@ -15,7 +19,8 @@ export const useStudentStore = defineStore('student', {
     
     // Acción A: Fetch Students
     async fetchStudents() {
-        const response = await fetch(`http://localhost:3001/api/students?_t=${Date.now()}`); 
+        // CAMBIO AQUÍ: Usamos API_URL
+        const response = await fetch(`${API_URL}/api/students?_t=${Date.now()}`); 
         
         if (!response.ok) {
             console.error("Error del servidor:", response.status);
@@ -29,7 +34,8 @@ export const useStudentStore = defineStore('student', {
     // Acción B: Fetch Logs
     async fetchLogs() {
         try {
-            const response = await fetch('http://localhost:3001/api/logs');
+            // CAMBIO AQUÍ: Usamos API_URL
+            const response = await fetch(`${API_URL}/api/logs`);
             this.logs = await response.json();
         } catch (e) {
             this.error = "Error carregant els logs";
@@ -47,7 +53,8 @@ export const useStudentStore = defineStore('student', {
         formData.append('userEmail', userEmail); 
         formData.append('documento_pi', file); 
 
-        const response = await fetch('http://localhost:3001/api/upload', {
+        // CAMBIO AQUÍ: Usamos API_URL
+        const response = await fetch(`${API_URL}/api/upload`, {
           method: 'POST',
           body: formData, 
         });
@@ -70,26 +77,21 @@ export const useStudentStore = defineStore('student', {
     async deleteFile(studentHash, filename) {
       this.loading = true;
       try {
-        // 1. Recuperem l'email per al log
         const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
-        // 2. Fem la petició
-        const response = await fetch(`http://localhost:3001/api/students/${studentHash}/files/${filename}`, {
+        // CAMBIO AQUÍ: Usamos API_URL
+        const response = await fetch(`${API_URL}/api/students/${studentHash}/files/${filename}`, {
           method: 'DELETE',
           headers: {
-            'Content-Type': 'application/json' // Important per poder enviar el body
+            'Content-Type': 'application/json'
           },
-          // 3. Enviem l'email al cos de la petició
           body: JSON.stringify({ userEmail: userEmail })
         });
 
         const result = await response.json();
 
         if (result.success) {
-          // 4. Si va bé, actualitzem la llista i els logs
           await this.fetchStudents();
-          // Opcional: recarregar logs si estem a la pantalla de logs
-          // await this.fetchLogs(); 
           return true;
         } else {
           throw new Error('No s\'ha pogut esborrar');
