@@ -18,10 +18,10 @@
             
             <div>
                 <h1 class="text-h5 font-weight-black text-grey-darken-3 gencat-font mb-0">
-                Auditoria i Registre
+                Auditoria i Seguretat
                 </h1>
                 <div class="text-caption text-grey-darken-1">
-                Històric dels darrers moviments registrats a la plataforma
+                Monitoratge d'accessos i activitat del sistema
                 </div>
             </div>
           </div>
@@ -44,14 +44,24 @@
                 <v-chip filter value="all" variant="outlined" color="grey-darken-1" size="small">
                     Tots
                 </v-chip>
+                <v-chip filter value="seguretat" variant="outlined" color="red-darken-3" size="small">
+                    <v-icon start icon="mdi-shield-alert" size="small"></v-icon> Seguretat
+                </v-chip>
+                <v-chip filter value="login" variant="outlined" color="teal-darken-3" size="small">
+                    <v-icon start icon="mdi-login" size="small"></v-icon> Accessos
+                </v-chip>
+                
+                <!-- AFEGEIX AQUEST -->
+                <v-chip filter value="alumnes" variant="outlined" color="blue-darken-3" size="small">
+                    <v-icon start icon="mdi-account-school" size="small"></v-icon> Alumnes
+                </v-chip>
+                <!-- FI DE L'AFEGIT -->
+
                 <v-chip filter value="trasllat" variant="outlined" color="orange-darken-4" size="small">
                     <v-icon start icon="mdi-transfer" size="small"></v-icon> Trasllats
                 </v-chip>
                 <v-chip filter value="pujada" variant="outlined" color="green-darken-3" size="small">
                     <v-icon start icon="mdi-cloud-upload" size="small"></v-icon> Pujades
-                </v-chip>
-                <v-chip filter value="nou" variant="outlined" color="blue-darken-3" size="small">
-                    <v-icon start icon="mdi-account-plus" size="small"></v-icon> Altes
                 </v-chip>
             </v-chip-group>
         </div>
@@ -62,9 +72,9 @@
             <thead>
               <tr class="bg-grey-lighten-4">
                 <th class="text-left text-caption font-weight-bold text-grey-darken-2 py-3">DATA I HORA</th>
-                <th class="text-left text-caption font-weight-bold text-grey-darken-2">USUARI</th>
-                <th class="text-left text-caption font-weight-bold text-grey-darken-2">ACCIÓ</th>
-                <th class="text-left text-caption font-weight-bold text-grey-darken-2">DETALL / RALC</th>
+                <th class="text-left text-caption font-weight-bold text-grey-darken-2">USUARI / IP</th>
+                <th class="text-left text-caption font-weight-bold text-grey-darken-2">ESDEVENIMENT</th>
+                <th class="text-left text-caption font-weight-bold text-grey-darken-2">DETALLS</th>
               </tr>
             </thead>
             <tbody>
@@ -78,8 +88,9 @@
                 </td>
                 
                 <td class="text-body-2 font-weight-bold text-grey-darken-3">
-                    <v-avatar color="grey-lighten-3" size="24" class="mr-2">
-                        <span class="text-caption font-weight-bold text-grey-darken-2">
+                    <v-avatar :color="getUserColor(log.usuari)" size="24" class="mr-2">
+                        <v-icon v-if="log.usuari && log.usuari.includes('IP')" icon="mdi-web" size="14" color="white"></v-icon>
+                        <span v-else class="text-caption font-weight-bold text-white">
                             {{ log.usuari ? log.usuari.charAt(0).toUpperCase() : '?' }}
                         </span>
                     </v-avatar>
@@ -109,8 +120,13 @@
                              </span>
                         </div>
 
-                        <span v-if="log.ralc_alumne">
-                            RALC: <strong>{{ log.ralc_alumne }}</strong>
+                        <!-- Si és un bloqueig, mostrem el motiu en vermell -->
+                        <span v-if="isSecurityEvent(log.accio)" class="text-caption text-red font-weight-bold">
+                            ⚠️ {{ log.ralc_alumne }}
+                        </span>
+
+                        <span v-else-if="log.ralc_alumne && log.ralc_alumne !== 'N/A'">
+                            {{ log.ralc_alumne }}
                         </span>
                     </div>
                 </td>
@@ -119,12 +135,12 @@
           </v-table>
 
           <div v-if="filteredLogs.length === 0" class="text-center py-10">
-            <v-icon icon="mdi-filter-off" size="48" color="grey-lighten-2" class="mb-2"></v-icon>
-            <p class="text-grey-darken-1">No s'han trobat registres amb aquest filtre.</p>
+            <v-icon icon="mdi-shield-check" size="48" color="grey-lighten-2" class="mb-2"></v-icon>
+            <p class="text-grey-darken-1">Tot correcte. No hi ha registres per a aquest filtre.</p>
           </div>
 
           <div class="bg-grey-lighten-5 pa-2 text-center border-t">
-              <span class="text-caption text-grey">Mostrant {{ filteredLogs.length }} registres</span>
+              <span class="text-caption text-grey">Mostrant {{ filteredLogs.length }} esdeveniments</span>
           </div>
 
         </v-card>
@@ -140,7 +156,7 @@ import { useStudentStore } from '@/stores/studentStore';
 
 const studentStore = useStudentStore();
 const loading = ref(false);
-const selectedFilter = ref('all'); // Filtro por defecto
+const selectedFilter = ref('all');
 
 const refreshData = async () => {
     loading.value = true;
@@ -148,7 +164,6 @@ const refreshData = async () => {
     loading.value = false;
 };
 
-// --- LOGICA DE FILTRADO ---
 const filteredLogs = computed(() => {
     const logs = studentStore.logs;
     const filter = selectedFilter.value;
@@ -157,9 +172,15 @@ const filteredLogs = computed(() => {
     
     return logs.filter(log => {
         const action = (log.accio || '').toLowerCase();
+        
+        if (filter === 'seguretat') return action.includes('bloqueig') || action.includes('fallit') || action.includes('seguretat');
+        if (filter === 'login') return action.includes('login correcte') || action.includes('accés');
+        
+        // AFEGEIX AQUESTA LÍNIA:
+        if (filter === 'alumnes') return action.includes('nou') || action.includes('crear') || action.includes('alumne');
+        
         if (filter === 'trasllat') return action.includes('trasllat') || action.includes('transfer');
         if (filter === 'pujada') return action.includes('pujada') || action.includes('upload');
-        if (filter === 'nou') return action.includes('nou') || action.includes('crear');
         return true;
     });
 });
@@ -176,49 +197,69 @@ const formatDate = (date) => {
   });
 };
 
-// Helpers para Traslados
+// --- HELPERS ---
+
 const isTransfer = (text) => {
     return (text || '').toLowerCase().includes('trasllat') || (text || '').toLowerCase().includes('transfer');
 };
 
+const isSecurityEvent = (text) => {
+    return (text || '').toLowerCase().includes('bloqueig') || (text || '').toLowerCase().includes('seguretat');
+};
+
 const cleanActionText = (text) => {
     if(!text) return '';
-    // Si es traslado, simplificamos el texto del chip para que no sea enorme
     if(isTransfer(text)) return 'Trasllat de Centre';
+    if(text.includes('Bloqueig')) return 'Bloqueig Preventiu';
     return text;
 };
 
 const extractDestination = (text) => {
-    // Si en el backend guardamos "Trasllat a 0801234", intentamos sacar el código
     if (!text) return 'Nou Centre';
     if (text.includes(' a ')) {
-        return 'A: ' + text.split(' a ')[1]; // Muestra lo que hay después de " a "
+        return 'A: ' + text.split(' a ')[1]; 
     }
     return 'Canvi de centre';
 };
 
-// --- COLORES ---
+// --- COLORES & ESTILS ---
+
+const getUserColor = (user) => {
+    if (!user) return 'grey-lighten-2';
+    if (user.includes('IP')) return 'blue-grey-darken-3'; // Color fosc per IPs
+    return 'grey-lighten-1';
+};
+
 const getActionColor = (accio) => {
   if (!accio) return 'grey';
   const a = accio.toLowerCase();
   
-  if (a.includes('pujada') || a.includes('upload')) return 'green-lighten-4 text-green-darken-4';
-  if (a.includes('nou alumne') || a.includes('crear')) return 'blue-lighten-4 text-blue-darken-4';
-  if (a.includes('trasllat') || a.includes('transfer')) return 'orange-lighten-4 text-orange-darken-4';
-  if (a.includes('esborrar') || a.includes('delete') || a.includes('elimin')) return 'red-lighten-4 text-red-darken-4';
+  // Seguretat
+  if (a.includes('bloqueig')) return 'red-darken-4 text-white'; // Vermell intens per alertes
+  if (a.includes('fallit')) return 'orange-lighten-4 text-orange-darken-4';
+  
+  // Èxits
+  if (a.includes('login correcte')) return 'teal-lighten-4 text-teal-darken-4';
+  
+  // Operatius
+  if (a.includes('pujada')) return 'green-lighten-4 text-green-darken-4';
+  if (a.includes('nou alumne')) return 'blue-lighten-4 text-blue-darken-4';
+  if (a.includes('trasllat')) return 'orange-lighten-4 text-orange-darken-4';
+  if (a.includes('elimin')) return 'red-lighten-4 text-red-darken-4';
   
   return 'grey-lighten-4 text-grey-darken-2';
 };
 
-// --- ICONOS ---
 const getActionIcon = (accio) => {
     if (!accio) return 'mdi-circle-small';
     const a = accio.toLowerCase();
 
+    if (a.includes('bloqueig')) return 'mdi-shield-lock';
+    if (a.includes('login correcte')) return 'mdi-check-decagram';
     if (a.includes('pujada')) return 'mdi-cloud-upload';
     if (a.includes('nou alumne')) return 'mdi-account-plus';
-    if (a.includes('trasllat')) return 'mdi-transfer'; // Icono específico
-    if (a.includes('esborrar') || a.includes('elimin')) return 'mdi-trash-can';
+    if (a.includes('trasllat')) return 'mdi-transfer'; 
+    if (a.includes('elimin')) return 'mdi-trash-can';
     
     return 'mdi-information';
 };
