@@ -1,24 +1,22 @@
 import axios from 'axios';
 
-// 1. DEFINIMOS LA URL BASE CORRECTAMENTE
-// Recuperamos la variable de entorno o usamos localhost por defecto
+// 1. DEFINIMOS LA URL BASE
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-// 2. CONSTRUIMOS LA RUTA DE LA API
-// Esto resultará en 'http://tudominio.cat/api' o 'http://localhost:3001/api'
 const API_URL = `${BASE_URL}/api`;
 
-export const sendVerificationCode = async (email, recaptchaToken) => {
-  // El backend esperarà rebre { email: '...', recaptchaToken: '...' }
+export const sendVerificationCode = async (email, tokenDeGoogle) => {
+  // EL FIX ESTÁ AQUÍ:
+  // El backend en la línea 65 hace: const { email, recaptchaToken } = req.body;
+  // Por tanto, la clave del objeto DEBE ser 'recaptchaToken'.
+  
   const response = await axios.post(`${API_URL}/login/send-code`, { 
     email: email,
-    recaptchaToken: recaptchaToken 
+    recaptchaToken: tokenDeGoogle // Asignamos el valor a la clave correcta
   });
   return response.data;
 };
 
 export const verifyCode = async (email, code) => {
-  // Aquest es queda igual, només envia email i codi
   const response = await axios.post(`${API_URL}/login/verify-code`, { email, code });
   return response.data;
 };
