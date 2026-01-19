@@ -1,4 +1,14 @@
+<script setup>
+import VoiceToolbar from '@/components/VoiceToolbar.vue';
+</script>
+
 <template>
+  <!-- AQUESTA ÉS LA CLAU: -->
+  <!-- Posem el botó amb posició fixa perquè floti sobre la barra negra superior -->
+  <div class="voice-button-container">
+    <VoiceToolbar />
+  </div>
+
   <v-container class="fill-height align-start bg-grey-lighten-5" fluid>
     <v-row justify="center" class="mt-4">
       <v-col cols="12" lg="10" xl="9">
@@ -12,6 +22,9 @@
           </p>
         </div>
 
+        <!-- MANTENIM LA RESTA DEL TEU CODI IGUAL... -->
+        <!-- (Les targetes d'estadístiques, operacions principals, etc.) -->
+        
         <v-row class="mb-6">
           <v-col cols="12" sm="4">
             <v-card class="gencat-card pa-4 d-flex align-center" elevation="0" rounded="lg">
@@ -25,8 +38,9 @@
             </v-card>
           </v-col>
           
+          <!-- ... resta de columnes ... -->
           <v-col cols="12" sm="4">
-            <v-card class="gencat-card pa-4 d-flex align-center" elevation="0" rounded="lg">
+             <v-card class="gencat-card pa-4 d-flex align-center" elevation="0" rounded="lg">
               <v-avatar color="grey-lighten-4" rounded="lg" class="mr-4">
                 <v-icon icon="mdi-file-document-alert" color="grey-darken-3"></v-icon>
               </v-avatar>
@@ -49,14 +63,16 @@
             </v-card>
           </v-col>
         </v-row>
-
+        
+        <!-- ... operacions principals ... -->
         <h2 class="text-h6 font-weight-bold text-grey-darken-3 mb-4 d-flex align-center">
           <v-icon icon="mdi-apps" class="mr-2" size="small" color="#D0021B"></v-icon>
           Operacions Principals
         </h2>
-
+        
         <v-row>
-          <v-col cols="12" md="6">
+           <!-- ... les teves targetes de gestió d'alumnes ... -->
+             <v-col cols="12" md="6">
             <v-card
               class="gencat-card action-card h-100 pa-6 cursor-pointer"
               elevation="0"
@@ -114,7 +130,7 @@
             </v-card>
           </v-col>
         </v-row>
-
+        
         <v-row class="mt-6">
             <v-col cols="12">
                 <v-card class="gencat-card pa-4 bg-grey-lighten-4" elevation="0" rounded="lg">
@@ -142,45 +158,21 @@
 </template>
 
 <style scoped>
-/* TIPOGRAFIA OFICIAL */
-.gencat-font {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+/* POSICIÓ DEL BOTÓ DE VEU */
+.voice-button-container {
+  position: fixed;
+  top: 14px; /* Ajusta-ho segons l'altura de la teva barra */
+  right: 170px; /* Mou-lo més a l'esquerra o dreta segons on siguin les altres icones */
+  z-index: 9999; /* Per sobre de tot */
 }
 
-/* TARGETA BASE */
-.gencat-card {
-  border: 1px solid rgba(0,0,0,0.08) !important;
-  background-color: white;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-/* TARGETES D'ACCIÓ (INTERACTIVITAT) */
-.action-card {
-  border-left: 4px solid transparent !important; /* Preparem la vora esquerra */
-}
-
-.action-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.08) !important;
-  border-left-color: #D0021B !important; /* Vora vermella corporativa al hover */
-}
-
-/* Fletxa animada */
-.arrow-icon {
-    transition: transform 0.3s ease, color 0.3s ease;
-}
-
-.action-card:hover .arrow-icon {
-    transform: translateX(5px);
-    color: #D0021B !important;
-}
-
-/* Botó amb subratllat al hover */
-.hover-underline:hover {
-    text-decoration: underline;
-}
-
-.cursor-pointer {
-  cursor: pointer;
-}
+/* ELS TEUS ESTILS */
+.gencat-font { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; }
+.gencat-card { border: 1px solid rgba(0,0,0,0.08) !important; background-color: white; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+.action-card { border-left: 4px solid transparent !important; }
+.action-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08) !important; border-left-color: #D0021B !important; }
+.arrow-icon { transition: transform 0.3s ease, color 0.3s ease; }
+.action-card:hover .arrow-icon { transform: translateX(5px); color: #D0021B !important; }
+.hover-underline:hover { text-decoration: underline; }
+.cursor-pointer { cursor: pointer; }
 </style>

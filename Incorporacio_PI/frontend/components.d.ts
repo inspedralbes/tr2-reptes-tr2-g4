@@ -21,5 +21,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StudentList: typeof import('./src/components/StudentList.vue')['default']
+    VoiceCommander: typeof import('./src/components/VoiceCommander.vue')['default']
+    VoiceToolbar: typeof import('./src/components/VoiceToolbar.vue')['default']
   }
 }
