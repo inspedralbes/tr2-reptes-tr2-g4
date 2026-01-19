@@ -65,6 +65,12 @@ const router = createRouter({
       name: 'SummaryPage',
       component: () => import('@/pages/SummaryPage.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/chat/:filename',
+      name: 'ChatPage',
+      component: () => import('@/pages/ChatPage.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

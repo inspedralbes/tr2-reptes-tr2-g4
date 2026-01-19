@@ -72,6 +72,49 @@
       No s'ha trobat cap estudiant amb aquest identificador.
     </v-alert>
 
+    <!-- TARGETA RESUM GLOBAL (NOU) -->
+    <v-card v-if="student" class="mx-auto mt-4 pa-4" max-width="800" elevation="2" border>
+      <v-card-title class="text-h6 d-flex align-center justify-space-between bg-purple-lighten-5 text-purple-darken-4 rounded">
+        <div class="d-flex align-center">
+            <v-icon icon="mdi-text-box-multiple-outline" class="mr-2" color="purple"></v-icon>
+            Resum Global (Historial)
+        </div>
+        <v-btn 
+            v-if="!student.global_summary || (student.global_summary.estado !== 'GENERANT...' && student.global_summary.estado !== 'LLEGINT...')"
+            color="purple" 
+            variant="elevated" 
+            size="small"
+            prepend-icon="mdi-creation"
+            @click="generateGlobalSummary"
+        >
+            {{ student.global_summary ? 'Regenerar' : 'Generar Resum' }}
+        </v-btn>
+      </v-card-title>
+      
+      <div class="pa-4">
+          <div v-if="student.global_summary">
+              <div v-if="['LLEGINT...', 'GENERANT...', 'A LA CUA'].includes(student.global_summary.estado)" class="text-center">
+                  <v-progress-linear indeterminate color="purple" class="mb-2" height="6"></v-progress-linear>
+                  <span class="text-caption font-weight-bold text-purple">{{ student.global_summary.estado }} ({{ Math.ceil(student.global_summary.progress || 0) }}%)</span>
+                  <div v-if="student.global_summary.resumen" class="mt-2 text-body-2 text-grey font-italic">
+                      "{{ student.global_summary.resumen.substring(0, 100) }}..."
+                  </div>
+              </div>
+              <div v-else-if="student.global_summary.estado === 'COMPLETAT'" class="text-body-1" style="white-space: pre-line; line-height: 1.6;">
+                  {{ student.global_summary.resumen }}
+                  <div class="text-caption text-grey mt-3 text-right">Generat el: {{ formatDate(student.global_summary.fecha) }}</div>
+              </div>
+              <div v-else-if="student.global_summary.estado === 'ERROR'" class="text-error">
+                  <v-icon icon="mdi-alert-circle" color="error" class="mr-1"></v-icon> Error: {{ student.global_summary.resumen }}
+              </div>
+          </div>
+          <div v-else class="text-center text-grey py-4">
+              <v-icon icon="mdi-robot-off" size="large" class="mb-2"></v-icon>
+              <div>Encara no s'ha generat cap resum global de l'historial.</div>
+          </div>
+      </div>
+    </v-card>
+
     <v-card v-if="student && normalizedFiles.length > 0" class="mx-auto mt-4 pa-4" max-width="800" elevation="2">
       <v-card-title class="text-h6 d-flex align-center">
         <v-icon icon="mdi-file-document-multiple-outline" class="mr-2" color="primary"></v-icon>
@@ -104,6 +147,12 @@
             <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
               icon="mdi-robot" variant="text" color="purple" title="Generar Resum IA"
               @click="openRoleDialog(file)">
+            </v-btn>
+
+            <!-- Botó Xat (NOU) -->
+            <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
+              icon="mdi-chat-question-outline" variant="text" color="deep-purple" title="Xat amb el Document"
+              @click="goToChat(file)">
             </v-btn>
 
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
@@ -177,6 +226,7 @@ const studentStore = useStudentStore();
 // --- ESTAT PER AL DIÀLEG DE ROLS ---
 const showRoleDialog = ref(false);
 const selectedFileForSummary = ref(null);
+let pollingInterval = null; // Per actualitzar l'estat del resum global
 
 const openRoleDialog = (file) => {
   selectedFileForSummary.value = file;
@@ -254,6 +304,13 @@ const goToSummary = (file, role = 'docent') => {
   });
 };
 
+const goToChat = (file) => {
+  router.push({ 
+    name: 'ChatPage', 
+    params: { filename: file.filename }
+  });
+};
+
 const downloadFile = async (filename, originalName) => {
   try {
     const response = await fetch(`http://localhost:3001/uploads/${filename}`);
@@ -269,6 +326,37 @@ const downloadFile = async (filename, originalName) => {
   } catch (error) {
     console.error('Error downloading file:', error);
   }
+};
+
+const generateGlobalSummary = async () => {
+    try {
+        // Actualització optimista
+        if (!student.value.global_summary) student.value.global_summary = {};
+        student.value.global_summary.estado = 'A LA CUA';
+        
+        const response = await fetch('http://localhost:3001/api/generate-global-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ studentHash: route.params.hash_id })
+        });
+        
+        if (!response.ok) throw new Error('Error iniciant generació');
+        
+        // Iniciem polling per veure el progrés
+        if (!pollingInterval) {
+            pollingInterval = setInterval(async () => {
+                await studentStore.fetchStudents(); // Refresquem dades
+                const s = student.value;
+                if (s && s.global_summary && (s.global_summary.estado === 'COMPLETAT' || s.global_summary.estado === 'ERROR')) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+            }, 3000);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error generant resum global");
+    }
 };
 
 const deleteFile = async (filename) => {

@@ -57,7 +57,7 @@ async function checkConnection(retries = 100) {
 async function generateSummaryLocal(text, role, onProgress) {
 
   // Retallem el text per no saturar el context del model
-  const MAX_CHARS = 6000; // Reduït encara més per garantir resposta ràpida en CPU
+  const MAX_CHARS = 2500; // OPTIMITZACIÓ: Reduït a 2500 per TinyLlama (Context 2048)
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
   let currentProgress = 0;
@@ -68,7 +68,19 @@ async function generateSummaryLocal(text, role, onProgress) {
   // --- SELECCIÓ DE PROMPT SEGONS ROL ---
   let systemPrompt = "";
   
-  if (role === 'orientador') {
+  if (role === 'global') {
+    // PROMPT PER A RESUM GLOBAL (Historial)
+    systemPrompt = `Ets un assistent expert en educació.
+      OBJECTIU: Generar un resum global i cronològic de l'evolució de l'alumne basant-se en tots els seus Plans Individualitzats (PI).
+      
+      ESTRUCTURA OBLIGATÒRIA:
+      1. EVOLUCIÓ: Breu descripció de com ha progressat l'alumne a través dels cursos.
+      2. PUNTS CLAU RECURRENTS: Diagnòstics o dificultats que es repeteixen en tots els documents.
+      3. ADAPTACIONS CONSTANTS: Quines mesures s'han mantingut en el temps.
+      4. ESTAT ACTUAL: Situació segons el document més recent.
+
+      FORMAT: Text seguit i concís. Sense llistes llargues.`;
+  } else if (role === 'orientador') {
     // PROMPT PER A ORIENTADORS
     systemPrompt = `Ets un assistent expert per a orientadors educatius.
       OBJECTIU: Extreure informació clau per a l'orientació i seguiment de l'alumne.
@@ -102,12 +114,11 @@ async function generateSummaryLocal(text, role, onProgress) {
       content: `${systemPrompt}
       
       INSTRUCCIONS CRÍTIQUES DE FORMAT I CONTINGUT:
-      1. TÍTOLS: Fes servir EXACTAMENT els títols de secció llistats amunt (en majúscules). Són OBLIGATORIS.
-      2. FORMAT: Separa clarament cada secció amb un salt de línia.
-      3. CONTINGUT COMPLET: Has d'incloure TOTA la informació rellevant que trobis al document per a cada secció. No resumeixis tant que es perdin dades.
-      4. ESTIL LLISTA: Fes servir guions (-) o asteriscs (*) per a cada punt. Exemple: "- Més temps als exàmens". Evita paràgrafs llargs.
-      5. NO COPIÏS LLISTES DE FORMULARI: Si veus opcions com "1r ESO, 2n ESO...", tria només la marcada o vigent.
-      6. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
+      1. TÍTOLS OBLIGATORIS: Genera SEMPRE les 5 seccions exactes llistades amunt.
+      2. CONTINGUT COMPLET: Has d'incloure TOTA la informació rellevant que trobis al document per a cada secció. No resumeixis tant que es perdin dades.
+      3. ESTIL LLISTA: Fes servir guions (-) o asteriscs (*) per a cada punt. Exemple: "- Més temps als exàmens". Evita paràgrafs llargs.
+      4. NO COPIÏS LLISTES DE FORMULARI: Si veus opcions com "1r ESO, 2n ESO...", tria només la marcada o vigent.
+      5. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
       
       Processa tot el text proporcionat.`
     },
@@ -120,10 +131,10 @@ async function generateSummaryLocal(text, role, onProgress) {
   try {
     console.log(`🤖 [aiService] Enviant petició a IA Local (http://pi_llm:8080/v1)...`);
     const completion = await openai.chat.completions.create({
-      model: "default-model", // El nom és indiferent per a llama.cpp
+      model: "default-model", // Tornem al model principal (Llama)
       messages: messages,
       temperature: 0.1,
-      max_tokens: 1000, // LIMITAT: Evita que s'enrotlli (la "chapa") i fa que acabi abans
+      max_tokens: 800, // OPTIMITZACIÓ: Reduït a 800 tokens per accelerar l'escriptura
       stream: true, // ACTIVEM STREAMING per veure el progrés
     });
 
@@ -183,4 +194,47 @@ async function generateSummaryLocal(text, role, onProgress) {
   }
 }
 
-module.exports = { generateSummaryLocal, checkConnection };
+/**
+ * Xat ràpid amb el document.
+ * @param {string} text - Text del document
+ * @param {string} question - Pregunta de l'usuari
+ */
+async function chatWithDocument(text, question) {
+    // OPTIMITZACIÓ EXTREMA: 1200 chars per velocitat màxima al xat
+    const MAX_CHARS = 1200; 
+    const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
+
+    const messages = [
+        {
+            role: "system",
+            content: `Ets un motor de cerca semàntic.
+            TASCA: Interpretar què vol l'usuari i trobar la frase LITERAL del text que ho respon, encara que no faci servir les mateixes paraules.
+            
+            EXEMPLES:
+            - "comportament" -> Busca frases sobre "conducta", "actitud", "normes".
+            - "què té?" -> Busca "diagnòstic", "trastorn", "dificultats".
+            
+            RESPOSTA: Retorna NOMÉS el fragment de text exacte del document. Si no ho trobes, digues NO_TROBAT.`
+        },
+        {
+            role: "user",
+            content: `DOCUMENT:\n"${truncatedText}"\n\nPREGUNTA: "${question}"\n\nRESPOSTA LITERAL DEL DOCUMENT:`
+        }
+    ];
+
+    try {
+        const completion = await openai.chat.completions.create({
+            model: "default-model",
+            messages: messages,
+            temperature: 0.0, // Determinista (sempre la mateixa resposta)
+            max_tokens: 60, // Molt curt (només volem la frase)
+            stream: false 
+        });
+        return completion.choices[0].message.content;
+    } catch (error) {
+        console.error("❌ Error Chat IA:", error);
+        throw new Error("Error connectant amb la IA.");
+    }
+}
+
+module.exports = { generateSummaryLocal, checkConnection, chatWithDocument };

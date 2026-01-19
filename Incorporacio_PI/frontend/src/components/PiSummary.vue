@@ -26,7 +26,7 @@
               @click="speak(analysis.perfil.join('. '))" title="Llegir en veu alta">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+          <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.perfil)" :key="i">
               <!-- RENDERITZAT DE TAULA (Si la línia comença per |) -->
               <div v-if="item.trim().startsWith('|')" class="d-flex align-center py-1 border-b w-100 my-2">
@@ -49,8 +49,24 @@
                 </v-row>
               </div>
 
+              <!-- RENDERITZAT CLAU-VALOR (Estil Taula Visual) -->
+              <div v-else-if="isKV(item)" class="mb-2 border-b pb-1">
+                <v-row no-gutters>
+                  <v-col cols="12" sm="4" class="text-primary font-weight-bold pr-2">
+                    {{ getKV(item).k }}:
+                  </v-col>
+                  <v-col cols="12" sm="8">
+                    <span v-html="highlightKeywords(getKV(item).v)"></span>
+                    <span v-if="!/[.:!?]$/.test(getKV(item).v)">.</span>
+                    <!-- Detall popup (reutilitzable) -->
+                  </v-col>
+                </v-row>
+              </div>
+
               <!-- RENDERITZAT NORMAL (Text seguit) -->
-              <span v-else class="mr-1">
+              <div v-else class="mb-2 d-flex align-start">
+                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+                <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
@@ -62,7 +78,8 @@
                     </v-card>
                   </v-menu>
                 </span>
-              </span>
+                </span>
+              </div>
             </template>
           </div>
           <v-divider class="my-3"></v-divider>
@@ -77,9 +94,11 @@
               @click="speak(analysis.dificultats.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+          <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.dificultats)" :key="i">
-              <span class="mr-1">
+              <div class="mb-2 d-flex align-start">
+                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+                <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
@@ -91,7 +110,8 @@
                     </v-card>
                   </v-menu>
                 </span>
-              </span>
+                </span>
+              </div>
             </template>
           </div>
         </v-col>
@@ -105,9 +125,11 @@
               @click="speak(analysis.justificacio.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+          <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.justificacio)" :key="i">
-              <span class="mr-1">
+              <div class="mb-2 d-flex align-start">
+                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+                <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <!-- Detall popup code... -->
@@ -120,7 +142,8 @@
                     </v-card>
                   </v-menu>
                 </span>
-              </span>
+                </span>
+              </div>
             </template>
           </div>
         </v-col>
@@ -134,13 +157,16 @@
               @click="speak(analysis.recomanacions.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+          <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.recomanacions)" :key="i">
-              <span class="mr-1">
+              <div class="mb-2 d-flex align-start">
+                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+                <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <!-- Detall popup code... -->
-              </span>
+                </span>
+              </div>
             </template>
           </div>
         </v-col>
@@ -174,6 +200,19 @@
                 </span>
               </div>
 
+              <!-- RENDERITZAT CLAU-VALOR (Estil Taula Visual) -->
+              <div v-else-if="isKV(item)" class="mb-2 border-b pb-1">
+                <v-row no-gutters>
+                  <v-col cols="12" sm="9" class="text-primary font-weight-bold">
+                    {{ getKV(item).k }}:
+                  </v-col>
+                  <v-col cols="12" sm="3" class="pl-4">
+                    <span v-html="highlightKeywords(getKV(item).v)"></span>
+                    <!-- Detall popup -->
+                  </v-col>
+                </v-row>
+              </div>
+
               <!-- RENDERITZAT NORMAL (Llista) -->
               <div v-else>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
@@ -200,9 +239,23 @@
               @click="speak(analysis.avaluacio.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2 text-justify" style="line-height: 1.6;">
+          <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.avaluacio)" :key="i">
-              <span class="mr-1">
+              <!-- RENDERITZAT CLAU-VALOR (Estil Taula Visual) -->
+              <div v-if="isKV(item)" class="mb-2 border-b pb-1">
+                <v-row no-gutters>
+                  <v-col cols="12" sm="4" class="text-primary font-weight-bold pr-2">
+                    {{ getKV(item).k }}:
+                  </v-col>
+                  <v-col cols="12" sm="8">
+                    <span v-html="highlightKeywords(getKV(item).v)"></span>
+                  </v-col>
+                </v-row>
+              </div>
+              
+              <div v-else class="mb-2 d-flex align-start">
+                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+                <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
@@ -214,7 +267,8 @@
                     </v-card>
                   </v-menu>
                 </span>
-              </span>
+                </span>
+              </div>
             </template>
           </div>
         </v-col>
@@ -263,7 +317,8 @@ const cleanList = (list) => {
   return list
     .map(item => {
       // 1. Neteja caràcters de llista a l'inici (com +, -, *, •, etc.)
-      let clean = item.replace(/^[\/\*+\-•]+/, '').trim();
+      // MODIFICAT: Ara elimina també els espais abans del símbol (ex: " * Text")
+      let clean = item.replace(/^\s*[\/\*+\-•]+\s*/, '').trim();
       // 2. Si ha quedat un ** al final sense parella, el traiem
       if (clean.endsWith('**') && clean.indexOf('**') === clean.length - 2) {
         clean = clean.substring(0, clean.length - 2);
@@ -283,6 +338,18 @@ const cleanList = (list) => {
       }
       // 5. Eliminem la línia separadora de taules Markdown (|---|)
       if (clean.match(/^\|[\s-]+\|[\s-]+\|$/)) {
+        return null;
+      }
+      
+      // 6. FILTRE DE REDUNDÀNCIA: Eliminem frases introductòries que repeteixen el títol
+      if (clean.match(/^(les habilitats|les adaptacions|que es proposen|habilitats acadèmiques afectades|altres dificultats).{0,20}:?$/i)) {
+        return null;
+      }
+      if (clean.match(/^(són|es proposen|consisteixen en):?$/i)) {
+        return null;
+      }
+      // 7. FILTRE DE BROSSA: Eliminem frases de formulari buides
+      if (clean.match(/^(altres adaptacions|especifiqueu-les|adaptacions específiques).{0,30}$/i)) {
         return null;
       }
 
@@ -333,6 +400,20 @@ const getTableCol = (item, colIndex) => {
   // Neteja la línia de taula "| Col1 | Col2 |" i retorna la columna
   const parts = item.split('|').filter(p => p.trim().length > 0);
   return parts[colIndex] ? getMainText(parts[colIndex].trim()) : '';
+};
+
+// Detecta si és una línia tipus "Clau: Valor" per formatar-la com a taula
+const isKV = (text) => {
+  if (!text) return false;
+  const idx = text.indexOf(':');
+  // Ha de tenir ':' al principi (no al final de la frase) i no ser una taula '|'
+  return idx > 2 && idx < 60 && !text.trim().startsWith('|');
+};
+
+// Detecta si és un encapçalament de secció (text curt sense dos punts, tot majúscules o inici de bloc)
+const getKV = (text) => {
+  const idx = text.indexOf(':');
+  return { k: text.substring(0, idx).trim(), v: text.substring(idx + 1).trim() };
 };
 
 const speak = (text) => {

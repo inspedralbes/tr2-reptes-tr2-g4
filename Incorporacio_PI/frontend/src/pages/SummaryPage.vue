@@ -154,7 +154,13 @@ const parsedAnalysis = computed(() => {
     const end = next ? next.index : text.length;
     const sectionText = text.substring(start, end).trim();
     
-    result[current.key] = sectionText.split('\n').filter(l => l.trim().length > 0);
+    // MILLORA: Forcem salts de línia si la IA els ha oblidat (ex: "text.Next" -> "text.\nNext")
+    // També separem els asteriscs (*) si estan enganxats
+    const processedText = sectionText
+      .replace(/([a-z0-9à-ú])\.([A-Z\*])/g, '$1.\n$2') // Punt seguit de Majúscula o *
+      .replace(/([a-z0-9à-ú])\.\s+([A-Z\*])/g, '$1.\n$2'); // Punt + espai seguit de Majúscula o *
+
+    result[current.key] = processedText.split('\n').filter(l => l.trim().length > 0);
   }
 
   return result;

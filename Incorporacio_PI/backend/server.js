@@ -9,7 +9,7 @@ const amqp = require('amqplib'); // CLIENT RABBITMQ
 const AdmZip = require('adm-zip'); // PER LLEGIR ODT
 const { connectDB, getDB } = require('./db'); // La teva DB
 const { extractTextFromPDF } = require('./fileReader'); // Corregit: Coincideix amb fileReader.js
-const { generateSummaryLocal, checkConnection } = require('./aiService'); // Importem el servei d'IA Local i el test
+const { generateSummaryLocal, checkConnection, chatWithDocument } = require('./aiService'); // Importem el servei d'IA Local i el test
 
 const app = express();
 const PORT = 3001;
@@ -75,24 +75,35 @@ async function connectRabbit() {
         // Aquest codi s'executa quan hi ha un missatge a la cua
         channel.consume(QUEUE_NAME, async (msg) => {
             if (msg !== null) {
-                const { text, filename, role } = JSON.parse(msg.content.toString());
-                console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${filename}`);
+                const { text, filename, role, studentHash } = JSON.parse(msg.content.toString());
+                console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${filename || studentHash}`);
 
                 try {
                     const db = getDB();
-                    // 1. Actualitzem estat a "PROCESSANT"
-                    await db.collection('students').updateOne(
-                        { filename: filename }, // Busquem pel nom del fitxer (o hash si el tenim)
-                        { $set: { 
-                            "ia_data.estado": "LLEGINT...", // Canviem l'estat inicial per ser més precisos
-                            "ia_data.resumen": "", // Netegem el text antic perquè no confongui
-                            "ia_data.progress": 0,
-                            "ia_data.role": role || 'docent' // Guardem el rol
-                        } }
-                    );
+                    
+                    // Determinem on guardar el resultat segons si és global o per fitxer
+                    let query = {};
+                    let updateFieldPrefix = "";
+
+                    if (role === 'global') {
+                        query = { hash_id: studentHash };
+                        updateFieldPrefix = "global_summary";
+                    } else {
+                        query = { filename: filename };
+                        updateFieldPrefix = "ia_data";
+                    }
+
+                    // 1. Actualitzem estat a "LLEGINT..."
+                    let initUpdate = {};
+                    initUpdate[`${updateFieldPrefix}.estado`] = "LLEGINT...";
+                    initUpdate[`${updateFieldPrefix}.resumen`] = "";
+                    initUpdate[`${updateFieldPrefix}.progress`] = 0;
+                    if (role !== 'global') initUpdate[`${updateFieldPrefix}.role`] = role || 'docent';
+
+                    await db.collection('students').updateOne(query, { $set: initUpdate });
 
                     // 2. Cridem a la IA (Això triga minuts)
-                    console.log(`⏳ [Worker] Iniciant generació IA (${role}) per ${filename}...`);
+                    console.log(`⏳ [Worker] Iniciant generació IA (${role})...`);
                     // Ara passem un callback per actualitzar el progrés en temps real
                     let lastUpdate = 0;
                     const summary = await generateSummaryLocal(text, role, async (partialText, progress) => {
@@ -104,45 +115,43 @@ async function connectRabbit() {
                             // Si tenim text parcial, estem generant. Si no, estem llegint.
                             const estatActual = partialText.length > 0 ? "GENERANT..." : "LLEGINT...";
 
-                            await db.collection('students').updateOne(
-                                { filename: filename },
-                                { $set: { 
-                                    "ia_data.estado": estatActual,
-                                    "ia_data.progress": progress, // % de progrés
-                                    "ia_data.resumen": partialText // Text parcial perquè es vegi escriure
-                                } }
-                            );
-                            console.log(`🐰 [Worker] Actualitzant DB per ${filename}: ${progress}% (${estatActual})`);
+                            let progressUpdate = {};
+                            progressUpdate[`${updateFieldPrefix}.estado`] = estatActual;
+                            progressUpdate[`${updateFieldPrefix}.progress`] = progress;
+                            progressUpdate[`${updateFieldPrefix}.resumen`] = partialText;
+
+                            await db.collection('students').updateOne(query, { $set: progressUpdate });
+                            console.log(`🐰 [Worker] Progrés: ${progress}% (${estatActual})`);
                         }
                     });
 
                     // 3. Guardem resultat
-                    await db.collection('students').updateOne(
-                        { filename: filename },
-                        { 
-                            $set: { 
-                                "ia_data.estado": "COMPLETAT",
-                                "ia_data.resumen": summary,
-                                "ia_data.fecha": new Date()
-                            } 
-                        }
-                    );
-                    console.log(`✅ [Worker] Resum completat i guardat a MongoDB per: ${filename}`);
+                    let finalUpdate = {};
+                    finalUpdate[`${updateFieldPrefix}.estado`] = "COMPLETAT";
+                    finalUpdate[`${updateFieldPrefix}.resumen`] = summary;
+                    finalUpdate[`${updateFieldPrefix}.fecha`] = new Date();
+
+                    await db.collection('students').updateOne(query, { $set: finalUpdate });
+                    
+                    console.log(`✅ [Worker] Resum completat.`);
                     channel.ack(msg); // Confirmem que hem acabat
-                    console.log(`🏁 [RabbitMQ] Tasca finalitzada i treta de la cua: ${filename}`);
+                    console.log(`🏁 [RabbitMQ] Tasca finalitzada.`);
 
                 } catch (error) {
-                    console.error(`❌ [Worker] Error processant ${filename}:`, error);
+                    console.error(`❌ [Worker] Error processant:`, error);
                     
                     // NOU: Actualitzem la BD perquè el frontend sàpiga que ha fallat
                     const db = getDB();
-                    await db.collection('students').updateOne(
-                        { filename: filename },
-                        { $set: { 
-                            "ia_data.estado": "ERROR",
-                            "ia_data.resumen": error.message || "Error desconegut al processar"
-                        } }
-                    );
+                    
+                    // Recuperem prefix (una mica redundant però segur)
+                    let query = role === 'global' ? { hash_id: studentHash } : { filename: filename };
+                    let updateFieldPrefix = role === 'global' ? "global_summary" : "ia_data";
+
+                    let errorUpdate = {};
+                    errorUpdate[`${updateFieldPrefix}.estado`] = "ERROR";
+                    errorUpdate[`${updateFieldPrefix}.resumen`] = error.message || "Error desconegut";
+
+                    await db.collection('students').updateOne(query, { $set: errorUpdate });
 
                     channel.ack(msg); // Confirmem el missatge per treure'l de la cua
                 }
@@ -480,6 +489,61 @@ app.post('/api/generate-summary', async (req, res) => {
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: "Error enviant a la cua" });
+    }
+});
+
+// --- RUTA GENERACIÓ RESUM GLOBAL (NOU) ---
+app.post('/api/generate-global-summary', async (req, res) => {
+    const { studentHash } = req.body;
+    if (!studentHash) return res.status(400).json({ error: 'Falta studentHash' });
+    if (!channel) return res.status(500).json({ error: 'RabbitMQ no connectat' });
+
+    try {
+        const db = getDB();
+        const student = await db.collection('students').findOne({ hash_id: studentHash });
+        if (!student) return res.status(404).json({ error: 'Estudiant no trobat' });
+
+        // Recopilem tots els fitxers
+        let filesToProcess = student.files || [];
+        if (student.filename && !filesToProcess.some(f => f.filename === student.filename)) {
+            filesToProcess.push({ filename: student.filename, originalName: 'Document Antic' });
+        }
+
+        if (filesToProcess.length === 0) return res.status(400).json({ error: 'No hi ha documents' });
+
+        // Extraiem text de TOTS els fitxers
+        let combinedText = `HISTORIAL DE DOCUMENTS DE L'ALUMNE:\n\n`;
+        for (const file of filesToProcess) {
+            const filePath = path.join(UPLOADS_DIR, file.filename);
+            if (fs.existsSync(filePath)) {
+                const dataBuffer = fs.readFileSync(filePath);
+                let text = file.filename.endsWith('.odt') ? extractTextFromODT(dataBuffer) : await extractTextFromPDF(dataBuffer);
+                combinedText += `--- DOCUMENT: ${file.originalName} ---\n${text}\n\n`;
+            }
+        }
+
+        // Enviem a la cua amb rol 'global'
+        const jobData = { text: combinedText, studentHash, role: 'global' };
+        channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
+
+        res.json({ success: true, message: "Generació global iniciada" });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Error iniciant resum global" });
+    }
+});
+
+// --- RUTA CHAT RÀPID (NOU) ---
+app.post('/api/chat', async (req, res) => {
+    const { text, question } = req.body;
+    if (!text || !question) return res.status(400).json({ error: 'Falta text o pregunta' });
+
+    try {
+        const answer = await chatWithDocument(text, question);
+        res.json({ answer });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Error al xat" });
     }
 });
 
