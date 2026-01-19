@@ -16,7 +16,7 @@ require('dotenv').config();
 // 1. LIMITADOR D'IP (Login)
 const loginIpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minuts
-    max: 10, // Màxim 10 intents
+    max: 100, // Màxim 10 intents
     message: { success: false, error: "Massa intents des d'aquesta IP. Torna-ho a provar en 15 minuts." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -39,7 +39,7 @@ const loginIpLimiter = rateLimit({
 // 2. LIMITADOR D'EMAIL
 const emailLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, 
-    max: 3, 
+    max: 100, 
     message: { success: false, error: "Ja hem enviat massa codis a aquest correu. Espera una hora." },
     keyGenerator: (req) => req.body.email, 
     standardHeaders: true,
