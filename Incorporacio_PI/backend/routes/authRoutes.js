@@ -63,48 +63,61 @@ const emailLimiter = rateLimit({
 
 // Ruta per ENVIAR el codi
 router.post('/send-code', loginIpLimiter, emailLimiter, async (req, res) => {
+    console.log("1. PETICIÓN RECIBIDA 📥");
+    console.log("   - Email:", req.body.email);
+    console.log("   - Token recibido:", req.body.recaptchaToken ? "SÍ" : "NO");
+
     const { email, recaptchaToken } = req.body;
 
-    // ... (Codi del Recaptcha igual que tenies) ...
-    if (!recaptchaToken) return res.status(400).json({ success: false, error: 'Falta Captcha.' });
+    if (!recaptchaToken) {
+        console.log("❌ ERROR: Falta el token");
+        return res.status(400).json({ success: false, error: 'Falta Captcha.' });
+    }
 
     try {
+        console.log("2. VERIFICANDO CAPTCHA CON GOOGLE... 🤖");
         const secretKey = process.env.RECAPTCHA_SECRET_KEY;
         const verificationUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaToken}`;
+        
         const googleResponse = await axios.post(verificationUrl);
+        console.log("   - Respuesta Google:", googleResponse.data.success);
         
         if (!googleResponse.data.success) {
-            // Opcional: Registrar intent fallit de bot
-            await registrarAcces(email, 'Intent de Login Fallit', 'Bot detectat (Captcha)');
+            console.log("❌ ERROR: Captcha inválido");
             return res.status(400).json({ success: false, error: 'Error Captcha.' });
         }
     } catch (error) {
-        return res.status(500).json({ success: false, error: 'Error intern.' });
+        console.error("❌ ERROR CONECTANDO A GOOGLE:", error.message);
+        return res.status(500).json({ success: false, error: 'Error intern verificació.' });
     }
 
-    // Enviament
     try {
+        console.log("3. GENERANDO CODI... 🔢");
         const db = getDB();
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         
+        console.log("4. GUARDANDO EN MONGO... 💾");
         await db.collection('login_codes').updateOne(
             { email: email },
             { $set: { code: code, createdAt: new Date(), used: false } },
             { upsert: true }
         );
+        console.log("   - Guardado OK");
 
+        console.log("5. ENVIANDO EMAIL (Esto suele tardar)... 📧");
+        // Aquí es donde probablemente se cuelga
         const emailSent = await sendVerificationCode(email, code);
 
         if (emailSent) {
-            // Opcional: Registrar sol·licitud de codi (potser massa soroll?)
-            // await registrarAcces(email, 'Sol·licitud Codi accés', 'Email enviat');
+            console.log("✅ EMAIL ENVIADO CORRECTAMENTE! 🎉");
             res.json({ success: true, message: 'Codi enviat' });
         } else {
+            console.log("❌ ERROR AL ENVIAR EL EMAIL (Nodemailer falló)");
             res.status(500).json({ success: false, error: 'Error enviant correu' });
         }
 
     } catch (e) {
-        console.error(e);
+        console.error("❌ ERROR CRÍTICO EN EL SERVIDOR:", e);
         res.status(500).json({ error: 'Error Server/DB' });
     }
 });
