@@ -81,55 +81,46 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 
-
 const logs = ref([]);
 const lastReadTimestamp = ref(0);
-const isAuthenticated = ref(false); // Estado de autenticación local
+const isAuthenticated = ref(false); 
 let pollingInterval = null;
 
+// 1. DEFINIMOS LA URL BASE (Importante)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-// Helper para detectar login
 const checkAuth = () => {
   return !!localStorage.getItem('token');
 };
-
 
 const loadLastRead = () => {
   const stored = localStorage.getItem('lastNotificationRead');
   lastReadTimestamp.value = stored ? parseInt(stored) : Date.now();
 };
 
-
 const fetchLogs = async () => {
   if (!isAuthenticated.value) return; 
 
-  // 1. OBTENEMOS EL CÓDIGO DE MI CENTRO (Guardado al hacer Login)
   const myCenterCode = localStorage.getItem('userCenterCode'); 
   const myEmail = localStorage.getItem('userEmail');
 
   try {
-    const res = await fetch('http://localhost:3001/api/logs');
+    // 2. USAMOS LA VARIABLE AQUÍ
+    const res = await fetch(`${API_URL}/api/logs`);
+    
     if (res.ok) {
       const data = await res.json();
       
       logs.value = data
         .filter(l => {
-            // A. Solo nos interesan Altas y Traslados
             const isTypeRelevant = l.accio.includes('Nou Alumne') || l.accio.includes('Trasllat');
             if (!isTypeRelevant) return false;
 
-            // B. Si no hay código de centro guardado, mostramos todo (por seguridad)
             if (!myCenterCode) return true;
-
-            // C. Si la acción la hice YO, la quiero ver siempre
             if (l.usuari === myEmail) return true;
-
-            // D. FILTRO CLAVE: ¿El texto del log menciona mi centro?
-            // - Backend envía: "Nou Alumne (080123)" -> Contiene "080123"? SÍ.
-            // - Backend envía: "Trasllat a 080123"   -> Contiene "080123"? SÍ.
             if (l.accio.includes(myCenterCode)) return true;
 
-            return false; // Si no es mío ni de mi centro, lo oculto.
+            return false; 
         })
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 10);
@@ -138,7 +129,6 @@ const fetchLogs = async () => {
     console.error("Error fetching notifications", e);
   }
 };
-
 
 const notifications = computed(() => {
   return logs.value.map(log => {
@@ -150,11 +140,9 @@ const notifications = computed(() => {
   });
 });
 
-
 const unreadCount = computed(() => {
   return notifications.value.filter(n => n.isNew).length;
 });
-
 
 const markAsRead = () => {
   const now = Date.now();
@@ -162,11 +150,9 @@ const markAsRead = () => {
   localStorage.setItem('lastNotificationRead', now.toString());
 };
 
-
 const refreshLogs = () => {
   fetchLogs();
 };
-
 
 const formatTime = (isoString) => {
   const date = new Date(isoString);
@@ -175,29 +161,20 @@ const formatTime = (isoString) => {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
-
-// Helpers Visuales
 const getActionIcon = (action) => {
   if (action.includes('Nou')) return 'mdi-account-plus';
   if (action.includes('Trasllat')) return 'mdi-transfer';
   return 'mdi-information-variant';
 };
 
-
 const cleanActionTitle = (action) => {
-    // Si es traslado
     if (action.includes('Trasllat')) return 'Trasllat d\'Alumne';
-    
-    // Si es nuevo alumno (aunque tenga código entre paréntesis, el includes funciona)
     if (action.includes('Nou Alumne')) return 'Alta d\'Expedient';
-    
     return action;
 };
 
-
 const getDetailText = (log) => {
   if (log.accio.includes('Trasllat')) {
-    // Extraemos el destino si está en el texto
     const parts = log.accio.split(' a ');
     const dest = parts.length > 1 ? parts[1] : 'Nou Centre';
     return `enviat a: ${dest}`;
@@ -205,9 +182,8 @@ const getDetailText = (log) => {
   return `ha registrat RALC: ${log.ralc_alumne}`;
 };
 
-
 onMounted(() => {
-  isAuthenticated.value = checkAuth(); // Comprobar al montar
+  isAuthenticated.value = checkAuth(); 
   if (isAuthenticated.value) {
     loadLastRead();
     fetchLogs();
@@ -215,11 +191,11 @@ onMounted(() => {
   }
 });
 
-
 onUnmounted(() => {
   if (pollingInterval) clearInterval(pollingInterval);
 });
 </script>
+
 
 
 <style scoped>

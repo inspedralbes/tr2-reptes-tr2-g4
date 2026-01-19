@@ -159,13 +159,16 @@ const valid = ref(false);
 const loading = ref(false);
 const errorMessage = ref('');
 
+// 1. DEFINIMOS LA URL BASE (Para que funcione en el servidor)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 const centrosList = ref([]); 
 
 const student = reactive({
   nombre: '',
   id: '',
   codi_centre: null,
-  start_date: '' // NUEVO CAMPO
+  start_date: ''
 });
 
 // Reglas de validación
@@ -175,11 +178,11 @@ const centerRules = [v => !!v || 'Has de seleccionar un centre'];
 const dateRules = [v => !!v || "La data d'inici és obligatòria"];
 
 onMounted(async () => {
-  // Ponemos la fecha de hoy por defecto para agilizar
   student.start_date = new Date().toISOString().split('T')[0];
 
   try {
-    const response = await fetch('http://localhost:3001/api/centros');
+    // 2. CORREGIDO AQUÍ: Usamos la variable API_URL
+    const response = await fetch(`${API_URL}/api/centros`);
     if (response.ok) {
       centrosList.value = await response.json();
     } else {
@@ -199,10 +202,11 @@ const submitForm = async () => {
   errorMessage.value = '';
 
   try {
-    const response = await fetch('http://localhost:3001/api/students', {
+    // 3. CORREGIDO AQUÍ: Usamos la variable API_URL
+    const response = await fetch(`${API_URL}/api/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(student) // Enviamos 'start_date' dentro del objeto student
+      body: JSON.stringify(student) 
     });
 
     const data = await response.json();

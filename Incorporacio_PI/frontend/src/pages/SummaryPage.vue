@@ -66,18 +66,20 @@ const route = useRoute();
 const filename = route.params.filename;
 
 // displayName: Nombre bonito para mostrar al usuario (viene por ?query)
-// Si no existe, usamos el filename por defecto
 const displayName = computed(() => route.query.originalName || filename);
 
 const loading = ref(true);
 const summaryData = ref(null);
 
+// 1. DEFINIMOS LA URL BASE
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 onMounted(async () => {
   if (!filename) return;
 
   try {
-    // La petición a la API sigue usando el nombre interno (hash) para encontrar el archivo real
-    const response = await fetch(`http://localhost:3001/api/analyze/${encodeURIComponent(filename)}`);
+    // 2. CORREGIDO: Usamos la variable API_URL
+    const response = await fetch(`${API_URL}/api/analyze/${encodeURIComponent(filename)}`);
 
     if (response.ok) {
       summaryData.value = await response.json();

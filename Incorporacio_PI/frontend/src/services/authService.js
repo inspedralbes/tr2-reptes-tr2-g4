@@ -1,10 +1,14 @@
 import axios from 'axios';
 
-// Mantenim la teva URL original
-const API_URL = 'http://localhost:3001/api'; 
+// 1. DEFINIMOS LA URL BASE CORRECTAMENTE
+// Recuperamos la variable de entorno o usamos localhost por defecto
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// 2. CONSTRUIMOS LA RUTA DE LA API
+// Esto resultará en 'http://tudominio.cat/api' o 'http://localhost:3001/api'
+const API_URL = `${BASE_URL}/api`;
 
 export const sendVerificationCode = async (email, recaptchaToken) => {
-  // NOU: Ara enviem un objecte amb l'email I el token del Captcha
   // El backend esperarà rebre { email: '...', recaptchaToken: '...' }
   const response = await axios.post(`${API_URL}/login/send-code`, { 
     email: email,

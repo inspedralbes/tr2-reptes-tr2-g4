@@ -269,7 +269,7 @@
                     @click="goToSummary(file)">
                   </v-btn>
                   
-                  <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
+                  <v-btn :href="getFileUrl(file.filename)" target="_blank" icon="mdi-open-in-new"
                     variant="text" size="small" color="grey-darken-3" title="Obrir en nova pestanya">
                   </v-btn>
                   
@@ -382,9 +382,11 @@ const showTransferDialog = ref(false);
 const showConfirmDialog = ref(false);
 const selectedNewSchool = ref(null);
 
-// VARIABLES PARA LAS FECHAS
 const transferStartDate = ref('');
 const transferEndDate = ref('');
+
+// 1. DEFINIMOS LA URL BASE CORRECTA
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const goToList = () => {
   router.push('/alumnos');
@@ -414,7 +416,11 @@ const getFileIcon = (filename) => {
 
 const getFileExtension = (filename) => filename.split('.').pop().toUpperCase();
 
-// FORMATEADOR DE FECHAS
+// NUEVO: Helper para generar URLs completas en el template
+const getFileUrl = (filename) => {
+  return `${API_URL}/uploads/${filename}`;
+};
+
 const formatDate = (d) => d ? new Date(d).toLocaleDateString() : '-';
 
 const normalizedFiles = computed(() => {
@@ -427,8 +433,6 @@ const normalizedFiles = computed(() => {
 // --- LÓGICA DE TRANSFERENCIA ---
 const openTransferDialog = () => {
   selectedNewSchool.value = student.value.codi_centre;
-  
-  // AL ABRIR, PONEMOS LA FECHA DE HOY POR DEFECTO
   const today = new Date().toISOString().split('T')[0];
   transferStartDate.value = today;
   transferEndDate.value = ''; 
@@ -440,24 +444,21 @@ const openConfirmDialog = () => {
   showConfirmDialog.value = true;
 };
 
-// --- AQUÍ ESTABA LA CLAVE: ENVIAR LAS FECHAS AL BACKEND ---
-// Pages/StudentDetail.vue
-
 const executeTransfer = async () => {
   if (!selectedNewSchool.value) return;
   
-  // 1. Recuperamos quién está conectado
   const currentUserEmail = localStorage.getItem('userEmail') || 'Usuari';
 
   try {
-    const response = await fetch(`http://localhost:3001/api/students/${student.value.hash_id}/transfer`, {
+    // 2. CORREGIDO: Usamos API_URL
+    const response = await fetch(`${API_URL}/api/students/${student.value.hash_id}/transfer`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         new_center_id: selectedNewSchool.value,
         start_date: transferStartDate.value, 
         end_date: transferEndDate.value || null,
-        userEmail: currentUserEmail // <--- 2. ENVIAMOS EL EMAIL AQUÍ
+        userEmail: currentUserEmail 
       })
     });
 
@@ -500,7 +501,8 @@ const goToSummary = (file) => {
 
 const downloadFile = async (filename, originalName) => {
   try {
-    const response = await fetch(`http://localhost:3001/uploads/${filename}`);
+    // 3. CORREGIDO: Usamos API_URL
+    const response = await fetch(`${API_URL}/uploads/${filename}`);
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -530,7 +532,8 @@ onMounted(async () => {
     await studentStore.fetchStudents();
   }
   try {
-    const res = await fetch('http://localhost:3001/api/centros');
+    // 4. CORREGIDO: Usamos API_URL
+    const res = await fetch(`${API_URL}/api/centros`);
     if (res.ok) schoolsList.value = await res.json();
   } catch (e) {
     console.error("Error centres:", e);
