@@ -120,20 +120,28 @@ const fetchLogs = async () => {
 
 // --- 4. CONFIGURACIÓN WEBSOCKET (En vivo) ---
 const initWebSocket = () => {
-  // Conectar al backend
-  socket = io('http://localhost:3001');
+  console.log('🔌 Intentando conectar al Socket...'); // LOG 1
 
-  // Escuchar evento "new_notification"
+  socket = io('http://localhost:3001'); // Asegúrate que este puerto es correcto
+
+  socket.on('connect', () => {
+    console.log('✅ ¡CONECTADO AL SOCKET! ID:', socket.id); // LOG 2
+  });
+
+  socket.on('connect_error', (err) => {
+    console.error('❌ Error de conexión Socket:', err); // LOG 3
+  });
+
   socket.on('new_notification', (newLog) => {
-    // Aplicar el mismo filtro que en la carga inicial
+    console.log('📩 Notificación recibida:', newLog); // LOG 4
+    
+    // Tu lógica de filtro...
     if (shouldShowLog(newLog)) {
-      // Añadir al principio de la lista
-      logs.value.unshift(newLog);
-      
-      // Mantener máximo 10 notificaciones en el menú
-      if (logs.value.length > 10) {
-        logs.value.pop();
-      }
+        console.log('👀 ¡Es para mí! Mostrando...');
+        logs.value.unshift(newLog);
+        if (logs.value.length > 10) logs.value.pop();
+    } else {
+        console.log('🙈 Ignorada por filtros.');
     }
   });
 };
