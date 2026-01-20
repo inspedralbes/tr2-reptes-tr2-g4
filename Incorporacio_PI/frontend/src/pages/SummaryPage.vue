@@ -29,7 +29,7 @@
       <span class="mt-4 text-h6 text-teal text-center">{{ currentStatus }}</span>
       <div class="mt-4" style="width: 100%; max-width: 300px">
         <!-- Barra indeterminada durant la lectura (LLEGINT...) -->
-        <v-progress-linear v-if="currentStatus.includes('Llegint')" indeterminate color="teal" height="25" rounded striped>
+        <v-progress-linear v-if="progress <= 1 || currentStatus.includes('Llegint') || currentStatus.includes('Enviant') || currentStatus.includes('cua') || currentStatus.includes('Iniciant') || currentStatus.includes('Preparant')" indeterminate color="teal" height="25" rounded striped>
           <template v-slot:default>
             <strong>Processant...</strong>
           </template>
@@ -252,7 +252,24 @@ const checkStatus = async () => {
           resumenIA.value = student.ia_data.resumen;
           currentStatus.value = `Generant resum... (${Math.ceil(progress.value)}%)`;
         } else {
-          if (estado === 'A LA CUA') currentStatus.value = 'En cua d\'espera...';
+          if (estado === 'A LA CUA') {
+            // NOU: Consultem la posició real a la cua
+            try {
+                const qRes = await fetch('http://localhost:3001/api/queue-status');
+                if (qRes.ok) {
+                    const qData = await qRes.json();
+                    const index = qData.queue.indexOf(filename);
+                    
+                    if (index === 0) {
+                        currentStatus.value = "Ets el següent! Preparant...";
+                    } else if (index > 0) {
+                        currentStatus.value = `En cua d'espera... (Tens ${index} resums davant)`;
+                    } else {
+                        currentStatus.value = "En cua d'espera...";
+                    }
+                }
+            } catch (e) { currentStatus.value = 'En cua d\'espera...'; }
+          }
           else if (estado === 'LLEGINT...') {
             // Missatge fix durant la lectura real (sense simulació)
             currentStatus.value = 'Llegint document (això pot trigar uns minuts)...';

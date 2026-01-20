@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto'); // Del teu company
 const amqp = require('amqplib'); // CLIENT RABBITMQ
 const AdmZip = require('adm-zip'); // PER LLEGIR ODT
+const mammoth = require('mammoth'); // PER LLEGIR DOCX
 const { connectDB, getDB } = require('./db'); // La teva DB
 const { extractTextFromPDF } = require('./fileReader'); // Corregit: Coincideix amb fileReader.js
 const { generateSummaryLocal, checkConnection, chatWithDocument } = require('./aiService'); // Importem el servei d'IA Local i el test
@@ -52,6 +53,11 @@ const RABBIT_URL = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672
 const QUEUE_NAME = 'summary_jobs';
 let channel = null;
 
+// VARIABLES GLOBALS PER A LA CUA (Per poder consultar l'estat des de l'API)
+const localQueue = [];
+let isProcessing = false;
+let currentProcessingId = null;
+
 async function connectRabbit() {
     try {
         const conn = await amqp.connect(RABBIT_URL);
@@ -72,78 +78,91 @@ async function connectRabbit() {
         console.log("🐰 Connectat a RabbitMQ. Cua:", QUEUE_NAME);
 
         // --- CONSUMER (WORKER) ---
-        // Aquest codi s'executa quan hi ha un missatge a la cua
-        channel.consume(QUEUE_NAME, async (msg) => {
-            if (msg !== null) {
-                const { text, filename, role, studentHash } = JSON.parse(msg.content.toString());
-                console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${filename || studentHash}`);
+        // (localQueue i isProcessing ara són globals)
 
-                try {
-                    const db = getDB();
-                    
-                    // Determinem on guardar el resultat segons si és global o per fitxer
-                    let query = {};
-                    let updateFieldPrefix = "";
+        const processNext = async () => {
+            if (isProcessing || localQueue.length === 0) return;
+            
+            isProcessing = true;
+            const msg = localQueue.shift();
 
-                    if (role === 'global') {
-                        query = { hash_id: studentHash };
-                        updateFieldPrefix = "global_summary";
-                    } else {
-                        query = { filename: filename };
-                        updateFieldPrefix = "ia_data";
-                    }
+            try {
+                // Movem el parsing DINS del try per si el missatge és invàlid
+                const content = JSON.parse(msg.content.toString());
+                const { text, filename, role, studentHash } = content;
+                
+                // Identificador per a l'API d'estat
+                currentProcessingId = filename || studentHash;
+                
+                console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${currentProcessingId}`);
 
-                    // 1. Actualitzem estat a "LLEGINT..."
-                    let initUpdate = {};
-                    initUpdate[`${updateFieldPrefix}.estado`] = "LLEGINT...";
-                    initUpdate[`${updateFieldPrefix}.resumen`] = "";
-                    initUpdate[`${updateFieldPrefix}.progress`] = 0;
-                    if (role !== 'global') initUpdate[`${updateFieldPrefix}.role`] = role || 'docent';
+                const db = getDB();
+                
+                // Determinem on guardar el resultat segons si és global o per fitxer
+                let query = {};
+                let updateFieldPrefix = "";
 
-                    await db.collection('students').updateOne(query, { $set: initUpdate });
+                if (role === 'global') {
+                    query = { hash_id: studentHash };
+                    updateFieldPrefix = "global_summary";
+                } else {
+                    // CORRECCIÓ CRÍTICA: Busquem el fitxer tant al camp root com a l'array 'files'
+                    query = { $or: [ { filename: filename }, { "files.filename": filename } ] };
+                    updateFieldPrefix = "ia_data";
+                }
 
-                    // 2. Cridem a la IA (Això triga minuts)
-                    console.log(`⏳ [Worker] Iniciant generació IA (${role})...`);
-                    // Ara passem un callback per actualitzar el progrés en temps real
-                    let lastUpdate = 0;
-                    const summary = await generateSummaryLocal(text, role, async (partialText, progress) => {
-                        // Actualitzem la BD cada 2 segons com a màxim per no saturar
-                        const now = Date.now();
-                        if (now - lastUpdate > 1000) { // Actualitzem cada 1 segon per veure més moviment
-                            lastUpdate = now;
-                            
-                            // Si tenim text parcial, estem generant. Si no, estem llegint.
-                            const estatActual = partialText.length > 0 ? "GENERANT..." : "LLEGINT...";
+                // 1. Actualitzem estat a "LLEGINT..."
+                let initUpdate = {};
+                initUpdate[`${updateFieldPrefix}.estado`] = "LLEGINT...";
+                initUpdate[`${updateFieldPrefix}.resumen`] = "";
+                initUpdate[`${updateFieldPrefix}.progress`] = 0;
+                if (role !== 'global') initUpdate[`${updateFieldPrefix}.role`] = role || 'docent';
 
-                            let progressUpdate = {};
-                            progressUpdate[`${updateFieldPrefix}.estado`] = estatActual;
-                            progressUpdate[`${updateFieldPrefix}.progress`] = progress;
-                            progressUpdate[`${updateFieldPrefix}.resumen`] = partialText;
+                await db.collection('students').updateOne(query, { $set: initUpdate });
 
+                // 2. Cridem a la IA (Això triga minuts)
+                console.log(`⏳ [Worker] Iniciant generació IA (${role})...`);
+                
+                let lastUpdate = 0;
+                const summary = await generateSummaryLocal(text, role, async (partialText, progress) => {
+                    const now = Date.now();
+                    if (now - lastUpdate > 1000) { 
+                        lastUpdate = now;
+                        const estatActual = partialText.length > 0 ? "GENERANT..." : "LLEGINT...";
+
+                        let progressUpdate = {};
+                        progressUpdate[`${updateFieldPrefix}.estado`] = estatActual;
+                        progressUpdate[`${updateFieldPrefix}.progress`] = progress;
+                        progressUpdate[`${updateFieldPrefix}.resumen`] = partialText;
+
+                        // PROTECCIÓ: Si falla l'actualització de progrés (micro-tall BD), NO parem la generació
+                        try {
                             await db.collection('students').updateOne(query, { $set: progressUpdate });
                             console.log(`🐰 [Worker] Progrés: ${progress}% (${estatActual})`);
+                        } catch (progErr) {
+                            console.warn(`⚠️ [Worker] Error puntual actualitzant progrés (ignorat): ${progErr.message}`);
                         }
-                    });
+                    }
+                });
 
-                    // 3. Guardem resultat
-                    let finalUpdate = {};
-                    finalUpdate[`${updateFieldPrefix}.estado`] = "COMPLETAT";
-                    finalUpdate[`${updateFieldPrefix}.resumen`] = summary;
-                    finalUpdate[`${updateFieldPrefix}.fecha`] = new Date();
+                // 3. Guardem resultat
+                let finalUpdate = {};
+                finalUpdate[`${updateFieldPrefix}.estado`] = "COMPLETAT";
+                finalUpdate[`${updateFieldPrefix}.resumen`] = summary;
+                finalUpdate[`${updateFieldPrefix}.fecha`] = new Date();
 
-                    await db.collection('students').updateOne(query, { $set: finalUpdate });
-                    
-                    console.log(`✅ [Worker] Resum completat.`);
-                    channel.ack(msg); // Confirmem que hem acabat
-                    console.log(`🏁 [RabbitMQ] Tasca finalitzada.`);
+                await db.collection('students').updateOne(query, { $set: finalUpdate });
+                
+                console.log(`✅ [Worker] Resum completat.`);
+                // channel.ack(msg); // ELIMINAT: Ja hem fet l'ack al principi
+                console.log(`🏁 [RabbitMQ] Tasca finalitzada.`);
 
-                } catch (error) {
-                    console.error(`❌ [Worker] Error processant:`, error);
-                    
-                    // NOU: Actualitzem la BD perquè el frontend sàpiga que ha fallat
+            } catch (error) {
+                console.error(`❌ [Worker] Error processant:`, error);
+                
+                // PROTECCIÓ CRÍTICA: Si no podem guardar l'error a la BD, no fem petar el servidor
+                try {
                     const db = getDB();
-                    
-                    // Recuperem prefix (una mica redundant però segur)
                     let query = role === 'global' ? { hash_id: studentHash } : { filename: filename };
                     let updateFieldPrefix = role === 'global' ? "global_summary" : "ia_data";
 
@@ -152,9 +171,27 @@ async function connectRabbit() {
                     errorUpdate[`${updateFieldPrefix}.resumen`] = error.message || "Error desconegut";
 
                     await db.collection('students').updateOne(query, { $set: errorUpdate });
-
-                    channel.ack(msg); // Confirmem el missatge per treure'l de la cua
+                } catch (criticalErr) {
+                    console.error("❌ [Worker] CRÍTIC: No s'ha pogut guardar l'error a la BD (Servidor protegit del crash):", criticalErr.message);
                 }
+            } finally {
+                isProcessing = false;
+                currentProcessingId = null; // Reset quan acaba
+                // Usem setTimeout per deixar respirar el servidor i evitar stack overflow
+                setTimeout(processNext, 100); 
+            }
+        };
+
+        // Aquest codi s'executa quan RabbitMQ ens envia un missatge
+        channel.consume(QUEUE_NAME, (msg) => {
+            if (msg !== null) {
+                // 1. ACK IMMEDIAT: Diem a RabbitMQ que ja tenim el missatge.
+                // Això evita que talli la connexió si triguem 1 hora.
+                channel.ack(msg);
+                
+                // 2. Afegim a la cua local i processem
+                localQueue.push(msg);
+                processNext();
             }
         });
 
@@ -184,6 +221,7 @@ const upload = multer({
         // Acceptem PDF i ODT (OpenDocument Text)
         if (file.mimetype === 'application/pdf' || 
             file.mimetype === 'application/vnd.oasis.opendocument.text' ||
+            file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || // DOCX
             file.originalname.endsWith('.odt')) {
             cb(null, true);
         } else {
@@ -445,6 +483,9 @@ app.get('/api/analyze/:filename', async (req, res) => {
         // Detectem tipus de fitxer
         if (filename.toLowerCase().endsWith('.odt')) {
             text = extractTextFromODT(dataBuffer);
+        } else if (filename.toLowerCase().endsWith('.docx')) {
+            const result = await mammoth.extractRawText({ buffer: dataBuffer });
+            text = result.value;
         } else {
             text = await extractTextFromPDF(dataBuffer);
         }
@@ -473,8 +514,9 @@ app.post('/api/generate-summary', async (req, res) => {
 
         // 2. Actualitza estat inicial a la BD
         const db = getDB();
+        // CORRECCIÓ CRÍTICA: També aquí hem de buscar bé l'alumne
         await db.collection('students').updateOne(
-            { filename: filename },
+            { $or: [ { filename: filename }, { "files.filename": filename } ] },
             { $set: { 
                 "ia_data.estado": "A LA CUA", // Estat d'espera
                 "ia_data.resumen": "", 
@@ -513,12 +555,17 @@ app.post('/api/generate-global-summary', async (req, res) => {
 
         // Extraiem text de TOTS els fitxers
         let combinedText = `HISTORIAL DE DOCUMENTS DE L'ALUMNE:\n\n`;
+        // Limitem la quantitat de text per document per no saturar la IA i que pugui llegir-los tots
+        const CHARS_PER_DOC = 2000; 
+
         for (const file of filesToProcess) {
             const filePath = path.join(UPLOADS_DIR, file.filename);
             if (fs.existsSync(filePath)) {
                 const dataBuffer = fs.readFileSync(filePath);
                 let text = file.filename.endsWith('.odt') ? extractTextFromODT(dataBuffer) : await extractTextFromPDF(dataBuffer);
-                combinedText += `--- DOCUMENT: ${file.originalName} ---\n${text}\n\n`;
+                // Agafem només el principi de cada document (on sol haver-hi el diagnòstic i dades clau)
+                let snippet = text.substring(0, CHARS_PER_DOC);
+                combinedText += `--- DOCUMENT: ${file.originalName} ---\n${snippet}...\n\n`;
             }
         }
 
@@ -545,6 +592,16 @@ app.post('/api/chat', async (req, res) => {
         console.error(e);
         res.status(500).json({ error: "Error al xat" });
     }
+});
+
+// --- RUTA ESTAT DE LA CUA (NOU) ---
+app.get('/api/queue-status', (req, res) => {
+    // Retornem la llista d'IDs que estan esperant
+    const queueList = localQueue.map(m => {
+        const c = JSON.parse(m.content.toString());
+        return c.filename || c.studentHash;
+    });
+    res.json({ queue: queueList, current: currentProcessingId });
 });
 
 // --- 4. SEED (Dades del company cap a MongoDB) ---

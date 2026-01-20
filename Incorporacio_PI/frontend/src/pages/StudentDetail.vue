@@ -95,13 +95,19 @@
           <div v-if="student.global_summary">
               <div v-if="['LLEGINT...', 'GENERANT...', 'A LA CUA'].includes(student.global_summary.estado)" class="text-center">
                   <v-progress-linear indeterminate color="purple" class="mb-2" height="6"></v-progress-linear>
-                  <span class="text-caption font-weight-bold text-purple">{{ student.global_summary.estado }} ({{ Math.ceil(student.global_summary.progress || 0) }}%)</span>
-                  <div v-if="student.global_summary.resumen" class="mt-2 text-body-2 text-grey font-italic">
-                      "{{ student.global_summary.resumen.substring(0, 100) }}..."
-                  </div>
+                  <span class="text-caption font-weight-bold text-purple">{{ globalStatusText || student.global_summary.estado }} ({{ Math.ceil(student.global_summary.progress || 0) }}%)</span>
               </div>
-              <div v-else-if="student.global_summary.estado === 'COMPLETAT'" class="text-body-1" style="white-space: pre-line; line-height: 1.6;">
-                  {{ student.global_summary.resumen }}
+              <div v-else-if="student.global_summary.estado === 'COMPLETAT'">
+                  <!-- Renderitzat per seccions amb colors -->
+                  <div v-for="(section, i) in parsedGlobalSummary" :key="i" class="mb-4">
+                      <div class="d-flex align-center mb-1">
+                          <v-icon :color="section.color" class="mr-2">{{ section.icon }}</v-icon>
+                          <h3 class="text-subtitle-1 font-weight-bold" :class="'text-' + section.color">{{ section.title }}</h3>
+                      </div>
+                      <div class="ml-4 text-body-2" style="white-space: pre-line;">
+                          {{ section.content.trim() }}
+                      </div>
+                  </div>
                   <div class="text-caption text-grey mt-3 text-right">Generat el: {{ formatDate(student.global_summary.fecha) }}</div>
               </div>
               <div v-else-if="student.global_summary.estado === 'ERROR'" class="text-error">
@@ -144,13 +150,13 @@
             </v-chip>
             
             <!-- Botó per obrir el diàleg de selecció -->
-            <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
+            <v-btn v-if="['PDF', 'DOCX', 'ODT'].includes(getFileExtension(file.filename))"
               icon="mdi-robot" variant="text" color="purple" title="Generar Resum IA"
               @click="openRoleDialog(file)">
             </v-btn>
 
             <!-- Botó Xat (NOU) -->
-            <v-btn v-if="getFileExtension(file.filename) === 'PDF'"
+            <v-btn v-if="['PDF', 'DOCX', 'ODT'].includes(getFileExtension(file.filename))"
               icon="mdi-chat-question-outline" variant="text" color="deep-purple" title="Xat amb el Document"
               @click="goToChat(file)">
             </v-btn>
@@ -226,6 +232,7 @@ const studentStore = useStudentStore();
 // --- ESTAT PER AL DIÀLEG DE ROLS ---
 const showRoleDialog = ref(false);
 const selectedFileForSummary = ref(null);
+const globalStatusText = ref(''); // Text personalitzat per a la cua global
 let pollingInterval = null; // Per actualitzar l'estat del resum global
 
 const openRoleDialog = (file) => {
@@ -291,6 +298,36 @@ const formatDate = (dateVal) => {
   return new Date(dateVal).toLocaleString();
 };
 
+const parsedGlobalSummary = computed(() => {
+  const text = student.value?.global_summary?.resumen || '';
+  const sections = [];
+  
+  const patterns = [
+    { title: 'Evolució', key: 'EVOLUCIÓ', color: 'indigo', icon: 'mdi-chart-timeline-variant' },
+    { title: 'Punts Clau Recurrents', key: 'PUNTS CLAU RECURRENTS', color: 'orange-darken-2', icon: 'mdi-alert-circle-outline' },
+    { title: 'Adaptacions Constants', key: 'ADAPTACIONS CONSTANTS', color: 'green-darken-2', icon: 'mdi-hand-heart-outline' },
+    { title: 'Estat Actual', key: 'ESTAT ACTUAL', color: 'purple-darken-2', icon: 'mdi-calendar-check-outline' }
+  ];
+
+  const lines = text.split('\n');
+  let currentItem = null;
+  
+  lines.forEach(line => {
+    const trimmed = line.trim().replace(/\*\*/g, ''); // Remove **
+    const pattern = patterns.find(p => trimmed.toUpperCase().includes(p.key));
+    
+    if (pattern) {
+        if (currentItem) sections.push(currentItem);
+        currentItem = { ...pattern, content: '' };
+    } else if (currentItem) {
+        currentItem.content += line + '\n';
+    }
+  });
+  if (currentItem) sections.push(currentItem);
+  
+  return sections;
+});
+
 watch(normalizedFiles, (newFiles) => {
   console.log('🔄 VISTA ACTUALIZADA: La lista de documentos ha cambiado.', newFiles);
 });
@@ -347,6 +384,22 @@ const generateGlobalSummary = async () => {
             pollingInterval = setInterval(async () => {
                 await studentStore.fetchStudents(); // Refresquem dades
                 const s = student.value;
+                
+                // Lògica de cua per al resum global
+                if (s && s.global_summary && s.global_summary.estado === 'A LA CUA') {
+                    try {
+                        const qRes = await fetch('http://localhost:3001/api/queue-status');
+                        if (qRes.ok) {
+                            const qData = await qRes.json();
+                            const index = qData.queue.indexOf(route.params.hash_id);
+                            if (index >= 0) globalStatusText.value = `En cua (${index} davant)`;
+                            else globalStatusText.value = 'En cua...';
+                        }
+                    } catch (e) {}
+                } else {
+                    globalStatusText.value = '';
+                }
+
                 if (s && s.global_summary && (s.global_summary.estado === 'COMPLETAT' || s.global_summary.estado === 'ERROR')) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;

@@ -37,11 +37,11 @@
                   <v-col cols="8">
                     {{ getTableCol(item, 1) }}
                     <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                      (+ Font)
-                      <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                        <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                          <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                      (+ Info)
+                      <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                        <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                          <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                         </v-card>
                       </v-menu>
                     </span>
@@ -49,32 +49,17 @@
                 </v-row>
               </div>
 
-              <!-- RENDERITZAT CLAU-VALOR (Estil Taula Visual) -->
-              <div v-else-if="isKV(item)" class="mb-2 border-b pb-1">
-                <v-row no-gutters>
-                  <v-col cols="12" sm="4" class="text-primary font-weight-bold pr-2">
-                    {{ getKV(item).k }}:
-                  </v-col>
-                  <v-col cols="12" sm="8">
-                    <span v-html="highlightKeywords(getKV(item).v)"></span>
-                    <span v-if="!/[.:!?]$/.test(getKV(item).v)">.</span>
-                    <!-- Detall popup (reutilitzable) -->
-                  </v-col>
-                </v-row>
-              </div>
-
               <!-- RENDERITZAT NORMAL (Text seguit) -->
-              <div v-else class="mb-2 d-flex align-start">
-                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+              <div v-else class="mb-2">
                 <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                  (+ Font)
-                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                  (+ Info)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                      <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
@@ -96,17 +81,16 @@
           </div>
           <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.dificultats)" :key="i">
-              <div class="mb-2 d-flex align-start">
-                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+              <div class="mb-2">
                 <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                  (+ Font)
-                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                  (+ Info)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                      <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
@@ -127,18 +111,17 @@
           </div>
           <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.justificacio)" :key="i">
-              <div class="mb-2 d-flex align-start">
-                <v-icon icon="mdi-circle-small" size="small" color="grey" class="mt-1 mr-2"></v-icon>
+              <div class="mb-2">
                 <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <!-- Detall popup code... -->
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                  (+ Font)
-                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                  (+ Info)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                      <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
@@ -164,7 +147,15 @@
                 <span>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
-                <!-- Detall popup code... -->
+                <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                  (+ Info)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                      <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
+                    </v-card>
+                  </v-menu>
+                </span>
                 </span>
               </div>
             </template>
@@ -189,11 +180,11 @@
                     {{ getTableCol(item, 1) }}
                     <!-- Suport per detalls dins la taula -->
                     <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                      (+ Font)
-                      <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                        <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                          <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                      (+ Info)
+                      <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                        <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                          <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                         </v-card>
                       </v-menu>
                     </span>
@@ -208,7 +199,15 @@
                   </v-col>
                   <v-col cols="12" sm="3" class="pl-4">
                     <span v-html="highlightKeywords(getKV(item).v)"></span>
-                    <!-- Detall popup -->
+                    <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                      (+ Info)
+                      <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                        <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                          <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
+                        </v-card>
+                      </v-menu>
+                    </span>
                   </v-col>
                 </v-row>
               </div>
@@ -217,11 +216,11 @@
               <div v-else>
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-2 text-caption" style="text-decoration: underline;">
-                  (+ Font)
-                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                  (+ Info)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                      <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>
@@ -259,11 +258,11 @@
                 <span v-html="highlightKeywords(getMainText(item))"></span>
                 <span v-if="!/[.:!?]$/.test(getMainText(item))">.</span>
                 <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                  (+ Font)
-                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="500" offset="10">
-                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border>
-                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Fragment original del PDF:</div>
-                      <span class="text-body-2 font-italic" v-html="highlightKeywords(getDetailText(item))"></span>
+                  (+ Info)
+                  <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                    <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                      <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                      <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
                     </v-card>
                   </v-menu>
                 </span>

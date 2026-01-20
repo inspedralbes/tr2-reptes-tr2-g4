@@ -8,7 +8,7 @@ WORKDIR /app
 
 # 2. Clonem i compilem llama.cpp (versió lleugera)
 RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git .
-RUN cmake -B build -DGGML_BACKTRACE=OFF
+RUN cmake -B build -DGGML_BACKTRACE=OFF -DGGML_NATIVE=ON
 RUN cmake --build build --config Release --target llama-server -j4
 RUN cp build/bin/llama-server .
 

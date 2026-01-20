@@ -57,7 +57,9 @@ async function checkConnection(retries = 100) {
 async function generateSummaryLocal(text, role, onProgress) {
 
   // Retallem el text per no saturar el context del model
-  const MAX_CHARS = 2500; // OPTIMITZACIÓ: Reduït a 2500 per TinyLlama (Context 2048)
+  // Si és un resum global, permetem més context per encabir diversos documents
+  const limit = role === 'global' ? 10000 : 8000; // REDUÏT: Optimització de velocitat (CPU)
+  const MAX_CHARS = limit;
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
   let currentProgress = 0;
@@ -73,39 +75,41 @@ async function generateSummaryLocal(text, role, onProgress) {
     systemPrompt = `Ets un assistent expert en educació.
       OBJECTIU: Generar un resum global i cronològic de l'evolució de l'alumne basant-se en tots els seus Plans Individualitzats (PI).
       
-      ESTRUCTURA OBLIGATÒRIA:
-      1. EVOLUCIÓ: Breu descripció de com ha progressat l'alumne a través dels cursos.
-      2. PUNTS CLAU RECURRENTS: Diagnòstics o dificultats que es repeteixen en tots els documents.
-      3. ADAPTACIONS CONSTANTS: Quines mesures s'han mantingut en el temps.
-      4. ESTAT ACTUAL: Situació segons el document més recent.
+      ESTRUCTURA OBLIGATÒRIA (Usa exactament aquests títols en majúscules i negreta):
+      1. **EVOLUCIÓ**: Breu descripció del progrés. IMPORTANT: No inventis el curs actual. Si el document no ho diu clarament, digues "Curs no especificat".
+      2. **PUNTS CLAU RECURRENTS**: Diagnòstics o dificultats que es repeteixen.
+      3. **ADAPTACIONS CONSTANTS**: Mesures mantingudes en el temps.
+      4. **ESTAT ACTUAL**: Situació segons l'ÚLTIM document (per data o context). Sigues precís amb el curs i les necessitats actuals.
 
-      FORMAT: Text seguit i concís. Sense llistes llargues.`;
+      FORMAT: Text net. No posis títol general "HISTORIAL...".`;
   } else if (role === 'orientador') {
     // PROMPT PER A ORIENTADORS
     systemPrompt = `Ets un assistent expert per a orientadors educatius.
       OBJECTIU: Extreure informació clau per a l'orientació i seguiment de l'alumne.
       
       ESTRUCTURA OBLIGATÒRIA (5 SECCIONS):
-      1. PERFIL DE L'ALUMNE (Dades personals i acadèmiques)
-      2. DIAGNÒSTIC (Problemes detectats)
-      3. JUSTIFICACIÓ DEL PI (Motiu del pla)
-      4. ORIENTACIÓ A L'AULA (Pautes d'actuació)
-      5. MATÈRIES (Adaptacions curriculars)
+      1. PERFIL DE L'ALUMNE (Text seguit en un sol paràgraf. NO llistes.)
+      2. DIAGNÒSTIC (Text seguit en un sol paràgraf, incloent observacions. NO llistes.)
+      3. JUSTIFICACIÓ DEL PI (Text seguit explicant el motiu basat en el diagnòstic. NO llistes.)
+      4. ORIENTACIÓ A L'AULA (Pautes d'actuació. NO incloguis dades administratives finals.)
+      5. MATÈRIES (Adaptacions curriculars i Avaluació)
 
-      FORMAT: "Idea clau molt breu. [[Detall: Text original...]]"`;
+      FORMAT GENERAL: "Idea clau molt breu. [[Detall: Text original...]]"
+      FORMAT MATÈRIES: "Nom Matèria: Resum molt breu. [[Detall: Contingut complet i Criteris d'Avaluació originals del document]]"`;
   } else {
     // PROMPT PER A DOCENTS (Defecte)
     systemPrompt = `Ets un assistent expert per a docents.
       OBJECTIU: Facilitar informació pràctica per a l'aula i l'avaluació.
       
       ESTRUCTURA OBLIGATÒRIA (5 SECCIONS):
-      1. PERFIL DE L'ALUMNE (Dades personals i acadèmiques)
-      2. DIAGNÒSTIC (Problemes detectats)
-      3. ORIENTACIÓ A L'AULA (Pautes d'actuació)
-      4. ASSIGNATURES (Adaptacions específiques)
+      1. PERFIL DE L'ALUMNE (Text seguit en un sol paràgraf. NO llistes.)
+      2. DIAGNÒSTIC (Text seguit en un sol paràgraf, incloent observacions. NO llistes.)
+      3. ORIENTACIÓ A L'AULA (Pautes d'actuació. NO incloguis dades administratives finals.)
+      4. ASSIGNATURES (Adaptacions específiques per matèria)
       5. CRITERIS D'AVALUACIÓ (Com avaluar)
 
-      FORMAT: "Idea clau molt breu. [[Detall: Text original...]]"`;
+      FORMAT GENERAL: "Idea clau molt breu. [[Detall: Text original...]]"
+      FORMAT ASSIGNATURES: "Nom Matèria: Resum molt breu. [[Detall: Contingut complet i Criteris d'Avaluació originals del document]]"`;
   }
 
   const messages = [
@@ -115,10 +119,15 @@ async function generateSummaryLocal(text, role, onProgress) {
       
       INSTRUCCIONS CRÍTIQUES DE FORMAT I CONTINGUT:
       1. TÍTOLS OBLIGATORIS: Genera SEMPRE les 5 seccions exactes llistades amunt.
-      2. CONTINGUT COMPLET: Has d'incloure TOTA la informació rellevant que trobis al document per a cada secció. No resumeixis tant que es perdin dades.
-      3. ESTIL LLISTA: Fes servir guions (-) o asteriscs (*) per a cada punt. Exemple: "- Més temps als exàmens". Evita paràgrafs llargs.
-      4. NO COPIÏS LLISTES DE FORMULARI: Si veus opcions com "1r ESO, 2n ESO...", tria només la marcada o vigent.
-      5. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
+      2. PERFIL, DIAGNÒSTIC I JUSTIFICACIÓ: Redacta aquestes seccions en format de text seguit (paràgrafs). NO facis llistes verticals. Connecta la justificació amb el diagnòstic.
+      3. ANONIMITZACIÓ: NO incloguis MAI el nom de l'alumne. Substitueix-lo per "L'alumne/a".
+      4. DETECCIÓ DE CURS: Busca la llista de cursos i troba la 'X'. Escriu NOMÉS el curs marcat.
+      5. MATÈRIES / ASSIGNATURES: És IMPRESCINDIBLE que llistis TOTES les matèries que apareixen a la taula d'adaptacions. Itera per cada fila. Posa un resum de 4-5 paraules fora i TOT el text original (Continguts i Avaluació) dins del bloc [[Detall: ...]].
+      6. CRITERIS D'AVALUACIÓ: Si hi ha criteris generals, posa'ls a la secció corresponent.
+      7. NETEJA FINAL: El document acaba sovint amb signatures, dates, càrrecs (Director, Coordinador) i llistes de professionals. Aquesta informació NO forma part de "Orientació a l'Aula". NO la incloguis al resum. Atura't abans.
+      8. NO ASTERISCS: No utilitzis mai asteriscs (*) ni guions (-) al principi de les línies.
+      9. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
+      10. ANTI-AL·LUCINACIÓ: Si no trobes informació sobre un punt, no l'escriguis. No omplis buits amb text genèric o inventat.
       
       Processa tot el text proporcionat.`
     },
@@ -134,8 +143,11 @@ async function generateSummaryLocal(text, role, onProgress) {
       model: "default-model", // Tornem al model principal (Llama)
       messages: messages,
       temperature: 0.1,
-      max_tokens: 800, // OPTIMITZACIÓ: Reduït a 800 tokens per accelerar l'escriptura
+      max_tokens: 2000, // RESTAURAT: 2000 tokens per permetre resums llargs
       stream: true, // ACTIVEM STREAMING per veure el progrés
+      top_p: 0.9,
+      presence_penalty: 0,
+      frequency_penalty: 0
     });
 
     console.log("🤖 [aiService] Connexió establerta amb LLM! Esperant el primer token (Fase de Lectura/Pre-fill)...");
@@ -173,9 +185,9 @@ async function generateSummaryLocal(text, role, onProgress) {
             });
             
             // Càlcul de progrés d'escriptura (0 a 100)
-            // MODIFICAT: Ajustem a 800 tokens (resum curt) perquè la barra sigui realista
-            // (chunkCount / 8) -> 800 tokens = 100%
-            const chunkProgress = (chunkCount / 8); 
+            // MODIFICAT: Ajustem a 2000 tokens (resum complet)
+            // (chunkCount / 20) -> 2000 tokens = 100%
+            const chunkProgress = (chunkCount / 20); 
             const sectionProgress = foundCount * 5; // Més pes a les seccions per compensar
             
             let writeProgress = chunkProgress + sectionProgress;

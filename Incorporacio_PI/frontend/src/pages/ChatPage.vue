@@ -18,14 +18,18 @@
           <div v-else-if="error" class="text-error pa-4">
             {{ error }}
           </div>
-          <!-- VISOR PDF NATIU -->
+          <!-- VISOR PDF NATIU (Només per a PDF) -->
           <iframe 
-            v-else 
+            v-else-if="isPdf"
             :src="pdfUrl" 
             width="100%" 
             height="100%" 
             style="border: none;"
           ></iframe>
+          <!-- VISOR DE TEXT (Per a DOCX/ODT) -->
+          <div v-else class="pa-4 bg-white h-100 overflow-y-auto text-body-2 font-mono" style="white-space: pre-wrap;">
+            {{ documentText }}
+          </div>
         </div>
       </v-col>
 
@@ -86,6 +90,8 @@ const newMessage = ref('');
 const thinking = ref(false);
 const chatContainer = ref(null);
 const searchTerm = ref('');
+
+const isPdf = computed(() => filename.toLowerCase().endsWith('.pdf'));
 
 const pdfUrl = computed(() => {
   const url = `http://localhost:3001/uploads/${filename}`;
