@@ -392,7 +392,7 @@ const transferEndDate = ref('');
 
 // 1. DEFINIMOS LA URL BASE CORRECTA
 // Esta variable también estará disponible en el template para el botón :href
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 const currentCenterFiles = computed(() => getFilesForCurrentCenter());
 

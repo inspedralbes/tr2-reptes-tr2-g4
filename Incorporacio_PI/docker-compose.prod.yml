@@ -1,22 +1,22 @@
 version: '3.8'
 
 services:
-  # BACKEND PROD
+  # BACKEND (Sin cambios, pero ya no necesitamos exponer el puerto 3001 al mundo)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
     container_name: pi_backend_prod
-    restart: always # Si se cae, se reinicia solo
-    ports:
-      - "3001:3001"
+    restart: always
     environment:
       - MONGODB_URI=${MONGODB_URI}
       - NODE_ENV=production
     volumes:
-      - ./backend_uploads_prod:/app/uploads # Persistencia fuera del contenedor
+      - ./backend_uploads_prod:/app/uploads
+    # IMPORTANTE: Quitamos "ports" porque Nginx le pasará los datos internamente.
+    # Si quieres dejarlo por seguridad para probar, puedes, pero lo ideal es quitarlo.
 
-  # FRONTEND PROD (NGINX)
+  # FRONTEND (NGINX)
   frontend:
     build:
       context: ./frontend
@@ -24,6 +24,10 @@ services:
     container_name: pi_frontend_prod
     restart: always
     ports:
-      - "80:80" # En producción entras por el puerto 80 (web estándar)
+      - "80:80"   # Para redirigir http -> https
+      - "443:443" # El puerto seguro
     depends_on:
       - backend
+    volumes:
+      # Mapeamos los certificados del servidor al contenedor
+      - /etc/letsencrypt:/etc/letsencrypt:ro

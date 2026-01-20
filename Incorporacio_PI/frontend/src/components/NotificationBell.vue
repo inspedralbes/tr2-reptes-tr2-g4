@@ -59,17 +59,20 @@
     </v-card>
   </v-menu>
 </template>
+
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { io } from 'socket.io-client'; // Importar Socket
+import { io } from 'socket.io-client';
 
 const logs = ref([]);
 const lastReadTimestamp = ref(0);
 const isAuthenticated = ref(false);
 let socket = null;
 
-// 1. DEFINIMOS LA URL BASE CORRECTA
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// --- CAMBIO 1: Detección automática de entorno (DEV vs PROD) ---
+// Si estamos en Producción, usamos '' (ruta relativa) para pasar por Nginx.
+// Si estamos en Desarrollo, forzamos localhost:3001.
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 // Helper para detectar login
 const checkAuth = () => !!localStorage.getItem('token');
@@ -93,12 +96,12 @@ const shouldShowLog = (log) => {
   return false;
 };
 
-// --- 2. CARGA INICIAL (Historial) ---
+// --- CARGA INICIAL (Historial) ---
 const fetchLogs = async () => {
   if (!isAuthenticated.value) return; 
 
   try {
-    // CORREGIDO: Usamos API_URL
+    // Usamos la API_URL inteligente
     const res = await fetch(`${API_URL}/api/logs`);
     if (res.ok) {
       const data = await res.json();
@@ -113,12 +116,16 @@ const fetchLogs = async () => {
   }
 };
 
-// --- 3. CONFIGURACIÓN WEBSOCKET (En vivo) ---
+// --- CAMBIO 2: Configuración WebSocket optimizada para Nginx ---
 const initWebSocket = () => {
   console.log('🔌 Connectant al Socket...');
 
-  // CORREGIDO: Usamos API_URL para el socket también
-  socket = io(API_URL);
+  // Si API_URL es '' (Prod), pasamos undefined para que socket.io detecte el dominio actual.
+  // path: '/socket.io' asegura que Nginx intercepte la llamada correctamente.
+  socket = io(API_URL || undefined, {
+    path: '/socket.io',
+    transports: ['websocket', 'polling'] 
+  });
 
   socket.on('connect', () => {
     console.log('✅ Connectat al Socket ID:', socket.id);
