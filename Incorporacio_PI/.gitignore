@@ -6,3 +6,6 @@
 # Builds de producció (Frontend/Backend)
 dist/
 build/
+
+backend/rabbitmq_data
+backend/models
