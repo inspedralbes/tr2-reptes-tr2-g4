@@ -87,7 +87,10 @@ const centros = ref([]);
 const loadingCentros = ref(false);
 const selectedItem = ref(null);
 
-// Clau pública correcta
+// 1. DEFINIMOS LA URL BASE CORRECTA
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Clave del sitio (Frontend)
 const siteKey = "6LcLBUgsAAAAAO5gfUHPVfkHogRC-gaLtrDb7YrH";
 
 const recaptchaToken = ref(null);
@@ -104,7 +107,9 @@ const rules = [
 onMounted(async () => {
   loadingCentros.value = true;
   try {
-    const response = await fetch('http://localhost:3001/api/centros');
+    // 2. CORREGIDO: Usamos API_URL en lugar de localhost
+    const response = await fetch(`${API_URL}/api/centros`);
+    
     if (response.ok) {
       const data = await response.json();
       centros.value = data.map(c => ({
@@ -138,18 +143,15 @@ const submit = async () => {
 
   if (valid) {
     let emailToSend = '';
-    let centerCodeToSend = null; // Variable nueva
+    let centerCodeToSend = null; 
 
-    // Si ha seleccionado un objeto del desplegable (es un centro)
     if (typeof selectedItem.value === 'object' && selectedItem.value !== null) {
       emailToSend = selectedItem.value.email;
-      centerCodeToSend = selectedItem.value.codi_centre; // CAPTURAMOS EL CÓDIGO
+      centerCodeToSend = selectedItem.value.codi_centre; 
     } else {
-      // Si ha escrito un email manual
       emailToSend = selectedItem.value;
     }
 
-    // Enviamos el código junto con el email
     emit('submitted', { 
         email: emailToSend.trim().toLowerCase(),
         token: recaptchaToken.value,

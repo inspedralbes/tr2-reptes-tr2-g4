@@ -2,8 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const http = require('http'); // <--- 1. IMPORTAR HTTP
-const { Server } = require("socket.io"); // <--- 2. IMPORTAR SOCKET.IO
+const http = require('http'); 
+const { Server } = require("socket.io"); 
 const { connectDB } = require('./db');
 const { runSeed } = require('./utils/seeder');
 
@@ -14,48 +14,62 @@ const miscRoutes = require('./routes/miscRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001; // Usa el puerto del entorno o 3001
 
-// <--- 3. CREAR EL SERVIDOR HTTP Y CONFIGURAR SOCKET.IO --->
+// --- LISTA DE DOMINIOS PERMITIDOS (CORS) ---
+const allowedOrigins = [
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173",
+    "http://localhost:4173", // Vite Preview
+    "http://incorporacio-pi.dam.inspedralbes.cat", // DOMINIO REAL (HTTP)
+    "https://incorporacio-pi.dam.inspedralbes.cat" // DOMINIO REAL (HTTPS)
+];
+
+// --- 1. CONFIGURACIÓN DEL SERVIDOR HTTP Y SOCKET.IO ---
 const server = http.createServer(app); 
 const io = new Server(server, {
     cors: {
-        origin: [
-            "http://localhost:5173", 
-            "http://127.0.0.1:5173",
-            "http://localhost:3000" // Si usas otro puerto a veces
-        ],
-        methods: ["GET", "POST"]
+        origin: allowedOrigins, // Aplicamos la lista aquí también
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 
-// <--- 4. HACER 'io' ACCESIBLE GLOBALMENTE (TRUCO CLAVE) --->
-// Esto permite usar global.io.emit(...) en logger.js sin importar nada
+// --- 2. HACER 'io' ACCESIBLE GLOBALMENTE ---
 global.io = io; 
 
 io.on('connection', (socket) => {
-    console.log('Cliente conectado al socket:', socket.id);
+    // console.log('Cliente conectado al socket:', socket.id); // Opcional: comentar para menos ruido en logs
 });
 
-app.use(cors());
+// --- 3. CONFIGURACIÓN CORS DE EXPRESS ---
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
+// Servir archivos estáticos (uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Rutas API
 app.use('/api/login', authRoutes);       
 app.use('/api/students', studentRoutes); 
 app.use('/api/upload', uploadRoutes);    
 app.use('/api/stats', statsRoutes);      
 app.use('/api', miscRoutes);             
 
-// START SERVER (Nota: usamos server.listen en vez de app.listen)
+// --- 4. INICIAR SERVIDOR ---
 connectDB().then(async () => {
-    await runSeed();
+    // await runSeed(); // Puedes comentar esto si no quieres que se resetee la BD cada vez
 
-    // <--- 5. CAMBIAR app.listen POR server.listen --->
     server.listen(PORT, () => {
-        console.log(`Server corrent en http://localhost:${PORT}`);
+        console.log(`🚀 Server corrent en el port ${PORT}`);
+        console.log(`🌐 Cors habilitat per a: ${allowedOrigins.join(', ')}`);
     });
 }).catch((err) => {
-    console.error("Error crític iniciant el servidor:", err);
+    console.error("❌ Error crític iniciant el servidor:", err);
 });

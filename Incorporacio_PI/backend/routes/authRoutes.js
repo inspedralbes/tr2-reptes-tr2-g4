@@ -39,7 +39,7 @@ const loginIpLimiter = rateLimit({
 // 2. LIMITADOR D'EMAIL
 const emailLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, 
-    max: 3, 
+    max: 10, 
     message: { success: false, error: "Ja hem enviat massa codis a aquest correu. Espera una hora." },
     keyGenerator: (req) => req.body.email, 
     standardHeaders: true,

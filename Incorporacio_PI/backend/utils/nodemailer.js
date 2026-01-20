@@ -1,11 +1,29 @@
 const nodemailer = require("nodemailer");
 
-// Configuración del Transporter
+// --- CONFIGURACIÓN ROBUSTA PARA SALTAR FIREWALLS ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,               // Puerto estándar para TLS (suele estar abierto)
+  secure: false,           // 'false' es lo correcto para el puerto 587
   auth: {
     user: process.env.EMAIL_USER, 
     pass: process.env.EMAIL_PASS  
+  },
+  // ESTA SECCIÓN ES LA QUE EVITA EL TIMEOUT EN EL INSTITUTO:
+  tls: {
+    rejectUnauthorized: false, // Ignora si el firewall intercepta el certificado
+    ciphers: 'SSLv3'           // Usa cifrados compatibles antiguos si es necesario
+  },
+  connectionTimeout: 10000, // 10 segundos máximo de espera
+  greetingTimeout: 10000
+});
+
+// Verificación al arrancar (para ver en el log si conecta)
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("⚠️ ERROR DE CONEXIÓN SMTP:", error.message);
+  } else {
+    console.log("✅ Servidor de Correu (SMTP) connectat i llest.");
   }
 });
 
@@ -71,11 +89,12 @@ async function sendVerificationCode(email, code) {
   };
 
   try {
+    console.log(`📨 Intentant enviar correu a ${email} ...`);
     await transporter.sendMail(mailOptions);
-    console.log('✅ Correu enviat correctament a:', email);
+    console.log('✅ Correu enviat correctament!');
     return true;
   } catch (error) {
-    console.error('❌ Error enviant el correu:', error);
+    console.error('❌ Error enviant el correu:', error.message);
     return false;
   }
 }

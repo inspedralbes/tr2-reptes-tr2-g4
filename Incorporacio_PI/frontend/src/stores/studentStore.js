@@ -1,6 +1,10 @@
 // src/stores/studentStore.js
 import { defineStore } from 'pinia';
 
+// 1. DEFINIMOS LA URL BASE CORRECTA (Producción o Local)
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = `${BASE_URL}/api`;
+
 export const useStudentStore = defineStore('student', {
   // 1. STATE
   state: () => ({
@@ -15,7 +19,8 @@ export const useStudentStore = defineStore('student', {
     
     // Acción A: Fetch Students
     async fetchStudents() {
-        const response = await fetch(`http://localhost:3001/api/students?_t=${Date.now()}`); 
+        // CORREGIDO: Usamos API_URL
+        const response = await fetch(`${API_URL}/students?_t=${Date.now()}`); 
         
         if (!response.ok) {
             console.error("Error del servidor:", response.status);
@@ -29,7 +34,8 @@ export const useStudentStore = defineStore('student', {
     // Acción B: Fetch Logs
     async fetchLogs() {
         try {
-            const response = await fetch('http://localhost:3001/api/logs');
+            // CORREGIDO: Usamos API_URL
+            const response = await fetch(`${API_URL}/logs`);
             this.logs = await response.json();
         } catch (e) {
             this.error = "Error carregant els logs";
@@ -47,7 +53,8 @@ export const useStudentStore = defineStore('student', {
         formData.append('userEmail', userEmail); 
         formData.append('documento_pi', file); 
 
-        const response = await fetch('http://localhost:3001/api/upload', {
+        // CORREGIDO: Usamos API_URL
+        const response = await fetch(`${API_URL}/upload`, {
           method: 'POST',
           body: formData, 
         });
@@ -74,7 +81,8 @@ export const useStudentStore = defineStore('student', {
         const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
         // 2. Fem la petició
-        const response = await fetch(`http://localhost:3001/api/students/${studentHash}/files/${filename}`, {
+        // CORREGIDO: Usamos API_URL
+        const response = await fetch(`${API_URL}/students/${studentHash}/files/${filename}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json' // Important per poder enviar el body

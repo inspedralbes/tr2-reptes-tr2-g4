@@ -59,15 +59,17 @@
     </v-card>
   </v-menu>
 </template>
-
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { io } from 'socket.io-client'; // <--- 1. IMPORTAR SOCKET
+import { io } from 'socket.io-client'; // Importar Socket
 
 const logs = ref([]);
 const lastReadTimestamp = ref(0);
 const isAuthenticated = ref(false);
-let socket = null; // Variable para controlar la conexión
+let socket = null;
+
+// 1. DEFINIMOS LA URL BASE CORRECTA
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // Helper para detectar login
 const checkAuth = () => !!localStorage.getItem('token');
@@ -77,37 +79,30 @@ const loadLastRead = () => {
   lastReadTimestamp.value = stored ? parseInt(stored) : Date.now();
 };
 
-// --- 2. LÓGICA DE FILTRADO EXTRAÍDA (Para reusar en Fetch y Socket) ---
 const shouldShowLog = (log) => {
   const myCenterCode = localStorage.getItem('userCenterCode'); 
   const myEmail = localStorage.getItem('userEmail');
 
-  // A. Solo Altas y Traslados
   const isTypeRelevant = log.accio.includes('Nou Alumne') || log.accio.includes('Trasllat');
   if (!isTypeRelevant) return false;
 
-  // B. Si es admin (no tiene código), ve todo
   if (!myCenterCode) return true;
-
-  // C. Si la acción la hice YO, la veo
   if (log.usuari === myEmail) return true;
-
-  // D. Si el texto contiene mi código de centro, lo veo
   if (log.accio.includes(myCenterCode)) return true;
 
   return false;
 };
 
-// --- 3. CARGA INICIAL (Historial) ---
+// --- 2. CARGA INICIAL (Historial) ---
 const fetchLogs = async () => {
   if (!isAuthenticated.value) return; 
 
   try {
-    const res = await fetch('http://localhost:3001/api/logs');
+    // CORREGIDO: Usamos API_URL
+    const res = await fetch(`${API_URL}/api/logs`);
     if (res.ok) {
       const data = await res.json();
       
-      // Usamos el filtro extraído
       logs.value = data
         .filter(shouldShowLog)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
@@ -118,35 +113,31 @@ const fetchLogs = async () => {
   }
 };
 
-// --- 4. CONFIGURACIÓN WEBSOCKET (En vivo) ---
+// --- 3. CONFIGURACIÓN WEBSOCKET (En vivo) ---
 const initWebSocket = () => {
-  console.log('🔌 Intentando conectar al Socket...'); // LOG 1
+  console.log('🔌 Connectant al Socket...');
 
-  socket = io('http://localhost:3001'); // Asegúrate que este puerto es correcto
+  // CORREGIDO: Usamos API_URL para el socket también
+  socket = io(API_URL);
 
   socket.on('connect', () => {
-    console.log('✅ ¡CONECTADO AL SOCKET! ID:', socket.id); // LOG 2
+    console.log('✅ Connectat al Socket ID:', socket.id);
   });
 
   socket.on('connect_error', (err) => {
-    console.error('❌ Error de conexión Socket:', err); // LOG 3
+    console.error('❌ Error connexió Socket:', err);
   });
 
   socket.on('new_notification', (newLog) => {
-    console.log('📩 Notificación recibida:', newLog); // LOG 4
+    console.log('📩 Nova notificació:', newLog);
     
-    // Tu lógica de filtro...
     if (shouldShowLog(newLog)) {
-        console.log('👀 ¡Es para mí! Mostrando...');
         logs.value.unshift(newLog);
         if (logs.value.length > 10) logs.value.pop();
-    } else {
-        console.log('🙈 Ignorada por filtros.');
     }
   });
 };
 
-// --- COMPUTADAS Y HELPERS VISUALES (Igual que antes) ---
 const notifications = computed(() => {
   return logs.value.map(log => {
     const logTime = new Date(log.timestamp).getTime();
@@ -195,18 +186,17 @@ const getDetailText = (log) => {
   return `ha registrat RALC: ${log.ralc_alumne}`;
 };
 
-// --- LIFECYCLE ---
 onMounted(() => {
   isAuthenticated.value = checkAuth();
   if (isAuthenticated.value) {
     loadLastRead();
-    fetchLogs();     // Cargar historial antiguo
-    initWebSocket(); // <--- Iniciar escucha en tiempo real
+    fetchLogs();     
+    initWebSocket(); 
   }
 });
 
 onUnmounted(() => {
-  if (socket) socket.disconnect(); // Desconectar al salir para no dejar procesos abiertos
+  if (socket) socket.disconnect(); 
 });
 </script>
 
