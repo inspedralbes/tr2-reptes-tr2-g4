@@ -53,7 +53,7 @@
                 <div class="data-box pa-3 h-100">
                   <div class="text-caption text-grey-darken-1 text-uppercase font-weight-bold mb-1">Inicials</div>
                   <div class="text-body-1 font-weight-medium text-grey-darken-4">{{ student.visual_identity?.iniciales
-                    }}</div>
+                  }}</div>
                 </div>
               </v-col>
 
@@ -61,7 +61,7 @@
                 <div class="data-box pa-3 h-100">
                   <div class="text-caption text-grey-darken-1 text-uppercase font-weight-bold mb-1">Sufix RALC</div>
                   <div class="text-body-1 font-weight-medium text-grey-darken-4">{{ student.visual_identity?.ralc_suffix
-                    }}</div>
+                  }}</div>
                 </div>
               </v-col>
 
@@ -325,7 +325,7 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showConfirmDialog" max-width="400px">
+    <v-dialog v-model="showConfirmDialog" max-width="400px" persistent>
       <v-card class="gencat-card text-center pa-6" rounded="sm">
         <div class="mb-4 d-flex justify-center">
           <div class="pa-3 bg-red-lighten-5 rounded-circle">
@@ -337,11 +337,18 @@
           Estàs a punt d'assignar l'alumne a:<br>
           <strong class="text-grey-darken-4">{{ getSchoolName(selectedNewSchool) }}</strong>
         </p>
-        <div class="d-flex flex-column gap-2">
+
+        <div class="d-flex flex-column ga-2">
+
           <v-btn color="#D0021B" class="text-white text-none font-weight-bold w-100" flat rounded="sm" size="large"
-            @click="executeTransfer">Confirmar canvi</v-btn>
-          <v-btn color="grey-darken-1" variant="text" class="text-none w-100"
-            @click="showConfirmDialog = false">Cancel·lar</v-btn>
+            elevation="2" @click="executeTransfer">
+            Confirmar canvi
+          </v-btn>
+
+          <v-btn color="grey-darken-1" variant="text" class="text-none w-100" @click="cancelConfirm">
+            Cancel·lar
+          </v-btn>
+
         </div>
       </v-card>
     </v-dialog>
@@ -444,7 +451,21 @@ const openTransferDialog = () => {
   showTransferDialog.value = true;
 };
 
-const openConfirmDialog = () => showConfirmDialog.value = true;
+const openConfirmDialog = () => {
+  showTransferDialog.value = false;
+  // Un pequeño timeout ayuda a que la animación se vea fluida
+  setTimeout(() => {
+    showConfirmDialog.value = true;
+  }, 100);
+};
+
+// NUEVO: Si cancelan la confirmación, volvemos a abrir el formulario anterior para no perder los datos
+const cancelConfirm = () => {
+  showConfirmDialog.value = false;
+  setTimeout(() => {
+    showTransferDialog.value = true;
+  }, 100);
+};
 
 const executeTransfer = async () => {
   if (!selectedNewSchool.value) return;
