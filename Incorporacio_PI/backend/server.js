@@ -9,7 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const miscRoutes = require('./routes/miscRoutes');
-const statsRoutes = require('./routes/statsRoutes'); // Per les agregacions i estadístiques
+const statsRoutes = require('./routes/statsRoutes');
 
 const app = express();
 const PORT = 3001;

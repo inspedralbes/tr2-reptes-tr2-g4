@@ -158,12 +158,11 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
 </template>
 
 <style scoped>
-/* POSICIÓ DEL BOTÓ DE VEU */
 .voice-button-container {
   position: fixed;
-  top: 14px; /* Ajusta-ho segons l'altura de la teva barra */
-  right: 170px; /* Mou-lo més a l'esquerra o dreta segons on siguin les altres icones */
-  z-index: 9999; /* Per sobre de tot */
+  top: 18px;
+  right: 180px;
+  z-index: 9999;
 }
 
 /* ELS TEUS ESTILS */
