@@ -145,7 +145,7 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
                             </div>
                         </v-col>
                         <v-col cols="12" md="4" class="text-md-right mt-2 mt-md-0">
-                              <v-btn size="small" variant="outlined" color="grey-darken-2" href="/Guia_Usuari_PI.pdf">Veure Documentació</v-btn>
+                              <v-btn size="small" variant="outlined" color="grey-darken-2" href="/Guia_Usuari_PI.pdf" target="_blank">Veure Documentació</v-btn>
                         </v-col>
                     </v-row>
                 </v-card>

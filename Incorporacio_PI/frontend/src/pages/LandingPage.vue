@@ -86,6 +86,7 @@
                     size="small"
                     class="text-none text-decoration-underline"
                     href="/Guia_Usuari_PI.pdf"
+                    target="_blank"
                 >
                     Guia d'usuari i suport tècnic
                 </v-btn>
