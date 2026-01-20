@@ -1,31 +1,78 @@
 const OpenAI = require("openai");
 
-// Configuració del client per a IA LOCAL
+// Configuració del client per a OLLAMA
 const openai = new OpenAI({
-  baseURL: "http://pi_llm:8080/v1", // MODIFICAT: Connecta amb 'pi_llm' (nom real del contenidor)
-  apiKey: "sk-no-key-required",  // La IA local no necessita clau real
-  timeout: 30 * 60 * 1000,       // NOU: 30 minuts de timeout (augmentat per si va lent)
+  baseURL: "http://pi_llm:11434/v1", // Port d'Ollama
+  apiKey: "ollama",  // Ollama requereix una string qualsevol
+  timeout: 60 * 60 * 1000, // 1 hora timeout
 });
+
+const MODEL_NAME = "pi-model"; // Nom intern que donarem al teu model dins d'Ollama
+
+/**
+ * Assegura que el model estigui creat dins d'Ollama a partir del fitxer .gguf
+ */
+async function ensureModelExists() {
+    const modelPath = "/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf";
+    try {
+        // 1. Check if model exists
+        const listRes = await fetch("http://pi_llm:11434/api/tags");
+        if (listRes.ok) {
+            const data = await listRes.json();
+            if (data.models.some(m => m.name === MODEL_NAME || m.name === `${MODEL_NAME}:latest`)) {
+                console.log(`✅ [aiService] Model '${MODEL_NAME}' ja està llest a Ollama.`);
+                return;
+            }
+        }
+        
+        // 2. Create model
+        console.log(`⚙️ [aiService] Important model '${MODEL_NAME}' a Ollama...`);
+        const createRes = await fetch("http://pi_llm:11434/api/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name: MODEL_NAME,
+                modelfile: `FROM ${modelPath}`
+            })
+        });
+
+        if (!createRes.ok) throw new Error(`Error creant model: ${createRes.statusText}`);
+        
+        // Consume stream to wait for completion
+        const reader = createRes.body.getReader();
+        while (true) {
+            const { done } = await reader.read();
+            if (done) break;
+        }
+        console.log(`✅ [aiService] Model '${MODEL_NAME}' creat correctament.`);
+        
+    } catch (e) {
+        console.error("❌ [aiService] Error configurant model Ollama:", e);
+    }
+}
 
 /**
  * Comprova si el contenidor de la IA està disponible.
  * Ho intenta 5 vegades abans de rendir-se.
  */
 async function checkConnection(retries = 100) {
-    const url = "http://pi_llm:8080/health"; // Endpoint de salut de llama.cpp
-    console.log(`🔍 [aiService] Comprovant connexió amb IA Local (${url})...`);
+    const url = "http://pi_llm:11434/api/version"; // Endpoint salut Ollama
+    console.log(`🔍 [aiService] Comprovant connexió amb Ollama (${url})...`);
     
     for (let i = 0; i < retries; i++) {
         try {
             const response = await fetch(url);
             if (response.ok) {
-                console.log("✅ [aiService] IA Local ONLINE (Port 8080 obert).");
+                console.log("✅ [aiService] Ollama ONLINE.");
+                
+                // 2. Comprovem/Creem el model automàticament des del .gguf
+                await ensureModelExists();
                 
                 // NOU: Test real de generació per confirmar que "pensa"
                 console.log("🧪 [aiService] Fent prova de generació ràpida (Warm-up)...");
                 try {
                     await openai.chat.completions.create({
-                        model: "default-model",
+                        model: MODEL_NAME,
                         messages: [{ role: "user", content: "Test" }],
                         max_tokens: 1
                     });
@@ -140,7 +187,7 @@ async function generateSummaryLocal(text, role, onProgress) {
   try {
     console.log(`🤖 [aiService] Enviant petició a IA Local (http://pi_llm:8080/v1)...`);
     const completion = await openai.chat.completions.create({
-      model: "default-model", // Tornem al model principal (Llama)
+      model: MODEL_NAME, // Tornem al model principal (Llama)
       messages: messages,
       temperature: 0.1,
       max_tokens: 2000, // RESTAURAT: 2000 tokens per permetre resums llargs
@@ -236,7 +283,7 @@ async function chatWithDocument(text, question) {
 
     try {
         const completion = await openai.chat.completions.create({
-            model: "default-model",
+            model: MODEL_NAME,
             messages: messages,
             temperature: 0.0, // Determinista (sempre la mateixa resposta)
             max_tokens: 60, // Molt curt (només volem la frase)

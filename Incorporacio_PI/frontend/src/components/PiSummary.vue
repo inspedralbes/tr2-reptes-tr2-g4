@@ -171,10 +171,11 @@
               @click="speak(analysis.adaptacions.join('. '))">
             </v-btn>
           </div>
-          <div class="ml-4 text-body-2 list-columns">
-            <div v-for="(item, i) in cleanList(analysis.adaptacions)" :key="i" class="mb-2 list-item-break">
+          <div class="ml-4 text-body-2">
+            <template v-for="(item, i) in cleanList(analysis.adaptacions)" :key="i">
+              <div class="py-2">
               <!-- RENDERITZAT DE TAULA (Si la línia comença per |) -->
-              <div v-if="item.trim().startsWith('|')" class="mb-2">
+              <div v-if="item.trim().startsWith('|')">
                 <strong class="text-primary">{{ getTableCol(item, 0) }}:</strong>
                 <span class="ml-2">
                     {{ getTableCol(item, 1) }}
@@ -192,24 +193,20 @@
               </div>
 
               <!-- RENDERITZAT CLAU-VALOR (Estil Taula Visual) -->
-              <div v-else-if="isKV(item)" class="mb-2 border-b pb-1">
-                <v-row no-gutters>
-                  <v-col cols="12" sm="9" class="text-primary font-weight-bold">
-                    {{ getKV(item).k }}:
-                  </v-col>
-                  <v-col cols="12" sm="3" class="pl-4">
-                    <span v-html="highlightKeywords(getKV(item).v)"></span>
-                    <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
-                      (+ Info)
-                      <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
-                        <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
-                          <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
-                          <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
-                        </v-card>
-                      </v-menu>
-                    </span>
-                  </v-col>
-                </v-row>
+              <div v-else-if="isKV(item)">
+                <strong class="text-primary text-subtitle-2" v-html="highlightKeywords(getKV(item).k) + ':'"></strong>
+                <span class="ml-2 text-body-2">
+                  <span v-html="highlightKeywords(getMainText(getKV(item).v))"></span>
+                  <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                    (+ Info)
+                    <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                      <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                        <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                        <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
+                      </v-card>
+                    </v-menu>
+                  </span>
+                </span>
               </div>
 
               <!-- RENDERITZAT NORMAL (Llista) -->
@@ -225,7 +222,9 @@
                   </v-menu>
                 </span>
               </div>
-            </div>
+              </div>
+              <v-divider v-if="i < cleanList(analysis.adaptacions).length - 1" class="my-1"></v-divider>
+            </template>
           </div>
         </v-col>
 
@@ -240,16 +239,22 @@
           </div>
           <div class="ml-4 text-body-2">
             <template v-for="(item, i) in cleanList(analysis.avaluacio)" :key="i">
+              <div class="py-2">
               <!-- RENDERITZAT CLAU-VALOR (Estil Taula Visual) -->
-              <div v-if="isKV(item)" class="mb-2 border-b pb-1">
-                <v-row no-gutters>
-                  <v-col cols="12" sm="4" class="text-primary font-weight-bold pr-2">
-                    {{ getKV(item).k }}:
-                  </v-col>
-                  <v-col cols="12" sm="8">
-                    <span v-html="highlightKeywords(getKV(item).v)"></span>
-                  </v-col>
-                </v-row>
+              <div v-if="isKV(item)">
+                <strong class="text-primary text-subtitle-2" v-html="highlightKeywords(getKV(item).k) + ':'"></strong>
+                <span class="ml-2 text-body-2">
+                  <span v-html="highlightKeywords(getMainText(getKV(item).v))"></span>
+                  <span v-if="getDetailText(item)" class="text-primary font-weight-bold cursor-pointer ml-1 text-caption" style="text-decoration: underline;">
+                    (+ Info)
+                    <v-menu activator="parent" location="end" open-on-hover :close-on-content-click="false" max-width="600" offset="10">
+                      <v-card class="pa-4 bg-grey-lighten-5" elevation="4" border style="max-height: 400px; overflow-y: auto;">
+                        <div class="text-caption font-weight-bold mb-1 text-grey-darken-3">Detall complet del document:</div>
+                        <span class="text-body-2 font-italic" style="white-space: pre-line;" v-html="highlightKeywords(getDetailText(item))"></span>
+                      </v-card>
+                    </v-menu>
+                  </span>
+                </span>
               </div>
               
               <div v-else class="mb-2 d-flex align-start">
@@ -268,6 +273,8 @@
                 </span>
                 </span>
               </div>
+              </div>
+              <v-divider v-if="i < cleanList(analysis.avaluacio).length - 1" class="my-1"></v-divider>
             </template>
           </div>
         </v-col>
@@ -438,18 +445,4 @@ const speak = (text) => {
 </script>
 
 <style scoped>
-.list-columns {
-  column-count: 1;
-}
-@media (min-width: 960px) {
-  .list-columns {
-    column-count: 2;
-    column-gap: 32px;
-  }
-}
-.list-item-break {
-  -webkit-column-break-inside: avoid;
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
 </style>
