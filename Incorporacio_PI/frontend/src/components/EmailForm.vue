@@ -87,8 +87,9 @@ const centros = ref([]);
 const loadingCentros = ref(false);
 const selectedItem = ref(null);
 
-// 1. DEFINIMOS LA URL BASE CORRECTA
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// 1. DEFINIMOS LA URL BASE CORRECTA (CORREGIDO)
+// Si estamos en Producción, dejamos la cadena vacía '' para que use el dominio actual (HTTPS)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 // Clave del sitio (Frontend)
 const siteKey = "6LcLBUgsAAAAAO5gfUHPVfkHogRC-gaLtrDb7YrH";
@@ -107,7 +108,7 @@ const rules = [
 onMounted(async () => {
   loadingCentros.value = true;
   try {
-    // 2. CORREGIDO: Usamos API_URL en lugar de localhost
+    // Ahora API_URL será '' en prod, por lo que la petición irá a /api/centros (seguro)
     const response = await fetch(`${API_URL}/api/centros`);
     
     if (response.ok) {
