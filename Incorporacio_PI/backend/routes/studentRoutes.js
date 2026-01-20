@@ -3,9 +3,9 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { getDB } = require('../db');
-const { upload, UPLOADS_DIR } = require('../config/multer');
+const { UPLOADS_DIR } = require('../config/multer'); // Asegúrate que esta importación sea correcta según tu proyecto
 const { generarHash, obtenerIniciales } = require('../utils/helpers');
-const { registrarAcces } = require('../utils/logger');
+const { registrarAcces } = require('../utils/logger'); // <--- IMPRESCINDIBLE
 
 // ==========================================
 // 1. RUTES ESTÀTIQUES I DE CERCA
@@ -69,7 +69,6 @@ router.get('/', async (req, res) => {
 
 // POST: Crear alumne
 router.post('/', async (req, res) => {
-    // 1. AÑADIMOS start_date A LA EXTRACCIÓN
     const { nombre, id, codi_centre, start_date, userEmail } = req.body; 
 
     if (!nombre || !id) return res.status(400).json({ error: "Falten dades" });
@@ -82,17 +81,12 @@ router.post('/', async (req, res) => {
         const existing = await db.collection('students').findOne({ hash_id: hash });
         if (existing) return res.status(409).json({ error: "Alumne ja existent" });
         
-        // 2. GESTIÓN DE LA FECHA DE INICIO AL CREAR
-        // Si el frontend envía fecha, la usamos. Si no, usamos 'ahora'.
         const fechaInicio = start_date ? new Date(start_date) : new Date();
 
         const newStudent = {
             hash_id: hash,
             codi_centre: codi_centre || null, 
-            
-            // 3. GUARDAMOS date_start PARA QUE EL HISTORIAL EMPIECE BIEN
             date_start: codi_centre ? fechaInicio : null,
-
             visual_identity: {
                 iniciales: iniciales,
                 ralc_suffix: `***${id.slice(-3)}`
@@ -100,17 +94,17 @@ router.post('/', async (req, res) => {
             has_file: false,
             files: [],
             ia_data: {},
-            school_history: [], // Inicializamos array vacío por si acaso
+            school_history: [], 
             createdAt: new Date()
         };
 
         await db.collection('students').insertOne(newStudent);
         
-        // Log de creación
-        // CAMBIO RECOMENDADO en POST /
+        // --- AQUÍ SE DISPARA LA NOTIFICACIÓN AUTOMÁTICAMENTE ---
+        // Al llamar a registrarAcces, logger.js ejecutará el io.emit
         await registrarAcces(
             userEmail || 'Sistema', 
-            `Nou Alumne (${codi_centre || 'Sense Centre'})`, // Añadimos el centro aquí
+            `Nou Alumne (${codi_centre || 'Sense Centre'})`, 
             newStudent.visual_identity.ralc_suffix
         );
 
@@ -151,7 +145,10 @@ router.delete('/:hash/files/:filename', async (req, res) => {
         const filePath = path.join(UPLOADS_DIR, filename);
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
+        // Esto también enviará notificación (Broadcast), pero el frontend la ignorará 
+        // si no tienes un filtro para "Eliminació de document".
         await registrarAcces(userEmail || 'Desconegut', 'Eliminació de document', ralcSuffix);
+        
         res.json({ success: true });
     } catch (error) {
         console.error(error);
@@ -163,7 +160,6 @@ router.delete('/:hash/files/:filename', async (req, res) => {
 // PUT: Trasllat de centre
 router.put('/:hash/transfer', async (req, res) => {
     const { hash } = req.params;
-    // 1. AÑADIMOS userEmail PARA SABER QUIÉN ES
     const { new_center_id, start_date, end_date, userEmail } = req.body;
 
     if (!new_center_id) {
@@ -203,8 +199,8 @@ router.put('/:hash/transfer', async (req, res) => {
             }
         );
 
-        // 2. REGISTRAR EN EL LOG (¡ESTO ES LO QUE FALTABA!)
-        // Usamos el formato "Trasllat a [CODI]" para que Logs.vue lo detecte bien
+        // --- AQUÍ SE DISPARA LA NOTIFICACIÓN DE TRASLADO ---
+        // Formato clave: "Trasllat a [CODI]" para que el frontend lo entienda
         await registrarAcces(
             userEmail || 'Desconegut', 
             `Trasllat a ${new_center_id}`, 
