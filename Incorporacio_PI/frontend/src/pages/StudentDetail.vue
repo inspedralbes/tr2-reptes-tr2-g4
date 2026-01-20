@@ -315,12 +315,21 @@
           </v-row>
         </v-card-text>
         <v-divider></v-divider>
+        
         <v-card-actions class="pa-4 bg-grey-lighten-5">
           <v-spacer></v-spacer>
           <v-btn color="grey-darken-3" variant="text" class="text-none font-weight-medium"
             @click="showTransferDialog = false">Cancel·lar</v-btn>
-          <v-btn color="#D0021B" class="text-white text-none font-weight-bold px-4" flat rounded="sm"
-            :disabled="!selectedNewSchool || !transferStartDate" @click="openConfirmDialog">Guardar Canvi</v-btn>
+            
+          <v-btn 
+            color="#D0021B" 
+            class="text-none font-weight-bold px-4" 
+            variant="flat" 
+            rounded="sm"
+            :disabled="!selectedNewSchool || !transferStartDate" 
+            @click="openConfirmDialog">
+            Guardar Canvi
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -337,18 +346,26 @@
           Estàs a punt d'assignar l'alumne a:<br>
           <strong class="text-grey-darken-4">{{ getSchoolName(selectedNewSchool) }}</strong>
         </p>
-
+        
         <div class="d-flex flex-column ga-2">
-
-          <v-btn color="#D0021B" class="text-white text-none font-weight-bold w-100" flat rounded="sm" size="large"
-            elevation="2" @click="executeTransfer">
+          <v-btn 
+            color="#D0021B" 
+            class="text-none font-weight-bold w-100" 
+            variant="flat" 
+            rounded="sm" 
+            size="large"
+            elevation="2"
+            @click="executeTransfer">
             Confirmar canvi
           </v-btn>
-
-          <v-btn color="grey-darken-1" variant="text" class="text-none w-100" @click="cancelConfirm">
+          
+          <v-btn 
+            color="grey-darken-1" 
+            variant="text" 
+            class="text-none w-100"
+            @click="cancelConfirm">
             Cancel·lar
           </v-btn>
-
         </div>
       </v-card>
     </v-dialog>
