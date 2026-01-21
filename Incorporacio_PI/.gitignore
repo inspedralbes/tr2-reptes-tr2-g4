@@ -9,3 +9,5 @@ build/
 
 /backend/rabbitmq_data
 /backend/models
+
+nodemodules
