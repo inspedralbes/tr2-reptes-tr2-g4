@@ -73,7 +73,6 @@ const email = ref('');
 const tempCenterCode = ref(null);
 const isLoading = ref(false);
 
-// Per mostrar errors
 const showError = ref(false);
 const errorMessage = ref('');
 
@@ -83,7 +82,7 @@ const handleEmailSubmit = async (payload) => {
     await sendVerificationCode(payload.email, payload.token);
     
     email.value = payload.email;
-    tempCenterCode.value = payload.codiCentre; // 1. Guardamos el código del centro temporalmente
+    tempCenterCode.value = payload.codiCentre;
     
     step.value = 'code';
   } catch (error) {
@@ -112,11 +111,9 @@ const handleCodeVerification = async (code) => {
     
     localStorage.setItem('userEmail', email.value);
 
-    // 2. Si el login es correcto y tenemos un código de centro, lo guardamos
     if (tempCenterCode.value) {
         localStorage.setItem('userCenterCode', tempCenterCode.value);
     } else {
-        // Si entra como admin o manual, nos aseguramos de limpiar cualquier código anterior
         localStorage.removeItem('userCenterCode');
     }
 

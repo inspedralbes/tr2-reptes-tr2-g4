@@ -50,13 +50,9 @@
                 <v-chip filter value="login" variant="outlined" color="teal-darken-3" size="small">
                     <v-icon start icon="mdi-login" size="small"></v-icon> Accessos
                 </v-chip>
-                
-                <!-- AFEGEIX AQUEST -->
                 <v-chip filter value="alumnes" variant="outlined" color="blue-darken-3" size="small">
                     <v-icon start icon="mdi-account-school" size="small"></v-icon> Alumnes
                 </v-chip>
-                <!-- FI DE L'AFEGIT -->
-
                 <v-chip filter value="trasllat" variant="outlined" color="orange-darken-4" size="small">
                     <v-icon start icon="mdi-transfer" size="small"></v-icon> Trasllats
                 </v-chip>
@@ -120,7 +116,6 @@
                              </span>
                         </div>
 
-                        <!-- Si és un bloqueig, mostrem el motiu en vermell -->
                         <span v-if="isSecurityEvent(log.accio)" class="text-caption text-red font-weight-bold">
                             ⚠️ {{ log.ralc_alumne }}
                         </span>
@@ -176,7 +171,6 @@ const filteredLogs = computed(() => {
         if (filter === 'seguretat') return action.includes('bloqueig') || action.includes('fallit') || action.includes('seguretat');
         if (filter === 'login') return action.includes('login correcte') || action.includes('accés');
         
-        // AFEGEIX AQUESTA LÍNIA:
         if (filter === 'alumnes') return action.includes('nou') || action.includes('crear') || action.includes('alumne');
         
         if (filter === 'trasllat') return action.includes('trasllat') || action.includes('transfer');
@@ -196,8 +190,6 @@ const formatDate = (date) => {
     hour: '2-digit', minute: '2-digit'
   });
 };
-
-// --- HELPERS ---
 
 const isTransfer = (text) => {
     return (text || '').toLowerCase().includes('trasllat') || (text || '').toLowerCase().includes('transfer');
@@ -222,8 +214,6 @@ const extractDestination = (text) => {
     return 'Canvi de centre';
 };
 
-// --- COLORES & ESTILS ---
-
 const getUserColor = (user) => {
     if (!user) return 'grey-lighten-2';
     if (user.includes('IP')) return 'blue-grey-darken-3'; // Color fosc per IPs
@@ -234,14 +224,11 @@ const getActionColor = (accio) => {
   if (!accio) return 'grey';
   const a = accio.toLowerCase();
   
-  // Seguretat
   if (a.includes('bloqueig')) return 'red-darken-4 text-white'; // Vermell intens per alertes
   if (a.includes('fallit')) return 'orange-lighten-4 text-orange-darken-4';
   
-  // Èxits
   if (a.includes('login correcte')) return 'teal-lighten-4 text-teal-darken-4';
   
-  // Operatius
   if (a.includes('pujada')) return 'green-lighten-4 text-green-darken-4';
   if (a.includes('nou alumne')) return 'blue-lighten-4 text-blue-darken-4';
   if (a.includes('trasllat')) return 'orange-lighten-4 text-orange-darken-4';
