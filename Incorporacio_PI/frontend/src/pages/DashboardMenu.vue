@@ -1,12 +1,7 @@
 <script setup>
-import VoiceToolbar from '@/components/VoiceToolbar.vue';
 </script>
 
 <template>
-  <div class="voice-button-container">
-    <VoiceToolbar />
-  </div>
-
   <v-container class="fill-height align-start bg-grey-lighten-5" fluid>
     <v-row justify="center" class="mt-4">
       <v-col cols="12" lg="10" xl="9">
@@ -64,7 +59,7 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
         </h2>
         
         <v-row>
-             <v-col cols="12" md="6">
+          <v-col cols="12" md="6">
             <v-card
               class="gencat-card action-card h-100 pa-6 cursor-pointer"
               elevation="0"
@@ -150,13 +145,6 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
 </template>
 
 <style scoped>
-.voice-button-container {
-  position: fixed;
-  top: 14px;
-  right: 170px;
-  z-index: 9999;
-}
-
 .gencat-font { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; }
 .gencat-card { border: 1px solid rgba(0,0,0,0.08) !important; background-color: white; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
 .action-card { border-left: 4px solid transparent !important; }
