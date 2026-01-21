@@ -3,8 +3,6 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
 </script>
 
 <template>
-  <!-- AQUESTA ÉS LA CLAU: -->
-  <!-- Posem el botó amb posició fixa perquè floti sobre la barra negra superior -->
   <div class="voice-button-container">
     <VoiceToolbar />
   </div>
@@ -21,9 +19,6 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
             Benvingut a la Plataforma de Normalització de Plans Individualitzats (PI).
           </p>
         </div>
-
-        <!-- MANTENIM LA RESTA DEL TEU CODI IGUAL... -->
-        <!-- (Les targetes d'estadístiques, operacions principals, etc.) -->
         
         <v-row class="mb-6">
           <v-col cols="12" sm="4">
@@ -38,7 +33,6 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
             </v-card>
           </v-col>
           
-          <!-- ... resta de columnes ... -->
           <v-col cols="12" sm="4">
              <v-card class="gencat-card pa-4 d-flex align-center" elevation="0" rounded="lg">
               <v-avatar color="grey-lighten-4" rounded="lg" class="mr-4">
@@ -64,14 +58,12 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
           </v-col>
         </v-row>
         
-        <!-- ... operacions principals ... -->
         <h2 class="text-h6 font-weight-bold text-grey-darken-3 mb-4 d-flex align-center">
           <v-icon icon="mdi-apps" class="mr-2" size="small" color="#D0021B"></v-icon>
           Operacions Principals
         </h2>
         
         <v-row>
-           <!-- ... les teves targetes de gestió d'alumnes ... -->
              <v-col cols="12" md="6">
             <v-card
               class="gencat-card action-card h-100 pa-6 cursor-pointer"
@@ -145,7 +137,7 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
                             </div>
                         </v-col>
                         <v-col cols="12" md="4" class="text-md-right mt-2 mt-md-0">
-                              <v-btn size="small" variant="outlined" color="grey-darken-2" href="/Guia_Usuari_PI.pdf" target="_blank">Veure Documentació</v-btn>
+                              <v-btn size="small" variant="outlined" color="grey-darken-2" href="/Guia_Usuari_PI.pdf">Veure Documentació</v-btn>
                         </v-col>
                     </v-row>
                 </v-card>
@@ -160,12 +152,11 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
 <style scoped>
 .voice-button-container {
   position: fixed;
-  top: 18px;
-  right: 180px;
+  top: 14px;
+  right: 170px;
   z-index: 9999;
 }
 
-/* ELS TEUS ESTILS */
 .gencat-font { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important; }
 .gencat-card { border: 1px solid rgba(0,0,0,0.08) !important; background-color: white; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
 .action-card { border-left: 4px solid transparent !important; }
