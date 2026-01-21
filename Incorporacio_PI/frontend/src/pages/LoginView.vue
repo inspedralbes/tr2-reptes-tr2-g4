@@ -6,6 +6,18 @@
     <v-row justify="center" align="center">
       <v-col cols="12" sm="8" md="6" lg="4">
         
+        <div class="mb-2">
+          <v-btn 
+            variant="text" 
+            prepend-icon="mdi-arrow-left" 
+            class="text-none px-0 text-grey-darken-2 hover-underline"
+            :ripple="false"
+            @click="router.push('/')"
+          >
+            Tornar a l'inici
+          </v-btn>
+        </div>
+
         <v-card class="pa-8 gencat-card" elevation="1" rounded="lg">
           
           <div class="text-center mb-8">
@@ -83,7 +95,7 @@ const handleEmailSubmit = async (payload) => {
     await sendVerificationCode(payload.email, payload.token);
     
     email.value = payload.email;
-    tempCenterCode.value = payload.codiCentre; // 1. Guardamos el código del centro temporalmente
+    tempCenterCode.value = payload.codiCentre; 
     
     step.value = 'code';
   } catch (error) {
@@ -154,6 +166,12 @@ const handleCodeVerification = async (code) => {
 
 .tracking-wide {
   letter-spacing: 2px !important;
+}
+
+/* Efecto hover para el botón de volver */
+.hover-underline:hover {
+  text-decoration: underline;
+  background-color: transparent !important; /* Evita el fondo gris por defecto */
 }
 
 /* Assegurar tipografia de sistema */
