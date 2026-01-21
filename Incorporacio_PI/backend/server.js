@@ -61,7 +61,7 @@ let currentProcessingId = null;
 async function connectRabbit() {
     try {
         const conn = await amqp.connect(RABBIT_URL);
-        
+
         // NOU: Gestió d'errors de connexió per evitar que el servidor caigui si RabbitMQ es reinicia
         conn.on('error', (err) => {
             console.error("❌ [RabbitMQ] Error de connexió:", err.message);
@@ -82,22 +82,25 @@ async function connectRabbit() {
 
         const processNext = async () => {
             if (isProcessing || localQueue.length === 0) return;
-            
+
             isProcessing = true;
             const msg = localQueue.shift();
+
+            // Define variables outside try/catch scope
+            let text, filename, role, studentHash;
 
             try {
                 // Movem el parsing DINS del try per si el missatge és invàlid
                 const content = JSON.parse(msg.content.toString());
-                const { text, filename, role, studentHash } = content;
-                
+                ({ text, filename, role, studentHash } = content);
+
                 // Identificador per a l'API d'estat
                 currentProcessingId = filename || studentHash;
-                
+
                 console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${currentProcessingId}`);
 
                 const db = getDB();
-                
+
                 // Determinem on guardar el resultat segons si és global o per fitxer
                 let query = {};
                 let updateFieldPrefix = "";
@@ -107,7 +110,7 @@ async function connectRabbit() {
                     updateFieldPrefix = "global_summary";
                 } else {
                     // CORRECCIÓ CRÍTICA: Busquem el fitxer tant al camp root com a l'array 'files'
-                    query = { $or: [ { filename: filename }, { "files.filename": filename } ] };
+                    query = { $or: [{ filename: filename }, { "files.filename": filename }] };
                     updateFieldPrefix = "ia_data";
                 }
 
@@ -116,17 +119,17 @@ async function connectRabbit() {
                 initUpdate[`${updateFieldPrefix}.estado`] = "LLEGINT...";
                 initUpdate[`${updateFieldPrefix}.resumen`] = "";
                 initUpdate[`${updateFieldPrefix}.progress`] = 0;
-                if (role !== 'global') initUpdate[`${updateFieldPrefix}.role`] = role || 'docent';
+                initUpdate[`${updateFieldPrefix}.role`] = role || 'docent'; // Always set role
 
                 await db.collection('students').updateOne(query, { $set: initUpdate });
 
                 // 2. Cridem a la IA (Això triga minuts)
                 console.log(`⏳ [Worker] Iniciant generació IA (${role})...`);
-                
+
                 let lastUpdate = 0;
                 const summary = await generateSummaryLocal(text, role, async (partialText, progress) => {
                     const now = Date.now();
-                    if (now - lastUpdate > 1000) { 
+                    if (now - lastUpdate > 1000) {
                         lastUpdate = now;
                         const estatActual = partialText.length > 0 ? "GENERANT..." : "LLEGINT...";
 
@@ -152,19 +155,31 @@ async function connectRabbit() {
                 finalUpdate[`${updateFieldPrefix}.fecha`] = new Date();
 
                 await db.collection('students').updateOne(query, { $set: finalUpdate });
-                
+
                 console.log(`✅ [Worker] Resum completat.`);
                 // channel.ack(msg); // ELIMINAT: Ja hem fet l'ack al principi
                 console.log(`🏁 [RabbitMQ] Tasca finalitzada.`);
 
             } catch (error) {
                 console.error(`❌ [Worker] Error processant:`, error);
-                
+
                 // PROTECCIÓ CRÍTICA: Si no podem guardar l'error a la BD, no fem petar el servidor
                 try {
                     const db = getDB();
-                    let query = role === 'global' ? { hash_id: studentHash } : { filename: filename };
-                    let updateFieldPrefix = role === 'global' ? "global_summary" : "ia_data";
+                    // Fallback query if variables are undefined (e.g. JSON parse error)
+                    let query = {};
+                    let updateFieldPrefix = "ia_data";
+
+                    if (role === 'global' && studentHash) {
+                        query = { hash_id: studentHash };
+                        updateFieldPrefix = "global_summary";
+                    } else if (filename) {
+                        query = { filename: filename };
+                    } else {
+                        // If we can't identify the student/file, we can't save the error to their record
+                        console.error("❌ [Worker] Cannot save error to DB: Missing filename/studentHash");
+                        return;
+                    }
 
                     let errorUpdate = {};
                     errorUpdate[`${updateFieldPrefix}.estado`] = "ERROR";
@@ -178,7 +193,7 @@ async function connectRabbit() {
                 isProcessing = false;
                 currentProcessingId = null; // Reset quan acaba
                 // Usem setTimeout per deixar respirar el servidor i evitar stack overflow
-                setTimeout(processNext, 100); 
+                setTimeout(processNext, 100);
             }
         };
 
@@ -188,7 +203,7 @@ async function connectRabbit() {
                 // 1. ACK IMMEDIAT: Diem a RabbitMQ que ja tenim el missatge.
                 // Això evita que talli la connexió si triguem 1 hora.
                 channel.ack(msg);
-                
+
                 // 2. Afegim a la cua local i processem
                 localQueue.push(msg);
                 processNext();
@@ -215,11 +230,11 @@ const storage = multer.diskStorage({
 });
 
 // Filtre per acceptar NOMÉS PDF
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
         // Acceptem PDF i ODT (OpenDocument Text)
-        if (file.mimetype === 'application/pdf' || 
+        if (file.mimetype === 'application/pdf' ||
             file.mimetype === 'application/vnd.oasis.opendocument.text' ||
             file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || // DOCX
             file.originalname.endsWith('.odt')) {
@@ -236,7 +251,7 @@ app.post('/api/login/send-code', async (req, res) => {
     try {
         const db = getDB();
         const code = Math.floor(100000 + Math.random() * 900000).toString();
-        
+
         await db.collection('login_codes').updateOne(
             { email: email },
             { $set: { code: code, createdAt: new Date(), used: false } },
@@ -268,7 +283,7 @@ app.post('/api/login/verify-code', async (req, res) => {
             console.log("   ❌ ERROR: No existe registro para este email.");
             return res.status(401).json({ success: false, message: 'Email no trobat' });
         }
-        
+
         // Convertimos ambos a String por si acaso hay mezcla de tipos (número vs texto)
         if (String(reg.code) !== String(code)) {
             console.log(`   ❌ ERROR: Códigos no coinciden. DB: ${reg.code} vs INPUT: ${code}`);
@@ -328,7 +343,7 @@ app.post('/api/students', async (req, res) => {
         if (existing) {
             return res.status(409).json({ error: "Aquest alumne ja existeix (ID duplicat)" });
         }
-        
+
         // 4. Construir l'objecte (SENSE original_id ni original_name)
         const newStudent = {
             hash_id: hash,
@@ -346,10 +361,10 @@ app.post('/api/students', async (req, res) => {
 
         // 5. Insertar a Mongo
         await db.collection('students').insertOne(newStudent);
-        
+
         // Al log de consola sí podem mostrar el nom per debugging, però a la BD no hi va
         console.log(`✨ Nou alumne creat: ${iniciales} (Hash: ${hash.substring(0, 10)}...)`);
-        
+
         res.json({ success: true, student: newStudent });
 
     } catch (error) {
@@ -358,21 +373,61 @@ app.post('/api/students', async (req, res) => {
     }
 });
 
-// POST: Puja fitxer i actualitza Mongo
+// --- HELPER: LLEGIR DOCS (Refactoritzat per reutilitzar) ---
+async function extractTextFromFile(filePath) {
+    if (!fs.existsSync(filePath)) return null;
+    const buffer = fs.readFileSync(filePath);
+    const filename = path.basename(filePath).toLowerCase();
+
+    if (filename.endsWith('.odt')) {
+        return extractTextFromODT(buffer);
+    } else if (filename.endsWith('.docx')) {
+        const result = await mammoth.extractRawText({ buffer: buffer });
+        return result.value;
+    } else {
+        return await extractTextFromPDF(buffer);
+    }
+}
+
+// --- HELPER: ENCUAR TASCA (Refactoritzat) ---
+async function enqueueSummaryJob(text, filename, role, studentHash) {
+    if (!channel) throw new Error("RabbitMQ no connectat");
+
+    // 1. Enviar a RabbitMQ
+    const jobData = { text, filename, role: role || 'docent', studentHash };
+    channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
+
+    // 2. Actualitzar MongoDB
+    const db = getDB();
+    const query = studentHash
+        ? { hash_id: studentHash }
+        : { $or: [{ filename: filename }, { "files.filename": filename }] };
+
+    let updateFieldPrefix = "ia_data";
+    // Si és un resum global, guardem a un lloc diferent
+    if (role === 'global') updateFieldPrefix = "global_summary";
+
+    let updateSet = {};
+    updateSet[`${updateFieldPrefix}.estado`] = "A LA CUA";
+    updateSet[`${updateFieldPrefix}.resumen`] = "";
+    updateSet[`${updateFieldPrefix}.progress`] = 0;
+    updateSet[`${updateFieldPrefix}.role`] = role || 'docent';
+
+    await db.collection('students').updateOne(query, { $set: updateSet });
+
+    console.log(`📤 [Cua] Tasca afegida: ${filename || studentHash} (${role})`);
+    return true;
+}
+
+// POST: Puja fitxer i actualitza Mongo + AUTO-GENERA RESUM
 app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
-    // Fusionem la lògica de les dues rutes duplicades
     const { studentHash, userEmail } = req.body;
-    if (!req.file || !studentHash) return res.status(400).json({ success: false, message: 'Falten dades o el fitxer no és un PDF' });
+    if (!req.file || !studentHash) return res.status(400).json({ success: false, message: 'Falten dades' });
 
     try {
         const db = getDB();
-        // Simulem IA
-        const iaData = {
-            estado: "PROCESSAT",
-            resumen: "Document processat correctament el " + new Date().toLocaleDateString()
-        };
 
-        // Preparamos los datos del archivo para el historial
+        // 1. Preparem dades del fitxer
         const fileData = {
             filename: req.file.filename,
             originalName: req.file.originalname,
@@ -381,80 +436,84 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
             uploadDate: new Date()
         };
 
-        // Busquem l'alumne per tenir el seu RALC sufix per al log
-        const alumne = await db.collection('students').findOne({ hash_id: studentHash });
-        const ralcSuffix = alumne ? alumne.visual_identity.ralc_suffix : '???';
+        // 2. Estat inicial IA
+        const iaData = {
+            estado: "A LA CUA", // Canviat de "PROCESSAT" a "A LA CUA"
+            resumen: "",
+            progress: 0,
+            role: 'docent' // Per defecte
+        };
 
-        // Actualitzem la BD
+        // 3. Actualitzem la BD (Guardem fitxer i estat)
         await db.collection('students').updateOne(
             { hash_id: studentHash },
-            { 
-                $set: { 
-                    has_file: true, 
-                    filename: req.file.filename, // Mantenemos esto para compatibilidad
+            {
+                $set: {
+                    has_file: true,
+                    filename: req.file.filename,
                     ia_data: iaData
                 },
-                $push: { files: fileData } // Añadimos al historial de archivos
+                $push: { files: fileData }
             }
         );
 
-        // Registrem l'accés (#29)
+        // 4. AUTO-START: Extraiem text i enviem a la cua directament!
+        const filePath = path.join(UPLOADS_DIR, req.file.filename);
+        const text = await extractTextFromFile(filePath);
+
+        if (text && text.length > 50) {
+            // Enviem a la cua automàticament
+            await enqueueSummaryJob(text, req.file.filename, 'docent', studentHash);
+            console.log(`🚀 [Auto-Start] Resum iniciat automàticament per ${req.file.filename}`);
+        } else {
+            console.warn(`⚠️ [Auto-Start] No s'ha pogut extreure text o és buit: ${req.file.filename}`);
+        }
+
+        // 5. Registrem l'accés
+        const alumne = await db.collection('students').findOne({ hash_id: studentHash });
+        const ralcSuffix = alumne ? alumne.visual_identity.ralc_suffix : '???';
         await registrarAcces(userEmail || 'sistema', 'Pujada de document PI', ralcSuffix);
 
-        console.log(`📄 LOG: Nou PDF registrat a MongoDB per l'alumne ${ralcSuffix}`);
+        res.json({ success: true, message: "Fitxer pujat i processament iniciat" });
 
-        res.json({ success: true });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false });
     }
 });
 
-// DELETE: Eliminar fitxer específic d'un estudiant
+// DELETE: Eliminar fitxer
 app.delete('/api/students/:hash/files/:filename', async (req, res) => {
     const { hash, filename } = req.params;
-    // REBEM L'EMAIL DE L'USUARI QUE ESTÀ ESBORRANT
-    const { userEmail } = req.body; 
+    const { userEmail } = req.body;
 
     try {
         const db = getDB();
-        
-        // 1. Busquem l'alumne PRIMER per tenir el RALC per al log
         const studentInfo = await db.collection('students').findOne({ hash_id: hash });
         const ralcSuffix = studentInfo ? studentInfo.visual_identity.ralc_suffix : '???';
 
-        // 2. Eliminar del array de archivos en Mongo
-        const resArray = await db.collection('students').updateOne(
+        await db.collection('students').updateOne(
             { hash_id: hash },
             { $pull: { files: { filename: filename } } }
         );
-        console.log(`🗑️ DELETE: Eliminado de array 'files': ${resArray.modifiedCount} docs`);
 
-        // 3. Si es el archivo "legacy", lo borramos también
         await db.collection('students').updateOne(
             { hash_id: hash, filename: filename },
             { $unset: { filename: "" } }
         );
 
-        // 4. Actualitzar estat has_file
-        // Tornem a buscar l'alumne actualitzat per veure si li queden fitxers
         const studentUpdated = await db.collection('students').findOne({ hash_id: hash });
         const hasFiles = (studentUpdated.files && studentUpdated.files.length > 0) || (!!studentUpdated.filename);
-        
+
         await db.collection('students').updateOne(
             { hash_id: hash },
             { $set: { has_file: hasFiles } }
         );
 
-        // 5. Eliminar archivo físico del servidor
         const filePath = path.join(UPLOADS_DIR, filename);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-        // --- NOU: REGISTREM AL LOG ---
         await registrarAcces(userEmail || 'Desconegut', 'Eliminació de document', ralcSuffix);
-        console.log(`📄 LOG: Document eliminat per ${userEmail} (Alumne: ${ralcSuffix})`);
 
         res.json({ success: true });
     } catch (error) {
@@ -463,34 +522,14 @@ app.delete('/api/students/:hash/files/:filename', async (req, res) => {
     }
 });
 
-// --- RUTA D'ANÀLISI IA (Bloc B) ---
+// --- RUTA D'ANÀLISI IA (Helper Wrapper) ---
 app.get('/api/analyze/:filename', async (req, res) => {
     try {
-        // Decodifiquem el nom del fitxer per si té espais o accents
         const filename = decodeURIComponent(req.params.filename);
         const filePath = path.join(UPLOADS_DIR, filename);
+        const text = await extractTextFromFile(filePath);
 
-        // Comprovem si el fitxer existeix físicament
-        if (!fs.existsSync(filePath)) {
-            console.error("Fitxer no trobat:", filePath);
-            return res.status(404).json({ error: 'Fitxer no trobat al servidor' });
-        }
-
-        // Llegim i processem
-        const dataBuffer = fs.readFileSync(filePath);
-        let text = "";
-
-        // Detectem tipus de fitxer
-        if (filename.toLowerCase().endsWith('.odt')) {
-            text = extractTextFromODT(dataBuffer);
-        } else if (filename.toLowerCase().endsWith('.docx')) {
-            const result = await mammoth.extractRawText({ buffer: dataBuffer });
-            text = result.value;
-        } else {
-            text = await extractTextFromPDF(dataBuffer);
-        }
-
-        // Retornem el JSON
+        if (text === null) return res.status(404).json({ error: 'Fitxer no trobat' });
         res.json({ text_completo: text });
 
     } catch (error) {
@@ -504,37 +543,16 @@ app.post('/api/generate-summary', async (req, res) => {
     const { text, filename, role } = req.body;
     if (!text || !filename) return res.status(400).json({ error: 'Falta text o filename' });
 
-    // REACTIVAT: Ara sí que depenem de RabbitMQ per protegir la IA
-    if (!channel) return res.status(500).json({ error: 'RabbitMQ no connectat' });
-
     try {
-        // 1. Envia a la cua
-        const jobData = { text, filename, role: role || 'docent' };
-        channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
-
-        // 2. Actualitza estat inicial a la BD
-        const db = getDB();
-        // CORRECCIÓ CRÍTICA: També aquí hem de buscar bé l'alumne
-        await db.collection('students').updateOne(
-            { $or: [ { filename: filename }, { "files.filename": filename } ] },
-            { $set: { 
-                "ia_data.estado": "A LA CUA", // Estat d'espera
-                "ia_data.resumen": "", 
-                "ia_data.progress": 0,
-                "ia_data.role": role || 'docent'
-            } }
-        );
-
-        console.log(`📤 [API] Feina enviada a RabbitMQ: ${filename}`);
+        await enqueueSummaryJob(text, filename, role, null); // Passem null com a hash si no el tenim, farem cerca per filename
         res.json({ success: true, message: "Afegit a la cua de processament" });
-
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: "Error enviant a la cua" });
     }
 });
 
-// --- RUTA GENERACIÓ RESUM GLOBAL (NOU) ---
+// --- RUTA GENERACIÓ RESUM GLOBAL ---
 app.post('/api/generate-global-summary', async (req, res) => {
     const { studentHash } = req.body;
     if (!studentHash) return res.status(400).json({ error: 'Falta studentHash' });
@@ -545,7 +563,6 @@ app.post('/api/generate-global-summary', async (req, res) => {
         const student = await db.collection('students').findOne({ hash_id: studentHash });
         if (!student) return res.status(404).json({ error: 'Estudiant no trobat' });
 
-        // Recopilem tots els fitxers
         let filesToProcess = student.files || [];
         if (student.filename && !filesToProcess.some(f => f.filename === student.filename)) {
             filesToProcess.push({ filename: student.filename, originalName: 'Document Antic' });
@@ -553,25 +570,26 @@ app.post('/api/generate-global-summary', async (req, res) => {
 
         if (filesToProcess.length === 0) return res.status(400).json({ error: 'No hi ha documents' });
 
-        // Extraiem text de TOTS els fitxers
         let combinedText = `HISTORIAL DE DOCUMENTS DE L'ALUMNE:\n\n`;
-        // Limitem la quantitat de text per document per no saturar la IA i que pugui llegir-los tots
-        const CHARS_PER_DOC = 2000; 
+        const CHARS_PER_DOC = 2000;
 
         for (const file of filesToProcess) {
             const filePath = path.join(UPLOADS_DIR, file.filename);
-            if (fs.existsSync(filePath)) {
-                const dataBuffer = fs.readFileSync(filePath);
-                let text = file.filename.endsWith('.odt') ? extractTextFromODT(dataBuffer) : await extractTextFromPDF(dataBuffer);
-                // Agafem només el principi de cada document (on sol haver-hi el diagnòstic i dades clau)
+            const text = await extractTextFromFile(filePath);
+            if (text) {
                 let snippet = text.substring(0, CHARS_PER_DOC);
                 combinedText += `--- DOCUMENT: ${file.originalName} ---\n${snippet}...\n\n`;
             }
         }
 
-        // Enviem a la cua amb rol 'global'
         const jobData = { text: combinedText, studentHash, role: 'global' };
         channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
+
+        // Actualitzem estat
+        await db.collection('students').updateOne(
+            { hash_id: studentHash },
+            { $set: { "global_summary.estado": "A LA CUA", "global_summary.progress": 0 } }
+        );
 
         res.json({ success: true, message: "Generació global iniciada" });
     } catch (e) {
@@ -624,15 +642,15 @@ connectDB().then(async () => {
     // NOU: Neteja d'estats "zombies" en arrencar el servidor
     console.log("🧹 Netejant tasques interrompudes a la BD...");
     await db.collection('students').updateMany(
-        { "ia_data.estado": { $in: ["GENERANT...", "A LA CUA"] } },
+        { "ia_data.estado": { $in: ["GENERANT...", "A LA CUA", "LLEGINT..."] } },
         { $set: { "ia_data.estado": "INTERROMPUT", "ia_data.resumen": "El procés es va interrompre pel reinici del servidor. Torna a generar-lo." } }
     );
-    
+
     // Si la BD està buida, la omplim amb les dades del company
     if (count === 0) {
         console.log("🌱 Seed: Inserint dades del company a MongoDB...");
         const docs = dbAlumnosRaw.map(a => ({
-            hash_id: generarHash(a.id), 
+            hash_id: generarHash(a.id),
             // original_id: a.id,       <-- ELIMINAT: No el guardem a la BD
             // original_name: a.nombre, <-- ELIMINAT: No el guardem a la BD
             visual_identity: {

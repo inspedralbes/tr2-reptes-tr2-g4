@@ -1,3 +1,4 @@
 .env
 backend/models
 backend/rabbitmq_data
+backend/ollama_data

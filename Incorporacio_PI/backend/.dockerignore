@@ -3,3 +3,5 @@ models
 .env
 .git
 uploads
+ollama_data
+rabbitmq_data
