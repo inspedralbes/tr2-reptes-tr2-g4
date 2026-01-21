@@ -1,14 +1,13 @@
 <template>
   <v-app>
     <v-app-bar 
-      v-if="$route.name !== 'login'" 
       color="#333333" 
       elevation="0" 
       height="80"
       class="gencat-app-bar"
       theme="dark"
     >
-      <div class="d-flex align-center cursor-pointer h-100 ps-4" @click="goDashboard">
+      <div class="d-flex align-center h-100 ps-4" :class="{ 'cursor-pointer': showNavButtons }" @click="goDashboard">
         <img 
           src="/logo_generalitat_blanc.svg" 
           alt="Generalitat de Catalunya" 
@@ -28,7 +27,7 @@
 
       <v-spacer></v-spacer>
 
-      <div class="d-flex align-center pe-2">
+      <div v-if="showNavButtons" class="d-flex align-center pe-2">
         
         <VoiceToolbar class="me-2" />
 
@@ -68,6 +67,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import NotificationBell from '@/components/NotificationBell.vue';
 import VoiceToolbar from '@/components/VoiceToolbar.vue';
@@ -75,13 +75,25 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
 const router = useRouter();
 const route = useRoute(); 
 
+// Esta propiedad controla SI SALEN LOS BOTONES.
+// Si la ruta es 'login', devuelve FALSE (oculta botones).
+// Si es cualquier otra, devuelve TRUE (muestra botones).
+const showNavButtons = computed(() => {
+  return route.name !== 'login';
+});
+
 const logout = () => {
   localStorage.removeItem('token');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('userCenterCode');
   router.push('/login');
 };
 
 const goDashboard = () => {
-  router.push('/dashboard');
+  // Solo permitimos ir al dashboard al hacer click en el logo si ya estamos logueados
+  if (showNavButtons.value) {
+    router.push('/dashboard');
+  }
 };
 </script>
 

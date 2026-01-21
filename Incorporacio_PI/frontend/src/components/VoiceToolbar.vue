@@ -1,3 +1,76 @@
+<template>
+  <v-btn 
+    icon 
+    variant="text"
+    :ripple="false"
+    @click="handleStart" 
+    class="voice-btn"
+    style="background-color: transparent !important; box-shadow: none !important;"
+  >
+    <v-icon 
+      size="28"
+      :color="isListening ? 'red-accent-2' : 'white'" 
+      :class="{'pulse-animation': isListening}"
+    >
+      mdi-microphone
+    </v-icon>
+    <v-tooltip activator="parent" location="bottom">Control per Veu</v-tooltip>
+  </v-btn>
+
+  <v-dialog v-model="showDialog" width="auto" scrim="true" persistent>
+    <v-card min-width="400" max-width="500" class="pa-6 rounded-xl d-flex flex-column align-center bg-grey-darken-4 text-white border-highlight position-relative" elevation="24">
+      
+      <v-btn 
+        icon="mdi-close" 
+        variant="text" 
+        color="grey" 
+        size="small"
+        class="position-absolute top-0 right-0 ma-2"
+        @click="handleCancel"
+      ></v-btn>
+
+      <div class="d-flex flex-column align-center mb-2">
+          <v-avatar :color="feedbackColor" size="64" class="mb-4" variant="tonal">
+            <v-icon 
+                :icon="feedbackColor === 'success' ? 'mdi-check' : (showHelp ? 'mdi-information-variant' : (isListening ? 'mdi-waveform' : 'mdi-microphone-off'))" 
+                size="32"
+            ></v-icon>
+          </v-avatar>
+          <div class="text-h6 font-weight-bold text-center">{{ feedbackMessage }}</div>
+      </div>
+      
+      <div v-if="showHelp" class="w-100 mt-2 mb-4">
+        <v-list bg-color="transparent" density="compact">
+            <v-list-item v-for="(cmd, i) in availableCommands" :key="i" class="rounded-lg mb-1 bg-grey-darken-3">
+                <template v-slot:prepend>
+                    <v-icon :icon="cmd.icon" color="primary" class="mr-2"></v-icon>
+                </template>
+                <v-list-item-title class="text-body-2 font-weight-bold">{{ cmd.text }}</v-list-item-title>
+                <v-list-item-subtitle class="text-caption text-grey-lighten-1">{{ cmd.desc }}</v-list-item-subtitle>
+            </v-list-item>
+        </v-list>
+      </div>
+
+      <div v-else class="transcript-box text-center mb-4">
+        <h3 v-if="!error" class="text-h5 font-weight-regular text-grey-lighten-1 transition-swing">
+            {{ interimTranscript || transcript || '...' }}
+        </h3>
+      </div>
+
+      <v-btn 
+        variant="flat" 
+        :color="feedbackColor === 'success' ? 'green' : 'red-darken-1'" 
+        class="mt-2 px-8"
+        rounded="pill"
+        @click="handleCancel"
+      >
+        {{ isListening ? 'Aturar' : 'Tancar' }}
+      </v-btn>
+
+    </v-card>
+  </v-dialog>
+</template>
+
 <script setup>
 import { ref, watch } from 'vue';
 import { useTheme } from 'vuetify';
@@ -123,79 +196,6 @@ const closeSuccess = () => {
     }, 1500);
 }
 </script>
-
-<template>
-  <v-btn 
-    icon 
-    variant="text"
-    :ripple="false"
-    @click="handleStart" 
-    class="voice-btn"
-    style="background-color: transparent !important; box-shadow: none !important;"
-  >
-    <v-icon 
-      size="28"
-      :color="isListening ? 'red-accent-2' : 'white'" 
-      :class="{'pulse-animation': isListening}"
-    >
-      mdi-microphone
-    </v-icon>
-    <v-tooltip activator="parent" location="bottom">Control per Veu</v-tooltip>
-  </v-btn>
-
-  <v-dialog v-model="showDialog" width="auto" scrim="true" persistent>
-    <v-card min-width="400" max-width="500" class="pa-6 rounded-xl d-flex flex-column align-center bg-grey-darken-4 text-white border-highlight position-relative" elevation="24">
-      
-      <v-btn 
-        icon="mdi-close" 
-        variant="text" 
-        color="grey" 
-        size="small"
-        class="position-absolute top-0 right-0 ma-2"
-        @click="handleCancel"
-      ></v-btn>
-
-      <div class="d-flex flex-column align-center mb-2">
-          <v-avatar :color="feedbackColor" size="64" class="mb-4" variant="tonal">
-            <v-icon 
-                :icon="feedbackColor === 'success' ? 'mdi-check' : (showHelp ? 'mdi-information-variant' : (isListening ? 'mdi-waveform' : 'mdi-microphone-off'))" 
-                size="32"
-            ></v-icon>
-          </v-avatar>
-          <div class="text-h6 font-weight-bold text-center">{{ feedbackMessage }}</div>
-      </div>
-      
-      <div v-if="showHelp" class="w-100 mt-2 mb-4">
-        <v-list bg-color="transparent" density="compact">
-            <v-list-item v-for="(cmd, i) in availableCommands" :key="i" class="rounded-lg mb-1 bg-grey-darken-3">
-                <template v-slot:prepend>
-                    <v-icon :icon="cmd.icon" color="primary" class="mr-2"></v-icon>
-                </template>
-                <v-list-item-title class="text-body-2 font-weight-bold">{{ cmd.text }}</v-list-item-title>
-                <v-list-item-subtitle class="text-caption text-grey-lighten-1">{{ cmd.desc }}</v-list-item-subtitle>
-            </v-list-item>
-        </v-list>
-      </div>
-
-      <div v-else class="transcript-box text-center mb-4">
-        <h3 v-if="!error" class="text-h5 font-weight-regular text-grey-lighten-1 transition-swing">
-            {{ interimTranscript || transcript || '...' }}
-        </h3>
-      </div>
-
-      <v-btn 
-        variant="flat" 
-        :color="feedbackColor === 'success' ? 'green' : 'red-darken-1'" 
-        class="mt-2 px-8"
-        rounded="pill"
-        @click="handleCancel"
-      >
-        {{ isListening ? 'Aturar' : 'Tancar' }}
-      </v-btn>
-
-    </v-card>
-  </v-dialog>
-</template>
 
 <style scoped>
 .voice-btn { border: none !important; }
