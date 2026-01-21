@@ -1,8 +1,11 @@
 // src/stores/studentStore.js
 import { defineStore } from 'pinia';
 
-// 1. DEFINIMOS LA URL BASE CORRECTA (Producción o Local)
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// 1. CORREGIDO: Lógica inteligente para Nginx/HTTPS
+// En Producción (PROD) BASE_URL será '' (vacío), así fetch irá a /api/...
+// En Desarrollo, usará localhost:3001
+const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+
 const API_URL = `${BASE_URL}/api`;
 
 export const useStudentStore = defineStore('student', {
@@ -19,7 +22,7 @@ export const useStudentStore = defineStore('student', {
     
     // Acción A: Fetch Students
     async fetchStudents() {
-        // CORREGIDO: Usamos API_URL
+        // Ahora API_URL es inteligente
         const response = await fetch(`${API_URL}/students?_t=${Date.now()}`); 
         
         if (!response.ok) {
@@ -34,7 +37,6 @@ export const useStudentStore = defineStore('student', {
     // Acción B: Fetch Logs
     async fetchLogs() {
         try {
-            // CORREGIDO: Usamos API_URL
             const response = await fetch(`${API_URL}/logs`);
             this.logs = await response.json();
         } catch (e) {
@@ -53,7 +55,6 @@ export const useStudentStore = defineStore('student', {
         formData.append('userEmail', userEmail); 
         formData.append('documento_pi', file); 
 
-        // CORREGIDO: Usamos API_URL
         const response = await fetch(`${API_URL}/upload`, {
           method: 'POST',
           body: formData, 
@@ -73,31 +74,24 @@ export const useStudentStore = defineStore('student', {
       }
     },
 
-    // --- NOVA ACCIÓ: DELETE FILE ---
+    // --- DELETE FILE ---
     async deleteFile(studentHash, filename) {
       this.loading = true;
       try {
-        // 1. Recuperem l'email per al log
         const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
-        // 2. Fem la petició
-        // CORREGIDO: Usamos API_URL
         const response = await fetch(`${API_URL}/students/${studentHash}/files/${filename}`, {
           method: 'DELETE',
           headers: {
-            'Content-Type': 'application/json' // Important per poder enviar el body
+            'Content-Type': 'application/json' 
           },
-          // 3. Enviem l'email al cos de la petició
           body: JSON.stringify({ userEmail: userEmail })
         });
 
         const result = await response.json();
 
         if (result.success) {
-          // 4. Si va bé, actualitzem la llista i els logs
           await this.fetchStudents();
-          // Opcional: recarregar logs si estem a la pantalla de logs
-          // await this.fetchLogs(); 
           return true;
         } else {
           throw new Error('No s\'ha pogut esborrar');
