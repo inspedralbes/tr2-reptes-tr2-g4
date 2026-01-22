@@ -231,6 +231,7 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
 // 3. ANALYZE FILE (Get Raw Text)
 app.get('/api/analyze/:filename', async (req, res) => {
     try {
+        console.log(`🔍 [API] Rebuda petició per analitzar: ${req.params.filename}`);
         // Express ja descodifica els paràmetres automàticament. No cal fer-ho manualment.
         const filename = req.params.filename;
         const job = await getDB().collection('jobs').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
