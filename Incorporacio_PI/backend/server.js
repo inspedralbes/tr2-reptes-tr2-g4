@@ -19,9 +19,13 @@ const upload = multer({ dest: 'uploads/' });
 // Connect to DB
 connectDB();
 
-app.use(cors());
+app.use(cors({
+    origin: true, // Permet qualsevol origen (com localhost:3000) reflectint la petició
+    credentials: true
+}));
 app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Servir fitxers pujats també
 
 
 // WebSocket Server Setup
@@ -227,7 +231,8 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
 // 3. ANALYZE FILE (Get Raw Text)
 app.get('/api/analyze/:filename', async (req, res) => {
     try {
-        const filename = decodeURIComponent(req.params.filename);
+        // Express ja descodifica els paràmetres automàticament. No cal fer-ho manualment.
+        const filename = req.params.filename;
         const job = await getDB().collection('jobs').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
 
         if (!job) return res.status(404).json({ error: 'File not found' });
