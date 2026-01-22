@@ -3,7 +3,7 @@ const path = require('path');
 
 // CONFIGURACIÓ OLLAMA NATIVA
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://pi_llm:11434";
-const MODEL_NAME = "llama3.2:1b";
+const MODEL_NAME = process.env.MODEL_NAME || "llama3.2:3b";
 
 /**
  * Funció robusta per inicialitzar la IA.

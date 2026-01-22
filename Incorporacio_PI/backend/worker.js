@@ -41,6 +41,19 @@ async function startWorker() {
                 const { jobId, filePath, originalFileName, userId } = jobData;
                 console.log(`⚙️ Procesando trabajo ${jobId} para el archivo: ${originalFileName}`);
 
+                // 1. FETCH ALL JOBS FOR THIS STUDENT (Historical Context)
+                let allStudentJobs = [];
+                try {
+                    allStudentJobs = await Job.find({ userId: userId }).sort({ uploadedAt: 1 }); // Oldest first
+                    console.log(`📚 Found ${allStudentJobs.length} historical documents for student ${userId}`);
+                } catch (e) {
+                    console.error("Error fetching student history:", e);
+                    allStudentJobs = []; // Fallback to current job only if this fails (shouldn't happen)
+                }
+
+                // If for some reason the current job is not in the list (race condition?), add it manually
+                // But normally it should be there as we just saved it in server.js
+
                 let job;
                 try {
                     job = await Job.findById(jobId);
@@ -50,12 +63,28 @@ async function startWorker() {
                         return;
                     }
 
+                    // Mark CURRENT job as processing (others are ostensibly already processed or don't matter state-wise for this trigger)
                     job.status = 'processing';
                     await job.save();
 
-                    // Perform file extraction
-                    const extractedData = await extractPIdata(filePath, originalFileName);
-                    console.log(`✅ Extracción de datos completada para ${originalFileName}`);
+                    // Prepare file list for Extractor
+                    // We want to pass: [{ path: ..., name: ..., date: ... }]
+                    const filesToAnalyze = allStudentJobs.map(j => ({
+                        path: j.filePath,
+                        name: j.filename,
+                        date: j.uploadedAt,
+                        id: j._id
+                    }));
+
+                    // If list is empty (shouldn't be), add current
+                    if (filesToAnalyze.length === 0) {
+                        filesToAnalyze.push({ path: filePath, name: originalFileName, date: new Date(), id: jobId });
+                    }
+
+                    // Perform file extraction (Multi-File)
+                    console.log(`🚀 Sending ${filesToAnalyze.length} documents to Extractor...`);
+                    const extractedData = await extractPIdata(filesToAnalyze);
+                    console.log(`✅ Extracción de datos completada.`);
 
                     job.status = 'completed';
                     job.result = extractedData;

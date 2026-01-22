@@ -81,7 +81,7 @@ services:
     networks:
       - app-network
     environment:
-      - MODEL_NAME=${MODEL_NAME:-llama3.2:1b}
+      - MODEL_NAME=${MODEL_NAME:-llama3.2:3b}
     entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |

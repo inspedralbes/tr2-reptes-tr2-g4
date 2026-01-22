@@ -3,21 +3,43 @@ const { parseFile } = require('./smartParser');
 
 // Use the internal container URL for Ollama
 const OLLAMA_URL = 'http://ollama:11434/api/generate';
-const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:1b'; // Switched to 1b for speed
+const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b'; // Switched to 3b for PC
 
-async function extractPIdata(filePath, originalFileName) {
-    console.log(`📂 extracting data from: ${originalFileName}`);
+async function extractPIdata(filesInput) {
+    // Normalize input: allow single file (legacy) or array
+    const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: arguments[1] || 'Unknown' }];
 
-    // 1. USE SMART PARSER TO GET RAW TEXT & METADATA
-    const parsedData = await parseFile(filePath, originalFileName);
+    console.log(`📂 extracting data from ${files.length} sources...`);
 
-    if (!parsedData) {
-        throw new Error("Formato de archivo no soportado o archivo vacío.");
+    let aggregatedContext = "";
+    let baseMetadata = {}; // Metadata from the LATEST file (most relevant for current status)
+
+    // 1. EXTRACT DATA FROM ALL FILES
+    for (const [index, file] of files.entries()) {
+        try {
+            console.log(`   📄 Reading: ${file.name}`);
+            const parsedData = await parseFile(file.path, file.name); // Using smartParser
+
+            if (parsedData) {
+                const dateStr = file.date ? new Date(file.date).toISOString().split('T')[0] : "Unknown Date";
+                aggregatedContext += `\n\n--- DOCUMENT ${index + 1} (${file.name} - ${dateStr}) ---\n`;
+                aggregatedContext += parsedData.context;
+
+                // Update base metadata (overwrite with newer files as loop proceeds chronologically)
+                if (parsedData.metadata.nom) baseMetadata.nom = parsedData.metadata.nom;
+                if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
+                if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
+            }
+        } catch (e) {
+            console.error(`   ⚠️ Error reading ${file.name}:`, e.message);
+        }
     }
 
-    const { metadata, context } = parsedData;
+    if (!aggregatedContext) {
+        throw new Error("No extracted text available from any file.");
+    }
 
-    // 2. CONSTRUCT PROMPT
+    // 2. CONSTRUCT PROMPT (MULTI-JOB AWARE)
     const jsonStructure = `{
       "dadesAlumne": {
         "nomCognoms": "",
@@ -27,39 +49,40 @@ async function extractPIdata(filePath, originalFileName) {
       "motiu": {
         "diagnostic": ""
       },
-      "justificacio": [],
+      "justificacio": [], 
       "adaptacionsGenerals": [],
-      "orientacions": [],
+      "orientacions": [], 
       "avaluacio": []
     }`;
 
-    // OPTIMIZATION: Truncate context to ~1000 chars (critical for slow CPUs)
-    // 8000 chars took >5 mins to process, causing a timeout before the first word was generated.
-    const safeContext = context.length > 1000 ? context.substring(0, 1000) + "... [TRUNCATED]" : context;
+    // OPTIMIZATION: UNLIMITED Context for High-End PC
+    // We are passing the full text. If it exceeds the model's context window, Ollama might truncate it internally 
+    // or we might need a sliding window approach in the future, but for now: NO LIMITS.
+    const safeContext = aggregatedContext;
 
     const prompt = `
     You are an expert data extraction AI for Catalan educational documents (Individualized Plans).
+    You have been provided with one or more documents for the same student.
     
-    ### SOURCE CONTEXT:
+    ### SOURCE DOCUMENTS (Chronological Order):
     """${safeContext}"""
     
-    ### METADATA KNOWN:
-    - Name: "${metadata.nom || 'Unknown'}"
-    - Date: "${metadata.data || ''}"
-    - Course: "${metadata.curs || ''}"
-    - Diagnostic: "${metadata.diagnostic || ''}"
+    ### METADATA KNOWN (From latest doc):
+    - Name: "${baseMetadata.nom || 'Unknown'}"
+    - Course: "${baseMetadata.curs || ''}"
+    - Diagnostic: "${baseMetadata.diagnostic || ''}"
 
     ### TARGET JSON STRUCTURE:
     ${jsonStructure}
     
     ### INSTRUCTIONS:
-    1. Extract the student's **Full Name** and **Date of Birth** if not already in metadata.
-    2. Extract the **Diagnostic/Reason** for the plan.
-    3. **justificacio**: Extract the justification or reason for the Individualized Plan.
-    4. **adaptacionsGenerals**: Extract a list of methodology adaptations, classroom measures, and support strategies. Look for sections like "Mesures", "Metodologia", "Adaptacions".
-    5. **orientacions**: Extract family guidelines or agreements.
-    6. **avaluacio**: Extract evaluation criteria or assessment methods.
-    7. **IMPORTANT**: Output ONLY valid JSON.
+    1. **GENERAL**: Extract the most current student data.
+    2. **justificacio**: THIS IS UNIQUE. Look at different documents. If you see an evolution (e.g., "In 2023 he had X, in 2024 he improved"), SUMMARIZE THE HISTORY. Explicitly mention dates if available.
+    3. **motiu.diagnostic**: Use the most recent diagnosis found.
+    4. **adaptacionsGenerals**: Merge unique adaptations from all documents. Focus on what is currently applied.
+    5. **orientacions**: Merge recommendations.
+    6. **avaluacio**: Extract evaluation criteria.
+    7. **Output ONLY valid JSON**.
     `;
 
     // 3. CALL OLLAMA WITH TIMEOUT & KEEP_ALIVE (STREAMING MODE)
@@ -79,7 +102,7 @@ async function extractPIdata(filePath, originalFileName) {
                 keep_alive: "60m",
                 options: {
                     temperature: 0.1,
-                    num_ctx: 2048,
+                    num_ctx: 8192,
                     num_predict: 600
                 }
             }),
@@ -139,11 +162,11 @@ async function extractPIdata(filePath, originalFileName) {
         }
 
         // 5. MERGE METADATA (PRIORITY)
-        if (metadata.nom) finalData.dadesAlumne.nomCognoms = metadata.nom;
-        if (metadata.data) finalData.dadesAlumne.dataNaixement = metadata.data;
-        if (metadata.curs) finalData.dadesAlumne.curs = metadata.curs;
-        if (metadata.diagnostic && !finalData.motiu.diagnostic) {
-            finalData.motiu.diagnostic = metadata.diagnostic;
+        if (baseMetadata.nom) finalData.dadesAlumne.nomCognoms = baseMetadata.nom;
+        if (baseMetadata.data) finalData.dadesAlumne.dataNaixement = baseMetadata.data;
+        if (baseMetadata.curs) finalData.dadesAlumne.curs = baseMetadata.curs;
+        if (baseMetadata.diagnostic && !finalData.motiu.diagnostic) {
+            finalData.motiu.diagnostic = baseMetadata.diagnostic;
         }
 
         console.log("✅ Extraction Complete.");
