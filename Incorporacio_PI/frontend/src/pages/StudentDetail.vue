@@ -161,7 +161,7 @@
               @click="goToChat(file)">
             </v-btn>
 
-            <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
+            <v-btn :href="`http://localhost:4000/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
               variant="text" color="primary" title="Obrir document">
             </v-btn>
             <v-btn icon="mdi-download" variant="text" color="success" title="Descarregar document"
@@ -350,7 +350,7 @@ const goToChat = (file) => {
 
 const downloadFile = async (filename, originalName) => {
   try {
-    const response = await fetch(`http://localhost:3001/uploads/${filename}`);
+    const response = await fetch(`http://localhost:4000/uploads/${filename}`);
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -371,7 +371,7 @@ const generateGlobalSummary = async () => {
         if (!student.value.global_summary) student.value.global_summary = {};
         student.value.global_summary.estado = 'A LA CUA';
         
-        const response = await fetch('http://localhost:3001/api/generate-global-summary', {
+        const response = await fetch('http://localhost:4000/api/generate-global-summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ studentHash: route.params.hash_id })
@@ -388,7 +388,7 @@ const generateGlobalSummary = async () => {
                 // Lògica de cua per al resum global
                 if (s && s.global_summary && s.global_summary.estado === 'A LA CUA') {
                     try {
-                        const qRes = await fetch('http://localhost:3001/api/queue-status');
+                        const qRes = await fetch('http://localhost:4000/api/queue-status');
                         if (qRes.ok) {
                             const qData = await qRes.json();
                             const index = qData.queue.indexOf(route.params.hash_id);

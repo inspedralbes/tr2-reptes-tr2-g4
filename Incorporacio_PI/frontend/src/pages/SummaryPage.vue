@@ -158,7 +158,7 @@ const analyzeDocument = async () => {
   if (!filename) return;
   loading.value = true;
   try {
-    const response = await fetch(`http://localhost:4002/api/analyze/${encodeURIComponent(filename)}?_t=${Date.now()}`);
+    const response = await fetch(`http://localhost:4000/api/analyze/${encodeURIComponent(filename)}?_t=${Date.now()}`);
     if (response.ok) {
       const data = await response.json();
       rawText.value = data.text_completo;
@@ -184,7 +184,7 @@ onUnmounted(() => {
 
 const checkStatus = async () => {
   try {
-    const response = await fetch(`http://localhost:4002/api/students?_t=${Date.now()}`);
+    const response = await fetch(`http://localhost:4000/api/students?_t=${Date.now()}`);
     const students = await response.json();
     const student = students.find(s => s.filename === filename || (s.files && s.files.some(f => f.filename === filename)));
     
@@ -268,7 +268,7 @@ const regenerarResumenIA = async () => {
   currentStatus.value = 'Enviant document a la cua de processament...';
   
   try {
-    const response = await fetch('http://localhost:4002/api/generate-summary', {
+    const response = await fetch('http://localhost:4000/api/generate-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
