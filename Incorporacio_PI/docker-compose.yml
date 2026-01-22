@@ -26,6 +26,7 @@ services:
     container_name: pi_backend
     ports:
       - "4000:4000"
+      - "4001:4001"
     volumes:
       - ./backend:/app
       - /app/node_modules
