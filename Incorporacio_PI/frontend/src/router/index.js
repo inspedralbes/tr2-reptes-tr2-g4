@@ -36,14 +36,14 @@ const router = createRouter({
     },
     // 2. NUEVA RUTA -> Para el listado de alumnos
     {
-      path: '/alumnos', 
+      path: '/alumnes', 
       name: 'StudentList',
       component: StudentList,
       meta: { requiresAuth: true } 
     },
     // 3. RUTA FUTURA -> Insertar alumno (Aún no creada, dará error 404 o blanco si clickas)
     {
-      path: '/nuevo-alumno',
+      path: '/nou-alumne',
       name: 'AddStudent',
       // Como no tienes la página, puedes poner temporalmente un componente vacío o el Dashboard
       component: AddStudent, 

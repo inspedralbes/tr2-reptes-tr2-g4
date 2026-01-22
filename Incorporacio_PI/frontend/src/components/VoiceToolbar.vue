@@ -143,7 +143,7 @@ watch(transcript, (newText) => {
     feedbackMessage.value = "Obrint formulari d'Alta...";
     feedbackColor.value = "success";
     setTimeout(() => { 
-        router.push('/nuevo-alumno'); 
+        router.push('/nou-alumne'); 
         showDialog.value = false;
     }, 1000);
   }
@@ -152,7 +152,7 @@ watch(transcript, (newText) => {
     feedbackMessage.value = "Anant al llistat d'alumnes...";
     feedbackColor.value = "success";
     setTimeout(() => { 
-        router.push('/alumnos'); 
+        router.push('/alumnes'); 
         showDialog.value = false;
     }, 1000);
   }

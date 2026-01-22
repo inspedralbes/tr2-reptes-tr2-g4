@@ -64,7 +64,7 @@
               class="gencat-card action-card h-100 pa-6 cursor-pointer"
               elevation="0"
               rounded="lg"
-              @click="$router.push('/alumnos')"
+              @click="$router.push('/alumnes')"
             >
               <div class="d-flex justify-space-between align-start">
                 <div>
@@ -93,7 +93,7 @@
               class="gencat-card action-card h-100 pa-6 cursor-pointer"
               elevation="0"
               rounded="lg"
-              @click="$router.push('/nuevo-alumno')"
+              @click="$router.push('/nou-alumne')"
             >
               <div class="d-flex justify-space-between align-start">
                 <div>

@@ -429,7 +429,7 @@ const getFilesByHistory = (historyItem) => {
   });
 };
 
-const goToList = () => router.push('/alumnos');
+const goToList = () => router.push('/alumnes');
 
 const student = computed(() => studentStore.students.find(s => s.hash_id === route.params.hash_id));
 

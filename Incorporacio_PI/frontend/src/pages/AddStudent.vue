@@ -215,7 +215,7 @@ const submitForm = async () => {
       throw new Error(data.error || 'Error desconegut al crear l\'alumne');
     }
 
-    router.push('/alumnos'); 
+    router.push('/alumnes'); 
 
   } catch (error) {
     errorMessage.value = error.message;
