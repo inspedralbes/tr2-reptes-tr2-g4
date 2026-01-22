@@ -98,16 +98,29 @@ const parsedAnalysis = computed(() => {
 
   // 1. JSON FORMAT
   if (typeof val === 'object' && val !== null) {
-      return {
-          perfil: [
+      // Lògica de Rols: DOCENT (Anonimitzat) vs ORIENTADOR (Complet)
+      let perfilData = [];
+      if (currentRole.value === 'docent') {
+          // DOCENT: Dades molt generals i anonimitzades
+          perfilData = [
+            `Nom: ALUMNE (Dades Protegides)`,
+            `Curs: ${val.dadesAlumne?.curs || '-'}`
+          ];
+      } else {
+          // ORIENTADOR: Tot complet
+          perfilData = [
             `Nom: ${val.dadesAlumne?.nomCognoms || '-'}`,
             `Data: ${val.dadesAlumne?.dataNaixement || '-'}`,
             `Curs: ${val.dadesAlumne?.curs || '-'}`
-          ],
+          ];
+      }
+
+      return {
+          perfil: perfilData,
           dificultats: val.motiu?.diagnostic ? [val.motiu.diagnostic] : [],
-          justificacio: [],
+          justificacio: val.justificacio || [],
           adaptacions: val.adaptacionsGenerals || [],
-          avaluacio: [],
+          avaluacio: val.avaluacio || [],
           recomanacions: val.orientacions || []
       };
   }

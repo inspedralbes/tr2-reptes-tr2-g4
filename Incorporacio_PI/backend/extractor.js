@@ -77,12 +77,13 @@ async function extractPIdata(filesInput) {
     
     ### INSTRUCTIONS:
     1. **GENERAL**: Extract the most current student data.
-    2. **justificacio**: THIS IS UNIQUE. Look at different documents. If you see an evolution (e.g., "In 2023 he had X, in 2024 he improved"), SUMMARIZE THE HISTORY. Explicitly mention dates if available.
-    3. **motiu.diagnostic**: Use the most recent diagnosis found.
-    4. **adaptacionsGenerals**: Merge unique adaptations from all documents. Focus on what is currently applied.
-    5. **orientacions**: Merge recommendations.
-    6. **avaluacio**: Extract evaluation criteria.
-    7. **Output ONLY valid JSON**.
+    2. **dadesAlumne**: Extract ONLY the Name, Date of Birth, and Course. IGNORE parents, address, or other personal data.
+    3. **motiu.diagnostic**: Look for "Diagnòstic", "Trastorn", or "Discapacitat". Copy the specific diagnosis (e.g., "Tetraparèsia espàstica").
+    4. **justificacio**: Summarize the history/evolution if multiple documents exist.
+    5. **adaptacionsGenerals**: Merge unique adaptations from all documents. Focus on what is currently applied.
+    6. **orientacions**: Merge recommendations.
+    7. **avaluacio**: Extract specific evaluation criteria found in sections like "Criteris d'avaluació". Examples: "More time", "Oral exams".
+    8. **Output ONLY valid JSON**.
     `;
 
     // 3. CALL OLLAMA WITH TIMEOUT & KEEP_ALIVE (STREAMING MODE)

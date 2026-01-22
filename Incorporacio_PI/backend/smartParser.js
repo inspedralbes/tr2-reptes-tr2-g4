@@ -105,34 +105,10 @@ async function parseFile(filePath, originalFileName = '') {
     // Clean up Name
     if (metadata.nom) metadata.nom = metadata.nom.replace(/Nom i cognoms/i, "").trim();
 
-    // C. SECTION FILTERING (The "Smart Crop")
-    // Find where "Adaptacions" or "Metodologia" starts
-    let context = "";
-    const lowerText = rawText.toLowerCase();
-
-    // Keywords to START capturing
-    const startKeywords = ["adaptacions", "metodologia", "mesures", "proposta educativa"];
-    let startIndex = -1;
-
-    for (const kw of startKeywords) {
-        const idx = lowerText.indexOf(kw);
-        if (idx !== -1) {
-            startIndex = idx;
-            break;
-        }
-    }
-
-    if (startIndex !== -1) {
-        // Capture ~3000 chars after the keyword (enough for the section)
-        // Use rawText (preserve case)
-        context = rawText.substring(startIndex, startIndex + 3500);
-        console.log(`✅ [SmartParser] Found section at index ${startIndex}. Cropping text...`);
-    } else {
-        // Fallback: If no section found, look at the middle of the document
-        console.warn("⚠️ [SmartParser] Section 'Adaptacions' not found. Using middle chunk.");
-        const mid = Math.floor(rawText.length / 3);
-        context = rawText.substring(mid, mid + 3500);
-    }
+    // C. NO CROP (Full Context Strategy)
+    // We pass the full text to the AI to ensure we don't miss Diagnostic (Sec 2) or Evaluation (Sec 4)
+    // The AI model (Llama 3.2) has enough context window (8k+) for typical PI documents.
+    const context = rawText;
 
     return {
         metadata,
