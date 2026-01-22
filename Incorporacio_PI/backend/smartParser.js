@@ -57,7 +57,13 @@ async function parseFile(filePath, originalFileName = '') {
         return null;
     }
 
-    const buffer = fs.readFileSync(filePath);
+    let buffer;
+    try {
+        buffer = fs.readFileSync(filePath);
+    } catch (e) {
+        console.warn(`⚠️ [SmartParser] Could not read file (deleted during process?): ${filePath}`);
+        return null;
+    }
     console.log(`📂 [SmartParser] Reading file: ${filePath} (Size: ${buffer.length} bytes)`);
 
     if (buffer.length === 0) {

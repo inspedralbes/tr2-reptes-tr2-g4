@@ -247,7 +247,20 @@ const checkStatus = async () => {
           currentStatus.value = `Processant... (Temps: ${elapsedStr})`;
         } else {
           if (estado === 'A LA CUA') {
-             currentStatus.value = `En cua d'espera... (Temps: ${elapsedStr})`;
+             // Consultar posició a la cua per donar feedback real
+             try {
+                 const qRes = await fetch('http://localhost:4002/api/queue-status');
+                 if (qRes.ok) {
+                     const qData = await qRes.json();
+                     const index = qData.queue.indexOf(filename);
+                     const cuaMsg = index >= 0 ? `(${index} davant)` : '';
+                     currentStatus.value = `En cua d'espera ${cuaMsg}... (Temps: ${elapsedStr})`;
+                 } else {
+                     currentStatus.value = `En cua d'espera... (Temps: ${elapsedStr})`;
+                 }
+             } catch (e) {
+                 currentStatus.value = `En cua d'espera... (Temps: ${elapsedStr})`;
+             }
           }
           else if (estado === 'LLEGINT...') {
              currentStatus.value = `Llegint document... (Temps: ${elapsedStr})`;

@@ -36,7 +36,7 @@ async function extractPIdata(filesInput) {
     }
 
     if (!aggregatedContext) {
-        throw new Error("No extracted text available from any file.");
+        throw new Error("ABORT_JOB: No content to process.");
     }
 
     // 2. CONSTRUCT PROMPT (MULTI-JOB AWARE)
