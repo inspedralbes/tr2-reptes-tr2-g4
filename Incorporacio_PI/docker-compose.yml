@@ -25,7 +25,7 @@ services:
     build: ./backend
     container_name: pi_backend
     ports:
-      - "4000:4000"
+      - "4002:4000"
       - "4001:4001"
     volumes:
       - ./backend:/app
