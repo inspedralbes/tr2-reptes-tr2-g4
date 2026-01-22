@@ -1,73 +1,43 @@
 <template>
   <v-container class="fill-height d-flex align-center justify-center">
-    
-    <EmailForm
-      v-if="step === 'email'"
-      :loading="isLoading"
-      @submitted="handleEmailSubmit"
-    />
-
-    <CodeForm
-      v-else
-      :loading="isLoading"
-      @verified="handleCodeVerification"
-    />
-
+    <v-card class="pa-8 text-center" elevation="8" rounded="xl" max-width="400">
+      <v-avatar color="primary" size="80" class="mb-4">
+        <v-icon icon="mdi-account-key" size="40" color="white"></v-icon>
+      </v-avatar>
+      <h2 class="text-h5 font-weight-bold mb-2">Accés Directe</h2>
+      <p class="text-body-2 text-grey mb-6">
+        Entra directament a la gestió d'alumnes (Mode Sense Autenticació).
+      </p>
+      <v-btn
+        block
+        color="primary"
+        size="large"
+        rounded="pill"
+        @click="handleDirectLogin"
+        :loading="isLoading"
+      >
+        Entrar a la Plataforma
+      </v-btn>
+    </v-card>
   </v-container>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import EmailForm from '@/components/EmailForm.vue';
-import CodeForm from '@/components/CodeForm.vue';
-import { sendVerificationCode, verifyCode } from '@/services/authService';
 
 const router = useRouter();
-const step = ref('email');
-const email = ref('');
-const isLoading = ref(false); // Esta variable es la clave
+const isLoading = ref(false);
 
-const handleEmailSubmit = async (value) => {
+const handleDirectLogin = () => {
   isLoading.value = true;
-  try {
-    await sendVerificationCode(value);
-    email.value = value;
-    step.value = 'code';
-  } catch (error) {
-    console.error(error);
-    alert('Error enviant el codi.');
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const handleCodeVerification = async (code) => {
-  // 1. Bloquem el botó perquè no es pugui fer doble clic
-  isLoading.value = true; 
+  // Simulem un login guardant un token fictici per passar el router guard
+  localStorage.setItem('token', 'bypass-token-mongodb-atlas');
+  localStorage.setItem('userEmail', 'admin@centre.cat');
   
-  try {
-    // 2. Fem la petició al servidor
-    const response = await verifyCode(email.value, code); 
-    console.log('Login correcte! Resposta:', response);
-    
-    // 3. IMPORTANT: Guardem el token i l'usuari al navegador
-    // Si no fem això, el router ens farà fora al intentar entrar a "/"
-    if (response.token) {
-        localStorage.setItem('token', response.token);
-    }
-    localStorage.setItem('userEmail', email.value);
-
-    // 4. Ara sí, redirigim a la Home (Dashboard)
-    router.push('/dashboard'); // Antes era '/'
-    
-  } catch (error) {
-    console.error("Error al login:", error);
-    alert('Codi incorrecte o expirat.');
-    
-    // Només desbloquem el botó si ha fallat. 
-    // Si ha anat bé, deixem que giri fins que canviï de pàgina.
-    isLoading.value = false;
-  }
+  // Redirigim directament a la llista d'alumnes
+  setTimeout(() => {
+    router.push('/alumnos');
+  }, 500);
 };
 </script>

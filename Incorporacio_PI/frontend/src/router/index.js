@@ -83,7 +83,7 @@ router.beforeEach((to, from, next) => {
   if (necesitaAuth && !isAuthenticated) {
     next('/login')
   } else if ((to.path === '/login' || to.path === '/') && isAuthenticated) {
-    next('/dashboard')
+    next('/alumnos')
   } else {
     next()
   }

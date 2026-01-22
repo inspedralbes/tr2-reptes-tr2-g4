@@ -57,7 +57,7 @@ onMounted(() => {
 const handleNavigation = () => {
   loading.value = true;
   if (hasToken.value) {
-    router.push('/dashboard');
+    router.push('/alumnos');
   } else {
     router.push('/login');
   }
