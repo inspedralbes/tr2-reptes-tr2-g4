@@ -41,7 +41,7 @@ async function startWorker() {
                 const { jobId, filePath, originalFileName, userId } = jobData;
                 console.log(`⚙️ Procesando trabajo ${jobId} para el archivo: ${originalFileName}`);
 
-                // 1. FETCH ALL JOBS FOR THIS STUDENT (Historical Context)
+                // 1. FETCH ALL FILES FOR THIS STUDENT (Historical Context)
                 let allStudentJobs = [];
                 try {
                     allStudentJobs = await db.collection('jobs')

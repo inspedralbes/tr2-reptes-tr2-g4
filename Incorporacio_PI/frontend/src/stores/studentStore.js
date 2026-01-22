@@ -15,7 +15,7 @@ export const useStudentStore = defineStore('student', {
 
     // Acción A: Fetch Students
     async fetchStudents() {
-      const response = await fetch(`http://localhost:4000/api/students?_t=${Date.now()}`);
+      const response = await fetch(`http://localhost:4001/api/students?_t=${Date.now()}`);
 
       if (!response.ok) {
         console.error("Error del servidor:", response.status);
@@ -29,7 +29,7 @@ export const useStudentStore = defineStore('student', {
     // Acción B: Fetch Logs
     async fetchLogs() {
       try {
-        const response = await fetch('http://localhost:4000/api/logs');
+        const response = await fetch('http://localhost:4001/api/logs');
         this.logs = await response.json();
       } catch (e) {
         this.error = "Error carregant els logs";
@@ -47,7 +47,7 @@ export const useStudentStore = defineStore('student', {
         formData.append('userEmail', userEmail);
         formData.append('documento_pi', file);
 
-        const response = await fetch('http://localhost:4000/api/upload', {
+        const response = await fetch('http://localhost:4001/api/upload', {
           method: 'POST',
           body: formData,
         });
@@ -74,7 +74,7 @@ export const useStudentStore = defineStore('student', {
         const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
         // 2. Fem la petició
-        const response = await fetch(`http://localhost:4000/api/students/${studentHash}/files/${filename}`, {
+        const response = await fetch(`http://localhost:4001/api/students/${studentHash}/files/${filename}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json' // Important per poder enviar el body

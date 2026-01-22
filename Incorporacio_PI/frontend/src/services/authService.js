@@ -1,8 +1,8 @@
 // services/authService.js
 import axios from 'axios';
 
-// CAMBIO: Apuntamos al puerto 3001
-const API_URL = 'http://localhost:3001/api'; 
+// CAMBIO: Apuntamos al puerto 4001 (Host Port)
+const API_URL = 'http://localhost:4001/api';
 
 export const sendVerificationCode = async (email) => {
   const response = await axios.post(`${API_URL}/login/send-code`, { email });
