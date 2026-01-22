@@ -1,326 +1,257 @@
-const OpenAI = require("openai");
-
-// Configuració del client per a OLLAMA
-const openai = new OpenAI({
-    baseURL: "http://pi_llm:11434/v1", // Port d'Ollama
-    apiKey: "ollama",  // Ollama requereix una string qualsevol
-    timeout: 60 * 60 * 1000, // 1 hora timeout
-});
-
-const MODEL_NAME = "pimodel"; // Nom intern que donarem al teu model dins d'Ollama
-
 const fs = require('fs');
 const path = require('path');
 
+// CONFIGURACIÓ OLLAMA NATIVA
+const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://pi_llm:11434";
+const MODEL_NAME = "llama3.2:1b";
+
 /**
  * Funció robusta per inicialitzar la IA.
- * Manté el contenidor viu (no crash) mentre intenta connectar i configurar Ollama.
  */
 async function initializeAI() {
     const modelFileName = "Llama-3.2-3B-Instruct-Q4_K_M.gguf";
-    // PATHS:
-    // internalPath: On ho veiem nosaltres (Backend Node)
-    // ollamaPath: On ho veu Ollama (Volum Docker muntat a /models)
     const internalPath = `/app/models/${modelFileName}`;
     const ollamaPath = `/models/${modelFileName}`;
-    const ollamaHost = "http://pi_llm:11434";
 
     console.log("🚀 [aiService] INICIANT SISTEMA D'INTEL·LIGÈNCIA ARTIFICIAL...");
 
-    // 1. VERIFICACIÓ DE FITXER
+    // Modificació: Saltem comprovació de fitxer local perquè usem model de llibreria (1B)
+    /*
     if (!fs.existsSync(internalPath)) {
         console.error(`❌ [aiService] ERROR FATAL: No es troba el fitxer .gguf a: ${internalPath}`);
-        console.error("   Assegura't que l'has posat a tr2-reptes-tr2-g4/Incorporacio_PI/backend/models/");
-        // En aquest cas no podem fer res, però no fem crash del tot per deixar el servidor web actiu (upload files)
         return false;
     }
+    */
 
-    // BUCLE INFINIT DE CONNEXIÓ (El que demana l'usuari: "que no reinicie, que ho intenti")
+    // BUCLE INFINIT DE CONNEXIÓ
     while (true) {
         try {
             // A. PING OLLAMA
-            // Intentem veure si Ollama està despert
             try {
-                const health = await fetch(`${ollamaHost}/api/tags`);
+                const health = await fetch(`${OLLAMA_HOST}/api/tags`);
                 if (!health.ok) throw new Error(`Ollama status ${health.status}`);
             } catch (netErr) {
                 console.warn("⏳ [aiService] Esperant a Ollama (pi_llm)...");
                 await new Promise(r => setTimeout(r, 3000));
-                continue; // Tornem a l'inici del bucle
+                continue;
             }
 
             console.log("✅ [aiService] Ollama connectat!");
 
-            // NOU: Verificar versió per debug
-            try {
-                const verRes = await fetch(`${ollamaHost}/api/version`);
-                const verData = await verRes.json();
-                console.log(`ℹ️ [aiService] Versió Ollama: ${verData.version}`);
-            } catch (ignore) { }
-
-            // B. CHECK/CREATE MODEL
-            // Comprovem si el model ja existeix
-            const tagsRes = await fetch(`${ollamaHost}/api/tags`);
+            // B. CHECK/PULL MODEL
+            const tagsRes = await fetch(`${OLLAMA_HOST}/api/tags`);
             const tagsData = await tagsRes.json();
             const exists = tagsData.models?.some(m => m.name === MODEL_NAME || m.name === `${MODEL_NAME}:latest`);
 
             if (exists) {
                 console.log(`✅ [aiService] El model '${MODEL_NAME}' JA ESTÀ CARREGAT.`);
-                break; // Sortim del bucle, tot correcte!
+                break;
             }
 
-            // Si no existeix, el creem
-            console.log(`⚙️ [aiService] EL MODEL NO EXISTEIX. CREANT-LO ARA...`);
-            console.log(`   -> Font: ${ollamaPath}`);
-            console.log("   -> Això pot trigar uns minuts (llegint 2GB+)... NO APAGUIS.");
+            console.log(`⚙️ [aiService] EL MODEL NO EXISTEIX. DESCARREGANT '${MODEL_NAME}'...`);
 
-            // PROVEM AMB 'from' DIRECTAMENT (Segons error "neither from or files specified")
-            const payload = {
-                name: MODEL_NAME,
-                modelfile: `FROM ${ollamaPath}`, // Mantenim per si de cas
-                from: ollamaPath,                // AFEGIT: La clau que demana error
-                stream: false
-            };
-
-            console.log("   -> Payload:", JSON.stringify(payload));
-
-            const createRes = await fetch(`${ollamaHost}/api/create`, {
+            // USE PULL INSTEAD OF CREATE
+            const pullRes = await fetch(`${OLLAMA_HOST}/api/pull`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ name: MODEL_NAME, stream: false })
             });
 
-            if (!createRes.ok) {
-                const errText = await createRes.text();
-                console.error(`⚠️ [aiService] Error creant model (${createRes.status}): ${errText}`);
-                console.log("   -> Reintentant en 5 segons...");
-                await new Promise(r => setTimeout(r, 5000));
-                continue;
+            if (!pullRes.ok) {
+                const errText = await pullRes.text();
+                throw new Error(`Error pull model: ${pullRes.status} - ${errText}`);
             }
 
-            console.log(`🎉 [aiService] MODEL '${MODEL_NAME}' CREAT AMB ÈXIT!`);
-            break; // Èxit total
+            console.log("✅ [aiService] MODEL DESCARREGAT CORRECTAMENT.");
+            break;
 
         } catch (error) {
-            console.error(`❌ [aiService] Error inesperat en la inicialització: ${error.message}`);
+            console.error("❌ [aiService] Error inicialització:", error.message);
             await new Promise(r => setTimeout(r, 5000));
         }
     }
 
-    // C. WARM UP (Opcional)
+    // C. WARM UP
     console.log("🔥 [aiService] Escalfant motor d'inferència...");
     try {
-        await openai.chat.completions.create({
-            model: MODEL_NAME,
-            messages: [{ role: "user", content: "hi" }],
-            max_tokens: 1
+        await fetch(`${OLLAMA_HOST}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: MODEL_NAME,
+                prompt: "hi",
+                keep_alive: -1,
+                stream: false
+            })
         });
-        console.log("🟢 [aiService] SISTEMA LLEST I OPERATIU.");
+        console.log("🟢 [aiService] SISTEMA LLEST I OPERATIU. Model carregat en RAM.");
     } catch (e) {
-        console.warn("⚠️ [aiService] Warm-up sense resposta (normal si està carregant lazy): " + e.message);
+        console.warn("⚠️ [aiService] Warm-up sense resposta: " + e.message);
     }
 
     return true;
 }
 
-// Mantenim compatibilitat amb server.js
 const checkConnection = initializeAI;
-
 
 /**
  * Genera un resum utilitzant IA LOCAL (sense streaming HTTP directe).
- * Retorna el text complet quan acaba.
- * @param {string} role - 'docent' o 'orientador'
- * @param {function} onProgress - Callback opcional (textParcial, percentatge)
+ * NADIU OLLAMA (Comportament del competidor)
  */
-async function generateSummaryLocal(text, role, onProgress) {
+async function generateSummaryLocal(smartData, role) {
+    let context = "";
+    let metadata = {};
 
-    // OPTIMITZACIÓ EXTREMA: Neteja de "soroll"
-    let cleanText = text
-        .replace(/Copèrnic, 84 08006 Barcelona/g, '')
-        .replace(/telèfon: 93 200 49 13/g, '')
-        .replace(/fax: 93 414 04 34/g, '')
-        .replace(/institutmontserrat@xtec.cat/g, '')
-        .replace(/www.institutmontserrat.cat/g, '')
-        .replace(/Pla individualitzat: xxxx xxx xxx/g, '')
-        .replace(/Sí No/g, '') // Eliminar capçaleres de taula
-        .replace(/Adaptacions que es proposen/g, '')
-        .replace(/\n\s*\n/g, '\n');
-
-    const limit = role === 'global' ? 6000 : 3500;
-    const MAX_CHARS = limit;
-    const truncatedText = cleanText.length > MAX_CHARS ? cleanText.substring(0, MAX_CHARS) + "..." : cleanText;
-
-    let systemPrompt = "Ets un expert en educació. La teva tasca és extreure informació i formatar-la.";
-    let userPrompt = "";
-
-    if (role === 'orientador') {
-        userPrompt = `Analitza el següent text d'un Pla Individualitzat (PI) i genera un resum estructurat.
-        
-        <TEXT_PI>
-        ${truncatedText}
-        </TEXT_PI>
-
-        INSTRUCCIONS DE FORMAT (SEGUEIX-LES AL PEU DE LA LLETRA):
-        
-        Vull que generis EXACTAMENT aquestes 5 seccions. No inventis res. Si no trobes informació, digues "No especificat".
-
-        1. PERFIL DE L'ALUMNE
-        (Escriu un paràgraf breu de 2-3 línies sobre el curs i problemes generals. NO facis llistes.)
-
-        2. DIAGNÒSTIC
-        (Escriu un paràgraf breu de 2-3 línies amb el diagnòstic concret. NO facis llistes.)
-
-        3. JUSTIFICACIÓ DEL PI
-        (Breu explicació textual.)
-
-        4. ORIENTACIÓ A L'AULA
-        (Fes una llista amb guions '-' de pautes per al professor. Elimina les 'X' finals.)
-
-        5. MATÈRIES
-        (Si veus matèries específiques com Mates/Català amb 'X', llista-les: "- Matèria: Adaptació". Si només hi ha adaptacions generals, escriu un paràgraf explicatiu.)
-
-        IMPORTANT: Comença directament amb "1. PERFIL DE L'ALUMNE".`;
-
+    // Detección de tipo de entrada (Objeto SmartParser vs Texto plano legacy)
+    if (typeof smartData === 'string') {
+        context = smartData;
+    } else if (smartData && smartData.context) {
+        context = smartData.context;
+        metadata = smartData.metadata || {};
     } else {
-        // DOCENT
-        userPrompt = `Analitza el següent document (Pla Individualitzat) i extreu-ne les adaptacions.
-        
-        <TEXT_PI>
-        ${truncatedText}
-        </TEXT_PI>
-
-        INSTRUCCIONS DE GENERACIÓ (Imprescindible seguir l'estructura):
-
-        1. PERFIL DE L'ALUMNE
-        (Resum de 2-3 línies en forma de text seguit. Curs i dificultats globals.)
-
-        2. DIAGNÒSTIC
-        (Resum de 2-3 línies en forma de text seguit. Problema específic.)
-
-        3. ORIENTACIÓ A L'AULA
-        (Llista de punts amb guions '-'. Ex: "- Donar més temps". Neteja les 'X'.)
-
-        4. MATÈRIES
-        (ATENCIÓ: Busca a la taula. Si "Matemàtiques" té una 'X', posa: "- Matemàtiques: [Adaptació]". Si és "Totes les matèries", fes un paràgraf explicant-ho.)
-
-        5. CRITERIS D'AVALUACIÓ
-        (Llista o text segons el cas.)
-
-        RESPOSTA:`;
+        throw new Error("Format d'entrada invàlid per a la IA.");
     }
 
-    const messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-    ];
+    // Neteja bàsica final
+    let cleanContext = context.replace(/\n\s*\n/g, '\n').trim();
+    if (cleanContext.length > 4500) cleanContext = cleanContext.substring(0, 4500) + "...";
+
+    console.log(`🤖 [aiService] Generant resum per a: ${metadata.nom || 'Alumne'} (${cleanContext.length} chars enviats)`);
+
+    // SYSTEM PROMPT OPTIMITZAT (INJECTANT METADADA)
+    const SYSTEM_PROMPT = `
+Ets un assistent expert en educació inclusiva.
+DADES DE L'ALUMNE:
+- Nom: ${metadata.nom || "No detectat"}
+- Data Naixement: ${metadata.data || "No detectada"}
+- Curs: ${metadata.curs || "No detectat"}
+- Diagnòstic Previ: ${metadata.diagnostic || "No detectat"}
+
+TASCA:
+Analitza el text de la secció "Adaptacions" proporcionat i genera un resum JSON.
+Ignora capçaleres repetitives. Si el text conté adaptacions explícites, llista-les.
+
+FORMAT DE SORTIDA (JSON):
+{
+  "dadesAlumne": { "nomCognoms": "${metadata.nom || ''}", "dataNaixement": "${metadata.data || ''}", "curs": "${metadata.curs || ''}" },
+  "motiu": { "diagnostic": "${metadata.diagnostic || ''}" },
+  "adaptacionsGenerals": ["...llista neta d'adaptacions..."],
+  "orientacions": ["...llista de pautes orientatives..."]
+}
+`;
+
+    const prompt = `
+    ${SYSTEM_PROMPT}
+
+    CONTEXT (ADAPTACIONS / METODOLOGIA):
+    """${cleanContext}"""
+
+    GENERA EL JSON ARA.
+    `;
 
     try {
-        console.log(`🤖 [aiService] Enviant petició a IA Local...`);
-        const completion = await openai.chat.completions.create({
-            model: MODEL_NAME,
-            messages: messages,
-            temperature: 0.1,
-            max_tokens: 2000,
-            stream: true,
-            top_p: 0.9,
-            presence_penalty: 0.6,
-            frequency_penalty: 1.1
+        console.log(`🤖 [aiService] Enviant a Ollama (Mode Ràpid)...`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minuts (CPU lent)
+
+        const response = await fetch(`${OLLAMA_HOST}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: MODEL_NAME,
+                prompt: prompt,
+                stream: false,
+                keep_alive: "60m", // Mantenir en RAM 60 minuts
+                format: "json", // Forcem sortida JSON nativa d'Ollama
+                options: {
+                    temperature: 0.1,
+                    num_ctx: 2048,
+                    top_k: 20,
+                    top_p: 0.9
+                }
+            }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
-        console.log("🤖 [aiService] Connexió establerta amb LLM! Esperant el primer token (Fase de Lectura/Pre-fill)...");
+        if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
 
-        let fullText = "";
-        // Seccions esperades per calcular el progrés (aprox 20% per secció)
-        // MODIFICAT: Keywords actualitzades segons els nous prompts (Docent/Orientador)
-        const sections = ["PERFIL", "DADES", "DIAGNÒSTIC", "ORIENTACIÓ", "ADAPTACIONS", "MATÈRIES", "ASSIGNATURES", "CRITERIS", "JUSTIFICACIÓ"];
-        let isFirst = true;
-        let chunkCount = 0;
+        const data = await response.json();
+        const fullText = data.response;
 
-        for await (const chunk of completion) {
-            // FASE 2: ESCRIPTURA (Reset a 0% -> 100%)
-            if (isFirst) {
-                console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
-                isFirst = false;
-                currentProgress = 0; // Reiniciem la barra per a la fase d'escriptura
+        console.log(`🤖 [IA Local] Resposta REBUDA (${fullText.length} chars).`);
+
+        // 1. INTENTAR NETEJAR MARKDOWN
+        let jsonStr = fullText.replace(/```json\s*|\s*```/g, "").trim();
+
+        // 2. INTENTAR PARSEJAR
+        try {
+            return JSON.parse(jsonStr);
+        } catch (parseErr) {
+            console.warn("⚠️ JSON invàlid. Intentant recuperar...", parseErr.message);
+
+            // Intent d'extracció de JSON entre claus
+            const start = fullText.indexOf('{');
+            const end = fullText.lastIndexOf('}');
+
+            if (start !== -1 && end !== -1) {
+                try {
+                    return JSON.parse(fullText.substring(start, end + 1));
+                } catch (e) {
+                    console.warn("⚠️ Fallada segon intent parseig. Retornant text cru.");
+                }
             }
 
-            chunkCount++;
-            const content = chunk.choices[0]?.delta?.content || "";
-
-            // Log de "batec" cada 10 chunks per veure que està viu a la terminal (Més freqüent)
-            if (chunkCount % 10 === 0) {
-                console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
-            }
-
-            fullText += content;
-
-            if (onProgress) {
-                // Càlcul simple de progrés: Quantes seccions hem trobat ja?
-                let foundCount = 0;
-                sections.forEach(s => {
-                    if (fullText.includes(s)) foundCount++;
-                });
-
-                // Càlcul de progrés d'escriptura (0 a 100)
-                // MODIFICAT: Ajustem a 2000 tokens (resum complet)
-                // (chunkCount / 20) -> 2000 tokens = 100%
-                const chunkProgress = (chunkCount / 20);
-                const sectionProgress = foundCount * 5; // Més pes a les seccions per compensar
-
-                let writeProgress = chunkProgress + sectionProgress;
-
-                // Enviem text ple -> Servidor marca "GENERANT..."
-                // AWAIT IMPORTANT: Esperem que s'actualitzi la BD abans de continuar per evitar race conditions al final
-                await onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
-            }
+            // Fallback FINAL i DEFINITIU: Si tot falla, retornem el text estructurat
+            // perquè el frontend el pugui pintar sense errors.
+            return {
+                dadesAlumne: { "nomCognoms": "No dectectat", "dataNaixement": "-", "curs": "-" },
+                motiu: { diagnostic: "RESUM FORMAT TEXT (Vegis orientacions)" },
+                adaptacionsGenerals: [],
+                orientacions: [fullText] // Tot el text es mostra aquí
+            };
         }
 
-        console.log(`🤖 [IA Local] Generació finalitzada amb èxit. Longitud: ${fullText.length} caràcters.`);
-        return fullText;
     } catch (error) {
         console.error("❌ Error IA Local:", error);
-        throw new Error("Error connectant amb el contenidor d'IA Local.");
+        return {
+            error: "Error processant la resposta de la IA.",
+            raw: error.message
+        };
     }
 }
 
 /**
  * Xat ràpid amb el document.
- * @param {string} text - Text del document
- * @param {string} question - Pregunta de l'usuari
  */
 async function chatWithDocument(text, question) {
-    // OPTIMITZACIÓ EXTREMA: 1200 chars per velocitat màxima al xat
     const MAX_CHARS = 1200;
     const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
-    const messages = [
-        {
-            role: "system",
-            content: `Ets un motor de cerca semàntic.
-            TASCA: Interpretar què vol l'usuari i trobar la frase LITERAL del text que ho respon, encara que no faci servir les mateixes paraules.
-            
-            EXEMPLES:
-            - "comportament" -> Busca frases sobre "conducta", "actitud", "normes".
-            - "què té?" -> Busca "diagnòstic", "trastorn", "dificultats".
-            
-            RESPOSTA: Retorna NOMÉS el fragment de text exacte del document. Si no ho trobes, digues NO_TROBAT.`
-        },
-        {
-            role: "user",
-            content: `DOCUMENT:\n"${truncatedText}"\n\nPREGUNTA: "${question}"\n\nRESPOSTA LITERAL DEL DOCUMENT:`
-        }
-    ];
+    const prompt = `
+    Ets un cercador.
+    DOCUMENT: "${truncatedText}"
+    PREGUNTA: "${question}"
+    RESPOSTA LITERAL O NO_TROBAT:
+    `;
 
     try {
-        const completion = await openai.chat.completions.create({
-            model: MODEL_NAME,
-            messages: messages,
-            temperature: 0.0, // Determinista (sempre la mateixa resposta)
-            max_tokens: 60, // Molt curt (només volem la frase)
-            stream: false
+        const response = await fetch(`${OLLAMA_HOST}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: MODEL_NAME,
+                prompt: prompt,
+                stream: false,
+                options: {
+                    temperature: 0.0,
+                    num_ctx: 2048
+                }
+            })
         });
-        return completion.choices[0].message.content;
+        const data = await response.json();
+        return data.response;
     } catch (error) {
         console.error("❌ Error Chat IA:", error);
         throw new Error("Error connectant amb la IA.");

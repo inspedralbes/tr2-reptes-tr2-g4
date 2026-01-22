@@ -55,8 +55,8 @@
                             </v-chip>
 
                             <div style="width: 250px">
-                                <v-file-input label="Pujar PI (PDF)" variant="outlined" density="compact"
-                                    accept=".pdf" prepend-icon="mdi-cloud-upload" hide-details
+                                <v-file-input label="Pujar PI" variant="outlined" density="compact"
+                                    accept=".pdf,.docx,.odt" prepend-icon="mdi-cloud-upload" hide-details
                                     @update:model-value="(files) => handleUpload(files, student.hash_id)"></v-file-input>
                             </div>
                         </template>
@@ -112,8 +112,18 @@ const handleUpload = async (files, hashId) => {
     const file = Array.isArray(files) ? files[0] : files;
 
     if (file) {
-        if (file.type !== 'application/pdf') {
-            studentStore.error = "Només s'accepten fitxers PDF!";
+        const validTypes = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+            'application/vnd.oasis.opendocument.text' // ODT
+        ];
+
+        // Hack per a sistemes on ODT no té mime type detectat correctament o és genèric
+        const isODT = file.name.endsWith('.odt');
+        const isWord = file.name.endsWith('.docx') || file.name.endsWith('.doc');
+
+        if (!validTypes.includes(file.type) && !isODT && !isWord) {
+            studentStore.error = "Només s'accepten fitxers PDF, Word (.docx) i ODT!";
             showError.value = true;
             return;
         }

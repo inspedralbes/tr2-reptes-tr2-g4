@@ -11,29 +11,29 @@ export const useStudentStore = defineStore('student', {
   }),
 
   // 2. ACTIONS
-  actions: { 
-    
+  actions: {
+
     // Acción A: Fetch Students
     async fetchStudents() {
-        const response = await fetch(`http://localhost:3001/api/students?_t=${Date.now()}`); 
-        
-        if (!response.ok) {
-            console.error("Error del servidor:", response.status);
-            throw new Error('Server error');
-        }
+      const response = await fetch(`http://localhost:4000/api/students?_t=${Date.now()}`);
 
-        const data = await response.json();
-        this.students = data;
-    }, 
+      if (!response.ok) {
+        console.error("Error del servidor:", response.status);
+        throw new Error('Server error');
+      }
+
+      const data = await response.json();
+      this.students = data;
+    },
 
     // Acción B: Fetch Logs
     async fetchLogs() {
-        try {
-            const response = await fetch('http://localhost:3001/api/logs');
-            this.logs = await response.json();
-        } catch (e) {
-            this.error = "Error carregant els logs";
-        }
+      try {
+        const response = await fetch('http://localhost:4000/api/logs');
+        this.logs = await response.json();
+      } catch (e) {
+        this.error = "Error carregant els logs";
+      }
     },
 
     // Acción C: Upload
@@ -44,14 +44,14 @@ export const useStudentStore = defineStore('student', {
         const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
         formData.append('studentHash', studentHash);
-        formData.append('userEmail', userEmail); 
-        formData.append('documento_pi', file); 
+        formData.append('userEmail', userEmail);
+        formData.append('documento_pi', file);
 
-        const response = await fetch('http://localhost:3001/api/upload', {
+        const response = await fetch('http://localhost:4000/api/upload', {
           method: 'POST',
-          body: formData, 
+          body: formData,
         });
-        
+
         const result = await response.json();
         if (result.success) {
           await this.fetchStudents();
@@ -74,7 +74,7 @@ export const useStudentStore = defineStore('student', {
         const userEmail = localStorage.getItem('userEmail') || 'desconegut';
 
         // 2. Fem la petició
-        const response = await fetch(`http://localhost:3001/api/students/${studentHash}/files/${filename}`, {
+        const response = await fetch(`http://localhost:4000/api/students/${studentHash}/files/${filename}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json' // Important per poder enviar el body

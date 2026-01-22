@@ -1,23 +1,21 @@
-# Usamos una versión ligera de Node
-FROM node:22-alpine
+# Usar una imagen base de Node.js
+FROM node:20
 
-# Creamos la carpeta de trabajo dentro del contenedor
+# Establecer el directorio de trabajo en el contenedor
 WORKDIR /app
 
-# Copiamos primero los archivos de dependencias (para aprovechar la caché de Docker)
+# Copiar el package.json y package-lock.json para instalar dependencias
+# Se copia por separado para aprovechar el cache de Docker
 COPY package*.json ./
 
-# Instalamos las dependencias
+# Instalar las dependencias del proyecto
 RUN npm install
 
-# Copiamos el resto del código
+# Copiar el resto de los archivos de la aplicación
 COPY . .
 
-# Creamos la carpeta de uploads por si no existe
-RUN mkdir -p uploads
+# Exponer el puerto en el que correrá el backend
+EXPOSE 4000
 
-# Exponemos el puerto 3001 (que configuramos antes)
-EXPOSE 3001
-
-# Comando para iniciar el servidor
-CMD ["node", "server.js"]
+# Comando para iniciar la aplicación
+CMD ["npm", "start"]

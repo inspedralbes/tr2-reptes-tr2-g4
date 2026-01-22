@@ -1,65 +1,115 @@
 services:
-  # --- SERVICIO BACKEND ---
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: pi_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/
+    networks:
+      - app-network
+    environment:
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=1234
+      - RABBITMQ_ERLANG_COOKIE=secret_cookie_12345 # Fix for permission issues
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "check_running" ]
+      interval: 15s
+      timeout: 15s
+      retries: 20
+      start_period: 300s
+
   backend:
     build: ./backend
     container_name: pi_backend
     ports:
-      - "3001:3001" # Mapeamos puerto 3001 del PC al 3001 del contenedor
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+      - "4000:4000"
+      - "4001:4001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     env_file:
       - ./backend/.env
-    environment:
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-    volumes:
-      - ./backend:/app # Hot Reload: Lo que edites en tu PC se ve en Docker
-      - ./backend/uploads:/app/uploads # Persistencia: Las fotos no se borran al apagar
-      - /app/node_modules # Evita que tu node_modules local machaque el de linux
+    command: npm start
+    networks:
+      - app-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
-  # --- SERVICIO FRONTEND ---
+  worker:
+    build: ./backend
+    container_name: pi_worker
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    env_file:
+      - ./backend/.env
+    command: node worker.js
+    networks:
+      - app-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
   frontend:
     build: ./frontend
     container_name: pi_frontend
     ports:
-      - "3000:3000" 
+      - "3000:3000"
     volumes:
-      - ./frontend:/app # Hot Reload para Vue
+      - ./frontend:/app
       - /app/node_modules
-    environment:
-      - CHOKIDAR_USEPOLLING=true # Necesario a veces en Windows/Docker para que detecte cambios
     depends_on:
-      - backend # Espera a que el backend arranque un poco
+      - backend
+    command: npm run dev -- --host --port 3000
+    networks:
+      - app-network
 
-  # --- SERVEI RABBITMQ (Cua de missatges) ---
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: pi_rabbitmq
-    ports:
-      - "5672:5672"   # Port comunicació
-      - "15672:15672" # Panell de control web (usuari: guest / guest)
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    volumes:
-      - ./backend/rabbitmq_data:/var/lib/rabbitmq # Persistència de la cua
-
-  # --- SERVEI IA LOCAL (Llama.cpp Server) ---
-  llm:
+  ollama:
     image: ollama/ollama:latest
     container_name: pi_llm
-    volumes:
-      - ./backend/models:/models # Mapegem la carpeta on has posat el fitxer .gguf
-      - ./backend/ollama_data:/root/.ollama # Persistència d'Ollama
     ports:
       - "11434:11434"
-    # --- CONFIGURACIÓ GPU (Descomentar si tens NVIDIA) ---
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    volumes:
+      - ${PATH_DADES:-./ollama_storage}:/root/.ollama
+      - ./backend/models:/root/.ollama/models
+    networks:
+      - app-network
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-llama3.2:1b}
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - |
+        ollama serve &
+        echo "Esperant que el servidor Ollama estigui actiu..."
+        until ollama list > /dev/null 2>&1; do
+          sleep 2
+        done
+        if ollama list | grep -q "$${MODEL_NAME}"; then
+          echo "El model $${MODEL_NAME} ja està preparat."
+        else
+          echo "Model $${MODEL_NAME} no trobat. Iniciant descàrrega..."
+          until ollama pull $${MODEL_NAME}; do
+            echo "Error en la descàrrega. Reintentant..."
+            sleep 5
+          done
+        fi
+        wait
+    healthcheck:
+      test: [ "CMD-SHELL", "ollama list | grep -q \"$${MODEL_NAME}\"" ]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 600s
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:

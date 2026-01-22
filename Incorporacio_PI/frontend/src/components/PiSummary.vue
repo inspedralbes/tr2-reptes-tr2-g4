@@ -101,7 +101,7 @@
         </v-col>
 
         <!-- 3. Justificació del PI (Només Orientador) -->
-        <v-col cols="12" v-if="analysis.justificacio?.length">
+        <v-col cols="12" v-if="analysis.justificacio?.length && role !== 'docent'">
           <div class="d-flex align-center mb-2">
             <v-icon color="deep-orange-darken-2" class="mr-2">mdi-text-box-search-outline</v-icon>
             <h3 class="text-subtitle-1 font-weight-bold text-deep-orange-darken-2">Justificació del PI</h3>
@@ -166,7 +166,7 @@
         <v-col cols="12" v-if="analysis.adaptacions?.length">
           <div class="d-flex align-center mb-2">
             <v-icon color="green-darken-2" class="mr-2">mdi-hand-heart-outline</v-icon>
-            <h3 class="text-subtitle-1 font-weight-bold text-green-darken-2">{{ role === 'orientador' ? 'Matèries' : 'Assignatures' }}</h3>
+            <h3 class="text-subtitle-1 font-weight-bold text-green-darken-2">Assignatures</h3>
             <v-btn variant="text" icon="mdi-volume-high" size="small" color="green-darken-2" class="ml-2"
               @click="speak(analysis.adaptacions.join('. '))">
             </v-btn>
@@ -324,6 +324,7 @@ const cleanList = (list) => {
     .map(item => {
       // 1. Neteja caràcters de llista a l'inici (com +, -, *, •, etc.)
       // MODIFICAT: Ara elimina també els espais abans del símbol (ex: " * Text")
+      if (typeof item !== 'string') return null;
       let clean = item.replace(/^\s*[\/\*+\-•]+\s*/, '').trim();
       // 2. Si ha quedat un ** al final sense parella, el traiem
       if (clean.endsWith('**') && clean.indexOf('**') === clean.length - 2) {
