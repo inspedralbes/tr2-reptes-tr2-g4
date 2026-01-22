@@ -292,6 +292,11 @@ app.delete('/api/students/:id/files/:filename', async (req, res) => {
     res.json({ success: true });
 });
 
+// 7. CATCH-ALL 404 (Per evitar errors de CORS en rutes inexistents)
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found', path: req.path });
+});
+
 app.get('/', (req, res) => res.send('Backend Running'));
 
 app.listen(port, '0.0.0.0', () => console.log(`🚀 Server running on port ${port}`));
