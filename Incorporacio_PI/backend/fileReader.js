@@ -6,22 +6,20 @@ const pdf = require('pdf-parse-fork'); // Changed from 'pdf-parse'
  */
 async function extractTextFromPDF(buffer) {
     try {
-        // pdf-parse-fork works exactly like pdf-parse
         const data = await pdf(buffer);
         const fullText = data.text;
 
-        // Debug logs
         if (!fullText || fullText.trim().length < 10) {
-            console.log("⚠️ WARNING: PDF seems empty or is a scanned image.");
+            console.log("AVÍS: El PDF sembla buit o és una imatge escanejada.");
         } else {
-            console.log(`✅ PDF read successfully: ${fullText.length} characters extracted.`);
+            console.log(`PDF llegit correctament: ${fullText.length} caràcters extrets.`);
         }
 
         return fullText;
 
     } catch (error) {
-        console.error("❌ Error in fileReader:", error.message);
-        return ""; // Return empty string instead of crashing
+        console.error("Error in fileReader:", error.message);
+        return "";
     }
 }
 
