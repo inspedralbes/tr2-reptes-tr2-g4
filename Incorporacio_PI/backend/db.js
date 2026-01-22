@@ -3,51 +3,29 @@ require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
 const uri = process.env.MONGODB_URI;
+// Remove generic options that might cause issues, newer drivers are smart
 const client = new MongoClient(uri);
-let database = null;
 
-/**
-* Funció per connectar a MongoDB
-* Aquesta funció s'ha de cridar abans de fer qualsevol operació amb la BD
-* @returns {Promise<Db>}
-*/
+let database = null;
 
 async function connectDB() {
     try {
         await client.connect();
-        console.log(' Connectat a MongoDB Atlas');
-        database = client.db('projecte');
+        // Uses the database defined in the URI (Incorporacio_PI)
+        database = client.db();
+        console.log(`✅ MongoDB Connected to: ${database.databaseName}`);
         return database;
     } catch (error) {
-        console.error(' Error connectant a MongoDB:', error);
-        throw error;
+        console.error('❌ Error connecting to MongoDB:', error);
+        process.exit(1);
     }
 }
 
-/**
-* Funció per obtenir la base de dades
-* Retorna la referència a la BD si ja està connectada
-* @returns {Db}
-*/
 function getDB() {
     if (!database) {
-        throw new Error(' Base de dades no connectada! Crida connectDB() primer.');
+        throw new Error('Database not connected. Call connectDB() first.');
     }
     return database;
 }
 
-async function closeDB() {
-    try {
-        await client.close();
-        console.log(' Connexió tancada');
-    } catch (error) {
-        console.error(' Error tancant la connexió:', error);
-        throw error;
-    }
-}
-
-module.exports = {
-connectDB,
-getDB,
-closeDB
-};
+module.exports = { connectDB, getDB, client };

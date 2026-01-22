@@ -1,13 +1,12 @@
 require('dotenv').config();
 const amqp = require('amqplib');
-const mongoose = require('mongoose');
-const Job = require('./models/Job');
+const { connectDB, getDB } = require('./db');
+const { ObjectId } = require('mongodb');
 const { extractPIdata, warmupModel } = require('./extractor');
 const fs = require('fs');
 const path = require('path');
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://user:1234@rabbitmq:5672';
-const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 
 async function startWorker() {
     console.log('Worker Iniciado...');
@@ -16,9 +15,10 @@ async function startWorker() {
     await warmupModel();
 
     try {
-        if (!MONGO_URI) throw new Error("No Mongo URI provided in .env");
-        await mongoose.connect(MONGO_URI);
-        console.log('✅ Worker conectado a MongoDB (Atlas/External).');
+        await connectDB();
+        console.log('✅ Worker conectado a MongoDB.');
+
+        const db = getDB();
 
         let connection;
         while (!connection) {
@@ -44,31 +44,33 @@ async function startWorker() {
                 // 1. FETCH ALL JOBS FOR THIS STUDENT (Historical Context)
                 let allStudentJobs = [];
                 try {
-                    allStudentJobs = await Job.find({ userId: userId }).sort({ uploadedAt: 1 }); // Oldest first
+                    allStudentJobs = await db.collection('jobs')
+                        .find({ userId: userId })
+                        .sort({ uploadedAt: 1 }) // Oldest first
+                        .toArray();
                     console.log(`📚 Found ${allStudentJobs.length} historical documents for student ${userId}`);
                 } catch (e) {
                     console.error("Error fetching student history:", e);
-                    allStudentJobs = []; // Fallback to current job only if this fails (shouldn't happen)
+                    allStudentJobs = [];
                 }
-
-                // If for some reason the current job is not in the list (race condition?), add it manually
-                // But normally it should be there as we just saved it in server.js
 
                 let job;
                 try {
-                    job = await Job.findById(jobId);
+                    job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
+
                     if (!job) {
                         console.error(`❌ Job ${jobId} no encontrado en la base de datos.`);
                         channel.ack(msg);
                         return;
                     }
 
-                    // Mark CURRENT job as processing (others are ostensibly already processed or don't matter state-wise for this trigger)
-                    job.status = 'processing';
-                    await job.save();
+                    // Mark CURRENT job as processing
+                    await db.collection('jobs').updateOne(
+                        { _id: new ObjectId(jobId) },
+                        { $set: { status: 'processing' } }
+                    );
 
                     // Prepare file list for Extractor
-                    // We want to pass: [{ path: ..., name: ..., date: ... }]
                     const filesToAnalyze = allStudentJobs.map(j => ({
                         path: j.filePath,
                         name: j.filename,
@@ -76,7 +78,8 @@ async function startWorker() {
                         id: j._id
                     }));
 
-                    // If list is empty (shouldn't be), add current
+                    // If list is empty (shouldn't happen as we inserted it), add current manually if needed
+                    // But since we query DB, it should include self.
                     if (filesToAnalyze.length === 0) {
                         filesToAnalyze.push({ path: filePath, name: originalFileName, date: new Date(), id: jobId });
                     }
@@ -86,19 +89,19 @@ async function startWorker() {
                     const extractedData = await extractPIdata(filesToAnalyze);
                     console.log(`✅ Extracción de datos completada.`);
 
-                    job.status = 'completed';
-                    job.result = extractedData;
-                    job.processedAt = new Date();
-                    await job.save();
+                    // Update Job with Result
+                    await db.collection('jobs').updateOne(
+                        { _id: new ObjectId(jobId) },
+                        {
+                            $set: {
+                                status: 'completed',
+                                result: extractedData,
+                                processedAt: new Date()
+                            }
+                        }
+                    );
 
                     console.log(`⭐ Trabajo ${jobId} completado.`);
-
-                    // DO NOT DELETE FILE TO ALLOW REGENERATION / RAW TEXT VIEW
-                    /*
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                    */
 
                     const notification = {
                         jobId,
@@ -125,12 +128,16 @@ async function startWorker() {
                     channel.sendToQueue('job_notification_queue', Buffer.from(JSON.stringify(notification)), { persistent: true });
 
                     if (job) {
-                        job.status = 'failed';
-                        job.error = error.message; // Save error message
-                        await job.save();
+                        await db.collection('jobs').updateOne(
+                            { _id: new ObjectId(jobId) },
+                            {
+                                $set: {
+                                    status: 'failed',
+                                    error: error.message
+                                }
+                            }
+                        );
                     }
-                    // DO NOT DELETE FILE ON ERROR EITHER
-                    // if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch (e) { }
                     channel.ack(msg);
                 }
             }

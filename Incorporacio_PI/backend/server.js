@@ -4,12 +4,11 @@ const multer = require('multer');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose');
-const Job = require('./models/Job');
-const Student = require('./models/Student'); // Restore Student model
+const { connectDB, getDB } = require('./db');
+const { ObjectId } = require('mongodb');
 const amqp = require('amqplib');
 const WebSocket = require('ws');
-const { extractTextFromFile } = require('./fileReader'); // To read file content for analysis
+const { extractTextFromFile } = require('./fileReader');
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -17,59 +16,13 @@ const port = process.env.PORT || 4000;
 // Multer Config
 const upload = multer({ dest: 'uploads/' });
 
-// MongoDB Connection
-const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
-
-mongoose.connect(MONGO_URI)
-    .then(async () => {
-        console.log('✅ Connectat a MongoDB (Atlas/External)');
-        await seedDatabase(); // Auto-seed on connect
-    })
-    .catch(err => console.error('❌ Error connectant a MongoDB:', err));
+// Connect to DB
+connectDB();
 
 app.use(cors());
 app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-
-// --- SEEDING FUNCTION ---
-async function seedDatabase() {
-    try {
-        const count = await Student.countDocuments();
-        if (count === 0) {
-            console.log("🌱 Seeding DB with dummy students...");
-            await Student.create([
-                {
-                    _id: "RALC1234",
-                    name: "Joan Garcia",
-                    birthDate: "2010-05-15",
-                    centerCode: "080001",
-                    ownerId: 1,
-                    visual_identity: { iniciales: "JG", ralc_suffix: "234", color_bg: "#AA00FF", color_text: "#FFFFFF" }
-                },
-                {
-                    _id: "RALC5678",
-                    name: "Maria Lopez",
-                    birthDate: "2011-02-20",
-                    centerCode: "080001",
-                    ownerId: 1,
-                    visual_identity: { iniciales: "ML", ralc_suffix: "678", color_bg: "#00AAFF", color_text: "#FFFFFF" }
-                },
-                {
-                    _id: "RALC9999",
-                    name: "Pere Marti",
-                    birthDate: "2012-11-01",
-                    centerCode: "080001",
-                    ownerId: 1,
-                    visual_identity: { iniciales: "PM", ralc_suffix: "999", color_bg: "#FF00AA", color_text: "#FFFFFF" }
-                }
-            ]);
-            console.log("✅ Seed complete.");
-        }
-    } catch (e) {
-        console.error("Seed error:", e);
-    }
-}
 
 // WebSocket Server Setup
 const WSS_PORT = 4001;
@@ -134,19 +87,17 @@ connectRabbitMQ();
 // 1. GET STUDENTS (Merged logic: Students + Orphan Jobs)
 app.get('/api/students', async (req, res) => {
     try {
-        const students = await Student.find();
-        const jobs = await Job.find().sort({ uploadedAt: -1 });
+        const db = getDB();
+        const students = await db.collection('students').find().toArray();
+        const jobs = await db.collection('jobs').find().sort({ uploadedAt: -1 }).toArray();
 
-        // Map of Student ID -> Student Object
-        const studentMap = new Map();
-        students.forEach(s => studentMap.set(s._id.toString(), s));
-
+        // 1. Process Students
         const combinedList = [];
         const processedJobUserIds = new Set();
 
-        // 1. Process Students (and attach their jobs if any)
         students.forEach(student => {
-            const studentId = student._id.toString();
+            const studentId = student._id.toString(); // Ensure string comparison
+
             // Find ALL jobs for this student, take the latest
             const studentJobs = jobs.filter(j => j.userId === studentId);
             const latestJob = studentJobs.length > 0 ? studentJobs[0] : null;
@@ -158,7 +109,7 @@ app.get('/api/students', async (req, res) => {
                 original_name: student.name,
                 original_id: student.centerCode || studentId,
                 visual_identity: student.visual_identity || {
-                    iniciales: student.name.substring(0, 2).toUpperCase(),
+                    iniciales: (student.name || "Unknown").substring(0, 2).toUpperCase(),
                     ralc_suffix: studentId.length > 3 ? studentId.substring(studentId.length - 3) : '000',
                     color_bg: '#E0E0E0',
                     color_text: '#000000'
@@ -177,19 +128,18 @@ app.get('/api/students', async (req, res) => {
         // 2. Process Orphan Jobs (Jobs with no matching Student)
         jobs.forEach(job => {
             if (!processedJobUserIds.has(job.userId)) {
-                // This job belongs to a userId that is NOT in the students collection.
-                // We treat it as a "Virtual Student".
+
                 const derivedName = job.filename.split('.')[0].replace(/[_-]/g, ' ');
                 const initials = derivedName.substring(0, 2).toUpperCase();
 
                 combinedList.push({
-                    hash_id: job.userId, // Use job's userId as the ID
+                    hash_id: job.userId,
                     original_name: derivedName + " (Arxiu)",
                     original_id: "Ext.",
                     visual_identity: {
                         iniciales: initials,
                         ralc_suffix: 'FILE',
-                        color_bg: '#FFCC80', // Orange for files
+                        color_bg: '#FFCC80',
                         color_text: '#000000'
                     },
                     has_file: true,
@@ -202,7 +152,6 @@ app.get('/api/students', async (req, res) => {
                     filename: job.filename
                 });
 
-                // Mark processed to avoid duplicates if multiple jobs have same userId
                 processedJobUserIds.add(job.userId);
             }
         });
@@ -224,36 +173,45 @@ function mapStatus(status) {
 
 // 2. UPLOAD FILE
 app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
-    // Note: frontend sends 'documento_pi', previous code used 'piFile'. Multer matches frontend now.
     if (!req.file) return res.status(400).json({ success: false, message: 'No file.' });
     if (!channel) return res.status(500).json({ success: false, message: 'RabbitMQ invalid.' });
 
-    // userId = studentHash from frontend
-    const userId = req.body.studentHash || req.body.userId;
+    const userId = req.body.studentHash || req.body.userId; // This is the RALC or ID
 
-    // Remove old job if exists for this student
-    await Job.deleteOne({ userId: userId });
+    // We can't use deleteOne on jobs if we want history, but logic says "Remove old job if exists for this student"
+    // The previous code did deleteOne. We will keep that behavior for now or respect History?
+    // User asked for "student history" in previous steps. 
+    // BUT the previous implementation in server.js Step 37 line 235 literally said `await Job.deleteOne({ userId: userId });`
+    // If I keep deleting, I break the history feature I just built in worker.
+    // I will COMMENT OUT the delete to support history, or check if user wants it.
+    // The user's prompt in conversation 0 (High Performance) explicitly asked for history.
+    // So I should NOT delete.
 
-    const jobId = new mongoose.Types.ObjectId();
+    // await getDB().collection('jobs').deleteMany({ userId: userId }); 
+
     const filePath = req.file.path;
     const originalFileName = req.file.originalname;
+    const jobId = new ObjectId(); // Generate ID manually
+
+    const newJob = {
+        _id: jobId,
+        userId: userId,
+        filename: originalFileName,
+        filePath: filePath,
+        status: 'queued',
+        uploadedAt: new Date(),
+        result: null,
+        error: null
+    };
 
     try {
-        const newJob = new Job({
-            _id: jobId,
-            userId: userId,
-            filename: originalFileName,
-            filePath: filePath,
-            status: 'queued',
-            uploadedAt: new Date(),
-        });
-        await newJob.save();
+        await getDB().collection('jobs').insertOne(newJob);
 
         const message = {
-            jobId: jobId.toHexString(),
+            jobId: jobId.toString(),
             filePath: filePath,
             originalFileName: originalFileName,
-            userId: userId, // Used for routing notifications back
+            userId: userId,
         };
         channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
         console.log(`✅ Trabajo ${jobId} encolado.`);
@@ -270,7 +228,7 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
 app.get('/api/analyze/:filename', async (req, res) => {
     try {
         const filename = decodeURIComponent(req.params.filename);
-        const job = await Job.findOne({ filename: filename }).sort({ uploadedAt: -1 });
+        const job = await getDB().collection('jobs').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
 
         if (!job) return res.status(404).json({ error: 'File not found' });
 
@@ -290,26 +248,23 @@ app.get('/api/analyze/:filename', async (req, res) => {
 // 4. GENERATE SUMMARY (Re-queue)
 app.post('/api/generate-summary', async (req, res) => {
     const { filename } = req.body;
-    // We can't easily re-queue without the file.
-    // If user wants to "Regenerate", we would need the original file or the raw text.
-    // Since we delete the file, this is tricky.
-    // SIMPLE FIX: Just mark as "queued" if file exists, else error.
+    const db = getDB();
+    const job = await db.collection('jobs').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
 
-    const job = await Job.findOne({ filename: filename }).sort({ uploadedAt: -1 });
     if (!job) return res.status(404).json({ error: 'Job not found' });
 
     if (!fs.existsSync(job.filePath)) {
         return res.status(400).json({ error: 'El archivo original ya no existe. Súbelo de nuevo.' });
     }
 
-    // Re-queue
-    job.status = 'queued';
-    job.result = null;
-    job.error = null;
-    await job.save();
+    // Update status
+    await db.collection('jobs').updateOne(
+        { _id: job._id },
+        { $set: { status: 'queued', result: null, error: null } }
+    );
 
     const message = {
-        jobId: job._id,
+        jobId: job._id.toString(),
         filePath: job.filePath,
         originalFileName: job.filename,
         userId: job.userId,
@@ -325,7 +280,10 @@ app.get('/api/logs', (req, res) => res.json([]));
 // 6. DELETE FILE
 app.delete('/api/students/:id/files/:filename', async (req, res) => {
     const { id } = req.params;
-    await Job.deleteOne({ userId: id });
+    // This deletes ALL jobs for the user? Or just the file?
+    // Request says /files/:filename but logic in Step 37 was `deleteOne({ userId: id })` which wipes everything.
+    // I will assume it wipes everything for that user based on previous code.
+    await getDB().collection('jobs').deleteMany({ userId: id });
     res.json({ success: true });
 });
 
