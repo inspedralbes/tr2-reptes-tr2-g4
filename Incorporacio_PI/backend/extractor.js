@@ -7,16 +7,15 @@ const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
 async function extractPIdata(filesInput, role = 'docente') {
     const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: 'document' }];
-    console.log(`🚀 STARTING SMART EXTRACTION (Role: ${role})...`);
+    console.log(`🚀 STARTING ANONYMOUS EXTRACTION (Role: ${role})...`);
 
     let aggregatedContext = "";
-    let baseMetadata = {};
+    let baseMetadata = { nom: "Alumne ANONIMITZAT", curs: null, diagnostic: null };
 
     for (const file of files) {
         const parsedData = await parseFile(file.path, file.name);
         if (parsedData) {
-            aggregatedContext += `\n--- CONTINGUT DE: ${file.name} ---\n${parsedData.context}\n`;
-            if (parsedData.metadata.nom) baseMetadata.nom = parsedData.metadata.nom;
+            aggregatedContext += `\n--- CONTINGUT DEO: ${file.name} ---\n${parsedData.context}\n`;
             if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
             if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
         }
@@ -24,32 +23,35 @@ async function extractPIdata(filesInput, role = 'docente') {
 
     if (!aggregatedContext) throw new Error("ABORT_JOB: No usable content.");
 
+    // Estructuras sin campo de nombre (nomCognoms)
     const structures = {
-        orientador: `{"perfil":{"nomCognoms":"","curs":""},"diagnostic":"","necessitats":[],"adaptacions":[],"orientacions":[]}`,
+        orientador: `{"perfil":{"curs":""},"diagnostic":"","necessitats":[],"adaptacions":[],"orientacions":[]}`,
         historial: `{"evolució":"","puntsClauRecurrents":[],"adaptacionsConstants":[],"estatActual":""}`,
-        docente: `{"perfil":{"nomCognoms":"","curs":""},"diagnostic":"","prioritats":[],"orientacioAula":[],"assignatures":[{"materia":"","continguts":"","avaluacio":""}],"criterisAvaluacioGeneral":[]}`
+        docente: `{"perfil":{"curs":""},"diagnostic":"","prioritats":[],"orientacioAula":[],"assignatures":[{"materia":"","continguts":"","avaluacio":""}],"criterisAvaluacioGeneral":[]}`
     };
 
-    const prompt = `Ets un motor d'IA per a resums de PI. 
-Analitza el text resumit i omple el JSON següent.
+    const prompt = `Ets un motor d'IA professional. Omple el JSON estrictament amb les dades pedagògiques.
+AVÍS: NO busquis ni incloguis el NOM de l'alumne. L'expedient és ANONIMITZAT.
 
-### DADOS RECOLLITS:
+### TEXT RECOLLIT:
 """${aggregatedContext}"""
 
-### ESTRUCTURA OBJECTIU:
+### METADATA:
+- Curs: "${baseMetadata.curs || 'N/D'}"
+- Diagnòstic: "${baseMetadata.diagnostic || 'N/D'}"
+
+### JSON OBJECTIU:
 ${structures[role] || structures.docente}
 
 ### INSTRUCCIONS:
-1. **Assignatures**: Si veus línies que comencen per "✅ SELECCIONAT", aquestes són les adaptacions reals. Agrupa-les per matèria.
-2. **Orientacions**: Si veus "💡 ORIENTACIÓ", inclou-ho a l'apartat corresponent.
-3. El nom de l'alumne és: "${baseMetadata.nom || 'Desconegut'}".
-4. Sigues breu i professional. Respon NOMÉS amb el JSON.`;
+1. Omple el JSON amb la informació pedagògica.
+2. Usa estrictament la estructura proporcionada (no incloguis camps de noms).
+3. Respon NOMÉS amb el JSON.`;
 
     const { Agent } = require('undici');
     const agent = new Agent({ connectTimeout: 60000, headersTimeout: 300000, bodyTimeout: 600000 });
 
     try {
-        console.log(`📤 Sending Smart Context to AI (Length: ${aggregatedContext.length} chars)...`);
         const response = await fetch(OLLAMA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -59,14 +61,13 @@ ${structures[role] || structures.docente}
                 prompt: prompt,
                 stream: false,
                 format: 'json',
-                options: { temperature: 0.1, num_ctx: 4096, num_predict: 1000 }
+                options: { temperature: 0.1, num_ctx: 8192, num_predict: 1500 }
             })
         });
 
         if (!response.ok) throw new Error(`Status ${response.status}`);
         const data = await response.json();
 
-        // Parse with repair support
         let finalData;
         try {
             const clean = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -76,13 +77,15 @@ ${structures[role] || structures.docente}
             finalData = JSON.parse(jsonrepair(data.response));
         }
 
-        // Hard-set Metadata
+        // --- SOBREESCRIPTURA FINAL (FORZAR ANONIMATO) ---
         if (!finalData.perfil) finalData.perfil = {};
-        finalData.perfil.nomCognoms = baseMetadata.nom || finalData.perfil.nomCognoms;
-        finalData.perfil.curs = baseMetadata.curs || finalData.perfil.curs;
-        if (baseMetadata.diagnostic && !finalData.diagnostic) finalData.diagnostic = baseMetadata.diagnostic;
+        finalData.perfil.nomCognoms = "Alumne ANONIMITZAT"; // Por si el frontend lo busca
+        if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
+        if (baseMetadata.diagnostic && (role === 'docente' || role === 'orientador')) {
+            finalData.diagnostic = baseMetadata.diagnostic;
+        }
 
-        console.log("✅ Smart extraction complete.");
+        console.log("✅ Anonymous extraction complete.");
         return finalData;
     } catch (e) {
         console.error("❌ Extraction Error:", e.message);
