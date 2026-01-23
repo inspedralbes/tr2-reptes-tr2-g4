@@ -25,12 +25,11 @@ function extractRawXMLText(bufferOrPath) {
 
         const xmlContent = docEntry.getData().toString('utf8');
 
-        // 1. Reemplazar cierres de párrafo/celda por saltos de línea para mantener estructura visual
         let text = xmlContent.replace(/<\/w:p>/g, '\n').replace(/<\/w:tc>/g, ' ');
         // 2. Eliminar todas las etiquetas XML
         text = text.replace(/<[^>]+>/g, '');
-        // 3. Limpiar espacios múltiples
-        text = text.replace(/\s+/g, ' ').trim();
+        // 3. Limpiar espacios horizontales, preservar saltos de línea
+        text = text.replace(/[ \t]+/g, ' ').trim();
 
         // 4. Parche específico para palabras pegadas comunes (Detectado en referencia)
         text = text.replace(/Datadenaixement/g, "Data de naixement");

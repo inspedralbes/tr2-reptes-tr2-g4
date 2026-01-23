@@ -45,7 +45,7 @@ async function startWorker() {
                 let allStudentJobs = [];
                 try {
                     allStudentJobs = await db.collection('jobs')
-                        .find({ userId: userId })
+                        .find({ userId: userId, filename: { $ne: "Resum Global" } })
                         .sort({ uploadedAt: 1 }) // Oldest first
                         .toArray();
                     console.log(`📚 Found ${allStudentJobs.length} historical documents for student ${userId}`);
@@ -70,23 +70,37 @@ async function startWorker() {
                         { $set: { status: 'processing' } }
                     );
 
-                    // Prepare file list for Extractor
-                    const filesToAnalyze = allStudentJobs.map(j => ({
-                        path: j.filePath,
-                        name: j.filename,
-                        date: j.uploadedAt,
-                        id: j._id
-                    }));
+                    const role = jobData.role || job.role || 'docente';
+                    if (role === 'historial') {
+                        await db.collection('students').updateOne(
+                            { _id: new ObjectId(userId) },
+                            { $set: { "global_summary.estado": 'GENERANT...' } }
+                        );
+                    }
 
-                    // If list is empty (shouldn't happen as we inserted it), add current manually if needed
-                    // But since we query DB, it should include self.
+                    // Prepare file list for Extractor (Only existing files)
+                    let filesToAnalyze = allStudentJobs
+                        .filter(j => j.filePath && fs.existsSync(j.filePath))
+                        .map(j => ({
+                            path: j.filePath,
+                            name: j.filename,
+                            date: j.uploadedAt,
+                            id: j._id
+                        }));
+
+                    // If individual summary and current file missing, or global summary with no files
                     if (filesToAnalyze.length === 0) {
-                        filesToAnalyze.push({ path: filePath, name: originalFileName, date: new Date(), id: jobId });
+                        // Special case: if it was a single file job and it's missing
+                        if (role !== 'historial' && filePath && fs.existsSync(filePath)) {
+                            filesToAnalyze.push({ path: filePath, name: originalFileName, date: new Date(), id: jobId });
+                        } else {
+                            throw new Error("No s'han trobat els fitxers físics del document (poden haver estat esborrats del servidor).");
+                        }
                     }
 
                     // Perform file extraction (Multi-File)
-                    console.log(`🚀 Sending ${filesToAnalyze.length} documents to Extractor...`);
-                    const extractedData = await extractPIdata(filesToAnalyze);
+                    console.log(`🚀 Sending ${filesToAnalyze.length} documents to Extractor (Role: ${role})...`);
+                    const extractedData = await extractPIdata(filesToAnalyze, role);
                     console.log(`✅ Extracción de datos completada.`);
 
                     // Update Job with Result
@@ -100,6 +114,22 @@ async function startWorker() {
                             }
                         }
                     );
+
+                    // IF ROLE IS HISTORIAL, ALSO UPDATE PLAYER RECORD
+                    if (role === 'historial') {
+                        await db.collection('students').updateOne(
+                            { _id: new ObjectId(userId) },
+                            {
+                                $set: {
+                                    global_summary: {
+                                        estado: 'COMPLETAT',
+                                        resumen: extractedData,
+                                        fecha: new Date()
+                                    }
+                                }
+                            }
+                        );
+                    }
 
                     console.log(`⭐ Trabajo ${jobId} completado.`);
 
@@ -137,6 +167,18 @@ async function startWorker() {
                                 }
                             }
                         );
+
+                        if (jobData.role === 'historial' || job.role === 'historial') {
+                            await db.collection('students').updateOne(
+                                { _id: new ObjectId(userId) },
+                                {
+                                    $set: {
+                                        "global_summary.estado": 'ERROR',
+                                        "global_summary.resumen": error.message
+                                    }
+                                }
+                            );
+                        }
                     }
                     channel.ack(msg);
                 }

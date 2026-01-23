@@ -2,14 +2,16 @@ const path = require('path');
 const { parseFile } = require('./smartParser');
 
 // Use the internal container URL for Ollama
-const OLLAMA_URL = 'http://ollama:11434/api/generate';
-const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b'; // Switched to 3b for PC
+// Use dynamic URL from env or default
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://ollama:11434';
+const OLLAMA_URL = `${OLLAMA_HOST}/api/generate`;
+const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
-async function extractPIdata(filesInput) {
+async function extractPIdata(filesInput, role = 'docente') {
     // Normalize input: allow single file (legacy) or array
     const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: arguments[1] || 'Unknown' }];
 
-    console.log(`📂 extracting data from ${files.length} sources...`);
+    console.log(`📂 extracting data from ${files.length} sources (Role: ${role})...`);
 
     let aggregatedContext = "";
     let baseMetadata = {}; // Metadata from the LATEST file (most relevant for current status)
@@ -39,51 +41,106 @@ async function extractPIdata(filesInput) {
         throw new Error("ABORT_JOB: No content to process.");
     }
 
-    // 2. CONSTRUCT PROMPT (MULTI-JOB AWARE)
-    const jsonStructure = `{
-      "dadesAlumne": {
-        "nomCognoms": "",
-        "dataNaixement": "",
-        "curs": ""
-      },
-      "motiu": {
-        "diagnostic": ""
-      },
-      "justificacio": [], 
-      "adaptacionsGenerals": [],
-      "orientacions": [], 
-      "avaluacio": []
-    }`;
+    // 2. CONSTRUCT PROMPT BASED ON ROLE
+    let jsonStructure = "";
+    let roleInstructions = "";
+
+    // -- COMMON FIELDS --
+    // We use a superset structure so frontend often works, but we populate differently.
+
+    if (role === 'orientador') {
+        // ORIENTADOR: Quick Justificacio (after Diag), Extensive Adaptations
+        jsonStructure = `{
+            "perfil": {
+                "nomCognoms": "",
+                "dataNaixement": "",
+                "curs": ""
+            },
+            "diagnostic": "",
+            "justificacio": "", 
+            "necessitats": [],
+            "interessos": [],
+            "adaptacions": [], 
+            "orientacions": []
+        }`;
+
+        roleInstructions = `
+        1. **perfil**: Extreu Nom, Data Naixement i Curs.
+        2. **diagnostic**: Diagnòstic tècnic (ex: "Dislèxia", "TDAH", "NESE", "Tetraparèsia").
+        3. **justificacio**: Breu explicació del motiu del PI.
+        4. **necessitats**: Llista de barreres o necessitats detectades.
+        5. **interessos**: Fortaleses i interessos de l'alumne.
+        6. **adaptacions**: Extracció EXTENSA de totes les mesures (universals, addicionals, intensives).
+        7. **orientacions**: Orientacions per a la família i l'equip docent.
+        `;
+
+    } else if (role === 'historial') {
+        // HISTORIAL: Global evolution across multiple years/documents
+        jsonStructure = `{
+            "evolució": "Resum de com ha evolucionat l'alumne des del primer document fins a l'últim.",
+            "puntsClauRecurrents": "Llista de dificultats o fortaleses que apareixen sistemàticament en tots els PIs.",
+            "adaptacionsConstants": "Mesures que s'han mantingut al llarg del temps.",
+            "estatActual": "Situació resumida segons l'últim document disponible."
+        }`;
+
+        roleInstructions = `
+        1. Compara tots els documents proporcionats.
+        2. **evoluciò**: Descriu els canvis acadèmics i personal de l'alumne.
+        3. **puntsClauRecurrents**: Identifica patrons que es repeteixen (ex: falta de concentració, bona disposició).
+        4. **adaptacionsConstants**: Indica quines mesures (temps extra, materials adaptats) han estat una constant.
+        5. **estatActual**: Breu resum de la situació actual de l'alumne.
+        `;
+
+    } else {
+        // DOCENTE (Default): Classroom focus, Subjects, Evaluation
+        jsonStructure = `{
+            "perfil": {
+                "nomCognoms": "",
+                "curs": ""
+            },
+            "diagnostic": "",
+            "prioritats": [],
+            "orientacioAula": [], 
+            "assignatures": [
+                { "materia": "Name", "continguts": "Adaptació", "avaluacio": "Criteris" }
+            ], 
+            "criterisAvaluacioGeneral": []
+        }`;
+
+        roleInstructions = `
+        1. **perfil**: Nom i Curs.
+        2. **diagnostic**: Tipus de trastorn o dificultat.
+        3. **prioritats**: Què és el més important a treballar amb aquest alumne aquest curs?
+        4. **orientacioAula**: Consells pràctics i immediats (posició a l'aula, ús d'agenda, temps extra, instruccions curtes).
+        5. **assignatures**: Per a cada matèria esmentada (Català, Anglès, Mates, etc.), extreu el contingut adaptat i com s'ha d'avaluar.
+        6. **criterisAvaluacioGeneral**: Criteris que afecten a tots els exàmens (ortografia no penalitza, oralitat, glossari de termes).
+        `;
+    }
 
     // OPTIMIZATION: UNLIMITED Context for High-End PC
-    // We are passing the full text. If it exceeds the model's context window, Ollama might truncate it internally 
-    // or we might need a sliding window approach in the future, but for now: NO LIMITS.
     const safeContext = aggregatedContext;
 
     const prompt = `
-    You are an expert data extraction AI for Catalan educational documents (Individualized Plans).
-    You have been provided with one or more documents for the same student.
+    Ets un expert en pedagogia i extracció de dades per a Plans Individualitzats (PI) a Catalunya.
+    Rol: ${role.toUpperCase()}.
     
-    ### SOURCE DOCUMENTS (Chronological Order):
+    ### DOCUMENTS FONT:
     """${safeContext}"""
     
-    ### METADATA KNOWN (From latest doc):
-    - Name: "${baseMetadata.nom || 'Unknown'}"
-    - Course: "${baseMetadata.curs || ''}"
-    - Diagnostic: "${baseMetadata.diagnostic || ''}"
+    ### METADADES CONEGUDES:
+    - Nom: "${baseMetadata.nom || 'Unknown'}"
+    - Curs: "${baseMetadata.curs || ''}"
+    - Diagnòstic: "${baseMetadata.diagnostic || ''}"
 
-    ### TARGET JSON STRUCTURE:
+    ### ESTRUCTURA JSON OBJECTIU:
     ${jsonStructure}
     
-    ### INSTRUCTIONS:
-    1. **GENERAL**: Extract the most current student data.
-    2. **dadesAlumne**: Extract ONLY the Name, Date of Birth, and Course. IGNORE parents, address, or other personal data.
-    3. **motiu.diagnostic**: Look for "Diagnòstic", "Trastorn", or "Discapacitat". Copy the specific diagnosis (e.g., "Tetraparèsia espàstica").
-    4. **justificacio**: Summarize the history/evolution if multiple documents exist.
-    5. **adaptacionsGenerals**: Merge unique adaptations from all documents. Focus on what is currently applied.
-    6. **orientacions**: Merge recommendations.
-    7. **avaluacio**: Extract specific evaluation criteria found in sections like "Criteris d'avaluació". Examples: "More time", "Oral exams".
-    8. **Output ONLY valid JSON**.
+    ### INSTRUCCIONS:
+    ${roleInstructions}
+    - **Idioma**: Català.
+    - **Respon EXCLUSIVAMENT amb el codi JSON**.
+    - Si una secció no té dades, deixa-la com a array buit [] o string buit "".
+    - Sigues rigorós amb els termes NESE, DIL i els detalls de les mesures universals/intensives.
     `;
 
     // 3. CALL OLLAMA WITH TIMEOUT & KEEP_ALIVE (STREAMING MODE)
@@ -98,50 +155,29 @@ async function extractPIdata(filesInput) {
             body: JSON.stringify({
                 model: MODEL_NAME,
                 prompt: prompt,
-                stream: true, // ENABLE STREAMING
+                stream: false, // DISABLE STREAMING FOR STABILITY
                 format: 'json',
                 keep_alive: "60m",
                 options: {
                     temperature: 0.1,
                     num_ctx: 8192,
-                    num_predict: 600
+                    num_predict: 1200
                 }
             }),
             signal: controller.signal
         });
 
         if (!response.ok) {
+            const errorText = await response.text();
             clearTimeout(timeoutId);
-            throw new Error(`Ollama API Error: ${response.statusText}`);
+            throw new Error(`Ollama API Error contacting ${OLLAMA_URL} (Status ${response.status}): ${response.statusText} - ${errorText}`);
         }
 
-        // 3.1 CONSUME STREAM
-        let rawJson = "";
-        // reader removed to avoid locking stream checking
-
-        if (response.body[Symbol.asyncIterator]) {
-            // Node 18+ style
-            const decoder = new TextDecoder();
-            for await (const chunk of response.body) {
-                const parts = decoder.decode(chunk, { stream: true }).split('\n');
-                for (const part of parts) {
-                    if (!part.trim()) continue;
-                    try {
-                        const jsonPart = JSON.parse(part);
-                        if (jsonPart.response) rawJson += jsonPart.response;
-                    } catch (e) {
-                        // ignore incomplete chunks
-                    }
-                }
-            }
-        } else {
-            // Fallback (older node? shouldn't happen in container)
-            clearTimeout(timeoutId);
-            throw new Error("Streaming not supported in this environment");
-        }
-
+        const data = await response.json();
+        const rawJson = data.response;
         clearTimeout(timeoutId);
-        console.log("✅ Streaming Complete. Raw Length:", rawJson.length);
+        console.log("✅ Response received. Raw Length:", rawJson.length);
+
 
         // 4. ROBUST JSON PARSING
         let finalData;
@@ -163,18 +199,24 @@ async function extractPIdata(filesInput) {
         }
 
         // 5. MERGE METADATA (PRIORITY)
-        if (baseMetadata.nom) finalData.dadesAlumne.nomCognoms = baseMetadata.nom;
-        if (baseMetadata.data) finalData.dadesAlumne.dataNaixement = baseMetadata.data;
-        if (baseMetadata.curs) finalData.dadesAlumne.curs = baseMetadata.curs;
-        if (baseMetadata.diagnostic && !finalData.motiu.diagnostic) {
-            finalData.motiu.diagnostic = baseMetadata.diagnostic;
+        // Adjust for new structure (which uses 'perfil' instead of 'dadesAlumne')
+        if (!finalData.perfil) finalData.perfil = {};
+
+        if (baseMetadata.nom) finalData.perfil.nomCognoms = baseMetadata.nom;
+        if (baseMetadata.data) finalData.perfil.dataNaixement = baseMetadata.data;
+        if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
+
+        // Handle Diagnostic
+        if (baseMetadata.diagnostic && !finalData.diagnostic) {
+            finalData.diagnostic = baseMetadata.diagnostic;
         }
 
         console.log("✅ Extraction Complete.");
         return finalData;
 
     } catch (error) {
-        console.error('❌ Error in extractPIdata:', error.message);
+        console.error(`❌ Error in extractPIdata (URL: ${OLLAMA_URL}):`, error.message);
+        if (error.cause) console.error('🔍 Cause:', error.cause);
         throw error;
     }
 }

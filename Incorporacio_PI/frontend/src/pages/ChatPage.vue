@@ -28,7 +28,11 @@
           ></iframe>
           <!-- VISOR DE TEXT (Per a DOCX/ODT) -->
           <div v-else class="pa-4 bg-white h-100 overflow-y-auto text-body-2 font-mono" style="white-space: pre-wrap;">
-            {{ documentText }}
+            <div v-if="!documentText" class="text-center text-grey mt-10">
+               <v-icon size="48">mdi-text-box-search-outline</v-icon>
+               <p>Llegint el contingut del document...</p>
+            </div>
+            <div v-else>{{ documentText }}</div>
           </div>
         </div>
       </v-col>
@@ -85,7 +89,9 @@ const filename = route.params.filename;
 const documentText = ref('');
 const loading = ref(true);
 const error = ref(null);
-const messages = ref([]);
+const messages = ref([
+  { role: 'assistant', content: 'Hola! Soc el teu assistent de cerca. Sobre què vols preguntar del document?' }
+]);
 const newMessage = ref('');
 const thinking = ref(false);
 const chatContainer = ref(null);
@@ -94,7 +100,7 @@ const searchTerm = ref('');
 const isPdf = computed(() => filename.toLowerCase().endsWith('.pdf'));
 
 const pdfUrl = computed(() => {
-  const url = `http://localhost:3001/uploads/${filename}`;
+  const url = `http://localhost:4002/uploads/${filename}`;
   return searchTerm.value ? `${url}#search="${encodeURIComponent(searchTerm.value)}"` : url;
 });
 
@@ -107,7 +113,7 @@ const scrollToBottom = async () => {
 
 const loadDocument = async () => {
   try {
-    const response = await fetch(`http://localhost:3001/api/analyze/${encodeURIComponent(filename)}`);
+    const response = await fetch(`http://localhost:4002/api/analyze/${encodeURIComponent(filename)}`);
     if (!response.ok) throw new Error('Error carregant document');
     const data = await response.json();
     documentText.value = data.text_completo;
@@ -123,8 +129,6 @@ const sendMessage = async () => {
   
   const question = newMessage.value;
   
-  // NOU: Netegem l'historial perquè no sigui una conversa, sinó una cerca
-  messages.value = []; 
   messages.value.push({ role: 'user', content: question });
   
   newMessage.value = '';
@@ -132,7 +136,7 @@ const sendMessage = async () => {
   scrollToBottom();
 
   try {
-    const response = await fetch('http://localhost:3001/api/chat', {
+    const response = await fetch('http://localhost:4002/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: documentText.value, question: question })
@@ -140,14 +144,14 @@ const sendMessage = async () => {
     if (!response.ok) throw new Error('Error al xat');
     const data = await response.json();
 
-    // NOU: Tractem la resposta com a resultat de cerca directament
-    const answer = data.answer.trim().replace(/^["']|["']$/g, ''); // Treiem cometes si en posa
+    // NOU: Tractem la resposta com a resultat directe
+    const answer = data.answer.trim().replace(/^["']|["']$/g, ''); 
     
     if (answer && !answer.includes("NO_TROBAT")) {
-        searchTerm.value = answer; // Això marca el PDF
-        messages.value.push({ role: 'assistant', content: `🔍 Text trobat: "${answer}"` });
+        searchTerm.value = answer; 
+        messages.value.push({ role: 'assistant', content: answer });
     } else {
-        messages.value.push({ role: 'assistant', content: "❌ No s'ha trobat aquesta informació al document." });
+        messages.value.push({ role: 'assistant', content: "Capaç que no està en aquest document." });
     }
   } catch (e) {
     messages.value.push({ role: 'assistant', content: "Error connectant amb la IA." });

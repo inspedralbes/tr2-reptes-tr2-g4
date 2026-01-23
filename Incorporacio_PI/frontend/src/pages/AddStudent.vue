@@ -92,7 +92,7 @@ const submitForm = async () => {
   errorMessage.value = '';
 
   try {
-    const response = await fetch('http://localhost:3001/api/students', {
+    const response = await fetch('http://localhost:4002/api/students', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(student)

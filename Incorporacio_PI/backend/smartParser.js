@@ -31,7 +31,7 @@ function extractOdtText(buffer) {
         return contentXml
             .replace(/<text:p[^>]*>/g, '\n') // Paragraphs to newlines
             .replace(/<[^>]+>/g, ' ')        // Remove tags
-            .replace(/\s+/g, ' ')            // Normalize spaces
+            .replace(/[ \t]+/g, ' ')         // Normalize horizontal spacing, preserve newlines
             .trim();
     } catch (e) {
         console.error("❌ SmartParser ODT Error:", e);
@@ -102,14 +102,14 @@ async function parseFile(filePath, originalFileName = '') {
     // B. METADATA SNIPER (First 1500 chars)
     const headerText = rawText.substring(0, 1500);
     const metadata = {
-        nom: extractRegex(headerText, /(?:Nom|Alumne|Nombre)[:\.\-\s]+([^\n\r]+)/i),
-        data: extractRegex(headerText, /(?:Data de naixement|Naixement)[:\.\-\s]+([0-9\/]+)/i),
-        curs: extractRegex(headerText, /(?:Curs|Nivell)[:\.\-\s]+([^\n\r]+)/i),
-        diagnostic: extractRegex(rawText.substring(0, 3000), /(?:Diagnòstic|Motiu|Trastorn)[:\.\-\s]+([^\n\r\.]+)/i)
+        nom: extractRegex(headerText, /(?:Nom i cognoms|Nom|Alumne|Nombre)[:\.\-\s]+([^\n\r]+)/i),
+        data: extractRegex(headerText, /(?:Data de naixement|Naixement)[:\.\-\s]+([0-9\/]{8,10})/i),
+        curs: extractRegex(headerText, /(?:Curs|Nivell|Estudis)[:\.\-\s]+([^\n\r]+)/i),
+        diagnostic: extractRegex(rawText.substring(0, 3000), /(?:Diagnòstic|Motiu|NESE|Trastorn)[:\.\-\s]+([^\n\r]+)/i)
     };
 
     // Clean up Name
-    if (metadata.nom) metadata.nom = metadata.nom.replace(/Nom i cognoms/i, "").trim();
+    if (metadata.nom) metadata.nom = metadata.nom.replace(/Nom i cognoms/i, "").replace(/[:\.\-]/g, "").trim();
 
     // C. NO CROP (Full Context Strategy)
     // We pass the full text to the AI to ensure we don't miss Diagnostic (Sec 2) or Evaluation (Sec 4)

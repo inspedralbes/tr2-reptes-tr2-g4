@@ -52,7 +52,7 @@ const loading = ref(true);
 
 onMounted(async () => {
   try {
-    const response = await fetch('http://localhost:3001/api/logs');
+    const response = await fetch('http://localhost:4002/api/students');
     if (response.ok) {
       logs.value = await response.json();
     } else {

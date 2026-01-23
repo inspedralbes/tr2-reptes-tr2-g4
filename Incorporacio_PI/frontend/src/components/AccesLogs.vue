@@ -40,7 +40,7 @@ export default {
   methods: {
     async fetchLogs() {
       try {
-        const response = await fetch('http://localhost:3001/api/logs');
+        const response = await fetch('http://localhost:4002/api/logs');
         this.logs = await response.json();
       } catch (error) {
         console.error("Error carregant logs:", error);

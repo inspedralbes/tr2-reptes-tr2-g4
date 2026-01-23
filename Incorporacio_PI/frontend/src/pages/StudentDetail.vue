@@ -299,22 +299,33 @@ const formatDate = (dateVal) => {
 };
 
 const parsedGlobalSummary = computed(() => {
-  const text = student.value?.global_summary?.resumen || '';
-  const sections = [];
+  const data = student.value?.global_summary?.resumen;
+  if (!data) return [];
   
   const patterns = [
-    { title: 'Evolució', key: 'EVOLUCIÓ', color: 'indigo', icon: 'mdi-chart-timeline-variant' },
-    { title: 'Punts Clau Recurrents', key: 'PUNTS CLAU RECURRENTS', color: 'orange-darken-2', icon: 'mdi-alert-circle-outline' },
-    { title: 'Adaptacions Constants', key: 'ADAPTACIONS CONSTANTS', color: 'green-darken-2', icon: 'mdi-hand-heart-outline' },
-    { title: 'Estat Actual', key: 'ESTAT ACTUAL', color: 'purple-darken-2', icon: 'mdi-calendar-check-outline' }
+    { title: 'Evolució', key: 'evolució', displayKey: 'EVOLUCIÓ', color: 'indigo', icon: 'mdi-chart-timeline-variant' },
+    { title: 'Punts Clau Recurrents', key: 'puntsClauRecurrents', displayKey: 'PUNTS CLAU RECURRENTS', color: 'orange-darken-2', icon: 'mdi-alert-circle-outline' },
+    { title: 'Adaptacions Constants', key: 'adaptacionsConstants', displayKey: 'ADAPTACIONS CONSTANTS', color: 'green-darken-2', icon: 'mdi-hand-heart-outline' },
+    { title: 'Estat Actual', key: 'estatActual', displayKey: 'ESTAT ACTUAL', color: 'purple-darken-2', icon: 'mdi-calendar-check-outline' }
   ];
 
+  // SI ES UN OBJETO (Nuevo Formato JSON)
+  if (typeof data === 'object') {
+      return patterns.map(p => ({
+          ...p,
+          content: Array.isArray(data[p.key]) ? data[p.key].join('\n') : (data[p.key] || '')
+      })).filter(s => s.content.length > 0);
+  }
+
+  // SI ES TEXTO (Formato Legacy / Fallback)
+  const text = String(data);
+  const sections = [];
   const lines = text.split('\n');
   let currentItem = null;
   
   lines.forEach(line => {
-    const trimmed = line.trim().replace(/\*\*/g, ''); // Remove **
-    const pattern = patterns.find(p => trimmed.toUpperCase().includes(p.key));
+    const trimmed = line.trim().replace(/\*\*/g, '');
+    const pattern = patterns.find(p => trimmed.toUpperCase().includes(p.displayKey));
     
     if (pattern) {
         if (currentItem) sections.push(currentItem);
@@ -324,7 +335,6 @@ const parsedGlobalSummary = computed(() => {
     }
   });
   if (currentItem) sections.push(currentItem);
-  
   return sections;
 });
 

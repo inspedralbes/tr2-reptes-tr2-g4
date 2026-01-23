@@ -102,8 +102,8 @@ app.get('/api/students', async (req, res) => {
         students.forEach(student => {
             const studentId = student._id.toString(); // Ensure string comparison
 
-            // Find ALL jobs for this student, take the latest
-            const studentJobs = jobs.filter(j => j.userId === studentId);
+            // Find ALL jobs for this student (Excluding the Global Summary record itself)
+            const studentJobs = jobs.filter(j => j.userId === studentId && j.filename !== "Resum Global");
             const latestJob = studentJobs.length > 0 ? studentJobs[0] : null;
 
             if (latestJob) processedJobUserIds.add(studentId);
@@ -119,18 +119,20 @@ app.get('/api/students', async (req, res) => {
                     color_text: '#000000'
                 },
                 has_file: !!latestJob,
-                files: latestJob ? [{ filename: latestJob.filename, upload_date: latestJob.uploadedAt }] : [],
+                files: studentJobs.map(j => ({ filename: j.filename, upload_date: j.uploadedAt, originalName: j.filename })),
                 ia_data: latestJob ? {
                     estado: mapStatus(latestJob.status),
                     last_update: latestJob.processedAt,
                     resumen: latestJob.result || (latestJob.error ? { error: latestJob.error } : null)
                 } : null,
-                filename: latestJob ? latestJob.filename : null
+                filename: latestJob ? latestJob.filename : null,
+                global_summary: student.global_summary || null
             });
         });
 
         // 2. Process Orphan Jobs (Jobs with no matching Student)
         jobs.forEach(job => {
+            if (job.filename === "Resum Global") return; // Skip history trackers
             if (!processedJobUserIds.has(job.userId)) {
 
                 const derivedName = job.filename.split('.')[0].replace(/[_-]/g, ' ');
@@ -170,6 +172,7 @@ app.get('/api/students', async (req, res) => {
 function mapStatus(status) {
     if (status === 'queued') return 'A LA CUA';
     if (status === 'processing') return 'GENERANT...';
+    if (status === 'reading') return 'LLEGINT...';
     if (status === 'completed') return 'COMPLETAT';
     if (status === 'failed') return 'ERROR';
     return status;
@@ -181,17 +184,7 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
     if (!channel) return res.status(500).json({ success: false, message: 'RabbitMQ invalid.' });
 
     const userId = req.body.studentHash || req.body.userId; // This is the RALC or ID
-
-    // We can't use deleteOne on jobs if we want history, but logic says "Remove old job if exists for this student"
-    // The previous code did deleteOne. We will keep that behavior for now or respect History?
-    // User asked for "student history" in previous steps. 
-    // BUT the previous implementation in server.js Step 37 line 235 literally said `await Job.deleteOne({ userId: userId });`
-    // If I keep deleting, I break the history feature I just built in worker.
-    // I will COMMENT OUT the delete to support history, or check if user wants it.
-    // The user's prompt in conversation 0 (High Performance) explicitly asked for history.
-    // So I should NOT delete.
-
-    // await getDB().collection('jobs').deleteMany({ userId: userId }); 
+    const role = req.body.role || 'docente'; // Default to 'docente' if not provided
 
     const filePath = req.file.path;
     const originalFileName = req.file.originalname;
@@ -205,7 +198,8 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
         status: 'queued',
         uploadedAt: new Date(),
         result: null,
-        error: null
+        error: null,
+        role: role // Save the role
     };
 
     try {
@@ -216,9 +210,10 @@ app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
             filePath: filePath,
             originalFileName: originalFileName,
             userId: userId,
+            role: role // Pass role to queue
         };
         channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
-        console.log(`✅ Trabajo ${jobId} encolado.`);
+        console.log(`✅ Trabajo ${jobId} encolado (Rol: ${role}).`);
 
         res.status(200).json({ success: true, jobId, filename: originalFileName });
     } catch (error) {
@@ -253,7 +248,7 @@ app.get('/api/analyze/:filename', async (req, res) => {
 
 // 4. GENERATE SUMMARY (Re-queue)
 app.post('/api/generate-summary', async (req, res) => {
-    const { filename } = req.body;
+    const { filename, role } = req.body; // Accept role here too
     const db = getDB();
     const job = await db.collection('jobs').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
 
@@ -263,10 +258,19 @@ app.post('/api/generate-summary', async (req, res) => {
         return res.status(400).json({ error: 'El archivo original ya no existe. Súbelo de nuevo.' });
     }
 
-    // Update status
+    const targetRole = role || job.role || 'docente'; // Update role if provided, else keep existing
+
+    // Update status and role
     await db.collection('jobs').updateOne(
         { _id: job._id },
-        { $set: { status: 'queued', result: null, error: null } }
+        {
+            $set: {
+                status: 'queued',
+                result: null,
+                error: null,
+                role: targetRole
+            }
+        }
     );
 
     const message = {
@@ -274,10 +278,125 @@ app.post('/api/generate-summary', async (req, res) => {
         filePath: job.filePath,
         originalFileName: job.filename,
         userId: job.userId,
+        role: targetRole
     };
     channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
 
-    res.json({ success: true, message: "Re-queued for generation" });
+    res.json({ success: true, message: "Re-queued for generation", role: targetRole });
+});
+
+// 4.5 GENERATE GLOBAL SUMMARY
+app.post('/api/generate-global-summary', async (req, res) => {
+    const { studentHash } = req.body;
+    if (!studentHash) return res.status(400).json({ error: 'Missing studentHash' });
+
+    const db = getDB();
+    const jobId = new ObjectId();
+
+    // ID HANDLING: If studentHash is a valid ObjectId use it, else use it as string
+    let searchId;
+    try {
+        searchId = /^[0-9a-fA-F]{24}$/.test(studentHash) ? new ObjectId(studentHash) : studentHash;
+    } catch (e) {
+        searchId = studentHash;
+    }
+
+    try {
+        // Find if student exists
+        const student = await db.collection('students').findOne({ _id: searchId });
+        if (!student) {
+            // Check if it's an orphan job user
+            const hasJobs = await db.collection('jobs').findOne({ userId: studentHash });
+            if (!hasJobs) return res.status(404).json({ error: 'Student not found' });
+        }
+
+        // Create the job
+        const newJob = {
+            _id: jobId,
+            userId: studentHash,
+            filename: "Resum Global",
+            status: 'queued',
+            uploadedAt: new Date(),
+            role: 'historial'
+        };
+        await db.collection('jobs').insertOne(newJob);
+
+        // Update student status (optimistic) if it's a real student record
+        if (student) {
+            await db.collection('students').updateOne(
+                { _id: searchId },
+                { $set: { "global_summary": { estado: 'A LA CUA', fecha: new Date() } } }
+            );
+        }
+
+        const message = {
+            jobId: jobId.toString(),
+            userId: studentHash,
+            role: 'historial'
+        };
+        channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
+
+        res.json({ success: true, jobId });
+    } catch (e) {
+        console.error("Error global summary:", e);
+        res.status(500).json({ error: 'Internal Error' });
+    }
+});
+
+// 4.6 QUEUE STATUS
+app.get('/api/queue-status', async (req, res) => {
+    try {
+        const db = getDB();
+        const queuedJobs = await db.collection('jobs')
+            .find({ status: 'queued' })
+            .sort({ uploadedAt: 1 })
+            .toArray();
+
+        const queue = queuedJobs.map(j => j.filename === "Resum Global" ? j.userId : j.filename);
+        res.json({ queue });
+    } catch (e) {
+        res.status(500).json({ error: 'Error' });
+    }
+});
+
+// 4.7 CHAT API (FAST ONE-SHOT)
+app.post('/api/chat', async (req, res) => {
+    const { text, question } = req.body;
+    if (!text || !question) return res.status(400).json({ error: 'Missing text or question' });
+
+    const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://ollama:11434';
+    const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
+
+    try {
+        const response = await fetch(`${OLLAMA_HOST}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: MODEL_NAME,
+                system: "Ets un cercador ràpid per a un Pla Individualitzat. Respon sempre en Català de forma molt breu (1 frase).",
+                prompt: `
+                Document PI: """${text.substring(0, 10000)}"""
+                Pregunta: "${question}"
+                
+                Si la resposta no és al text, diu: "NO_TROBAT".
+                `,
+                stream: false,
+                keep_alive: "60m",
+                options: {
+                    temperature: 0,
+                    num_ctx: 8192,
+                    num_predict: 60
+                }
+            })
+        });
+
+        if (!response.ok) throw new Error('Ollama error');
+        const data = await response.json();
+        res.json({ answer: data.response });
+    } catch (e) {
+        console.error("Chat Error:", e);
+        res.status(500).json({ error: 'Chat failed' });
+    }
 });
 
 // 5. LOGS

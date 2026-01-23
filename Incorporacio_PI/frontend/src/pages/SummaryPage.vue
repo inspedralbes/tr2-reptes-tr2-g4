@@ -97,33 +97,74 @@ const parsedAnalysis = computed(() => {
   const val = resumenIA.value;
 
   // 1. JSON FORMAT
-  if (typeof val === 'object' && val !== null) {
-      // Lògica de Rols: DOCENT (Anonimitzat) vs ORIENTADOR (Complet)
-      let perfilData = [];
+    if (typeof val === 'object' && val !== null) {
+      const data = val;
+      const res = {
+        perfil: [],
+        dificultats: [],
+        justificacio: [],
+        adaptacions: [], // Map subject detail here for 'docent'
+        avaluacio: [],
+        recomanacions: []
+      };
+
+      // 1. PERFIL
+      const p = data.perfil || {};
       if (currentRole.value === 'docent') {
-          // DOCENT: Dades molt generals i anonimitzades
-          perfilData = [
-            `Nom: ALUMNE (Dades Protegides)`,
-            `Curs: ${val.dadesAlumne?.curs || '-'}`
-          ];
+        res.perfil = [
+          `Nom: ALUMNE (Dades Protegides)`,
+          `Curs: ${p.curs || '-'}`
+        ];
       } else {
-          // ORIENTADOR: Tot complet
-          perfilData = [
-            `Nom: ${val.dadesAlumne?.nomCognoms || '-'}`,
-            `Data: ${val.dadesAlumne?.dataNaixement || '-'}`,
-            `Curs: ${val.dadesAlumne?.curs || '-'}`
-          ];
+        res.perfil = [
+          `Nom: ${p.nomCognoms || '-'}`,
+          `Data: ${p.dataNaixement || '-'}`,
+          `Curs: ${p.curs || '-'}`
+        ];
       }
 
-      return {
-          perfil: perfilData,
-          dificultats: val.motiu?.diagnostic ? [val.motiu.diagnostic] : [],
-          justificacio: val.justificacio || [],
-          adaptacions: val.adaptacionsGenerals || [],
-          avaluacio: val.avaluacio || [],
-          recomanacions: val.orientacions || []
-      };
-  }
+      // 2. DIAGNOSTIC / DIFICULTATS
+      if (data.diagnostic) res.dificultats.push(data.diagnostic);
+      if (data.necessitats && Array.isArray(data.necessitats)) {
+        res.dificultats.push(...data.necessitats);
+      }
+
+      // 3. JUSTIFICACIO / PRIORITATS
+      if (data.justificacio) res.justificacio.push(data.justificacio);
+      if (data.prioritats && Array.isArray(data.prioritats)) {
+        res.justificacio.push(...data.prioritats);
+      }
+      if (data.interessos && Array.isArray(data.interessos)) {
+        res.justificacio.push(...data.interessos.map(i => `Interès: ${i}`));
+      }
+
+      // 4. ADAPTACIONS / ASSIGNATURES
+      if (data.adaptacions && Array.isArray(data.adaptacions)) {
+        res.adaptacions.push(...data.adaptacions);
+      }
+      if (data.assignatures && Array.isArray(data.assignatures)) {
+        // Convert object array to string list for the UI
+        data.assignatures.forEach(a => {
+          res.adaptacions.push(`| **${a.materia}** | ${a.continguts || a.adaptacio || ''} \n *Avaluació:* ${a.avaluacio || ''}`);
+        });
+      }
+
+      // 5. EVALUACIO
+      if (data.criterisAvaluacioGeneral && Array.isArray(data.criterisAvaluacioGeneral)) {
+        res.avaluacio.push(...data.criterisAvaluacioGeneral);
+      } else if (data.avaluacio && Array.isArray(data.avaluacio)) {
+        res.avaluacio.push(...data.avaluacio);
+      }
+
+      // 6. RECOMANACIONS
+      if (data.orientacioAula && Array.isArray(data.orientacioAula)) {
+        res.recomanacions.push(...data.orientacioAula);
+      } else if (data.orientacions && Array.isArray(data.orientacions)) {
+        res.recomanacions.push(...data.orientacions);
+      }
+
+      return res;
+    }
 
   // 2. TEXT FORMAT
   const text = val || '';
