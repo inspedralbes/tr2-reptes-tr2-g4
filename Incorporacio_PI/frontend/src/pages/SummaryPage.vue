@@ -336,7 +336,8 @@ const regenerarResumenIA = async () => {
       body: JSON.stringify({ 
         text: rawText.value, 
         filename: filename, 
-        role: currentRole.value
+        role: currentRole.value,
+        studentHash: route.query.studentHash
       })
     });
 

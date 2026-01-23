@@ -186,13 +186,15 @@ app.get('/api/analyze/:filename', async (req, res) => {
 });
 
 app.post('/api/generate-summary', async (req, res) => {
-    const { text, filename, role, studentHash } = req.body;
+    const { text, filename, role, studentHash, userId } = req.body;
     if (!channel) return res.status(500).json({ error: 'RabbitMQ Error' });
 
     const analisisId = new ObjectId();
+    const studentId = studentHash || userId || "TEMP_USER";
+
     const nuevoAnalisis = {
         _id: analisisId,
-        userId: studentHash,
+        userId: studentId,
         filename: filename,
         status: 'queued',
         uploadedAt: new Date(),
@@ -202,13 +204,13 @@ app.post('/api/generate-summary', async (req, res) => {
     await getDB().collection('analisis_pi').insertOne(nuevoAnalisis);
     channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify({
         analisiId: analisisId.toString(),
-        userId: studentHash,
+        userId: studentId,
         role: role,
         filename: filename,
         text: text
     })));
 
-    res.json({ success: true, analisiId });
+    res.json({ success: true, analisisId });
 });
 
 app.get('/api/queue-status', async (req, res) => {
