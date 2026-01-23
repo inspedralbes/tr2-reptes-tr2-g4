@@ -54,6 +54,14 @@ async function startWorker() {
                     allStudentJobs = [];
                 }
 
+                // ID HANDLING: If userId is a valid ObjectId use it, else use it as string
+                let searchId;
+                try {
+                    searchId = /^[0-9a-fA-F]{24}$/.test(userId) ? new ObjectId(userId) : userId;
+                } catch (e) {
+                    searchId = userId;
+                }
+
                 let job;
                 try {
                     job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
@@ -73,7 +81,7 @@ async function startWorker() {
                     const role = jobData.role || job.role || 'docente';
                     if (role === 'historial') {
                         await db.collection('students').updateOne(
-                            { _id: new ObjectId(userId) },
+                            { _id: searchId },
                             { $set: { "global_summary.estado": 'GENERANT...' } }
                         );
                     }
@@ -118,7 +126,7 @@ async function startWorker() {
                     // IF ROLE IS HISTORIAL, ALSO UPDATE PLAYER RECORD
                     if (role === 'historial') {
                         await db.collection('students').updateOne(
-                            { _id: new ObjectId(userId) },
+                            { _id: searchId },
                             {
                                 $set: {
                                     global_summary: {
@@ -170,7 +178,7 @@ async function startWorker() {
 
                         if (jobData.role === 'historial' || job.role === 'historial') {
                             await db.collection('students').updateOne(
-                                { _id: new ObjectId(userId) },
+                                { _id: searchId },
                                 {
                                     $set: {
                                         "global_summary.estado": 'ERROR',

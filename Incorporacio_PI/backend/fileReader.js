@@ -42,14 +42,19 @@ function extractRawXMLText(bufferOrPath) {
     }
 }
 
-// --- 3. EXTRACTOR ODT (Existente/Mejorado) ---
+// --- 3. EXTRACTOR ODT (Mejorado) ---
 function extractTextFromODT(buffer) {
     try {
         const zip = new AdmZip(buffer);
-        const contentXml = zip.readAsText("content.xml");
+        const contentEntry = zip.getEntry('content.xml');
+        if (!contentEntry) return "";
+
+        const contentXml = contentEntry.getData().toString('utf8');
+
         return contentXml
             .replace(/<text:p[^>]*>/g, '\n')
-            .replace(/<[^>]+>/g, ' ')
+            .replace(/<[^>]+>/g, '')
+            .replace(/[ \t]+/g, ' ')
             .trim();
     } catch (e) {
         console.error("Error extrayendo ODT:", e);

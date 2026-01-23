@@ -104,7 +104,7 @@ services:
       test: [ "CMD-SHELL", "ollama list | grep -q \"$${MODEL_NAME}\"" ]
       interval: 15s
       timeout: 10s
-      retries: 40
+      retries: 80
       start_period: 600s
 
 networks:

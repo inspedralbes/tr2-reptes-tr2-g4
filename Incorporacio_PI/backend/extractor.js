@@ -85,7 +85,7 @@ async function extractPIdata(filesInput, role = 'docente') {
 
         roleInstructions = `
         1. Compara tots els documents proporcionats.
-        2. **evoluciò**: Descriu els canvis acadèmics i personal de l'alumne.
+        2. **evolució**: Descriu els canvis acadèmics i personal de l'alumne.
         3. **puntsClauRecurrents**: Identifica patrons que es repeteixen (ex: falta de concentració, bona disposició).
         4. **adaptacionsConstants**: Indica quines mesures (temps extra, materials adaptats) han estat una constant.
         5. **estatActual**: Breu resum de la situació actual de l'alumne.
