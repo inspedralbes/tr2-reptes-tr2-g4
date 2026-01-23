@@ -1,64 +1,28 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
-const bcrypt = require('bcrypt');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { sequelize, User } = require('./models/user');
-const mongoose = require('mongoose');
-const Student = require('./models/Student');
-const nodemailer = require('nodemailer');
-const { Op } = require('sequelize');
+const { connectDB, getDB } = require('./db');
+const { ObjectId } = require('mongodb');
 const amqp = require('amqplib');
 const WebSocket = require('ws');
 const { extractTextFromFile } = require('./fileReader');
-
-// Import model for analysis tracker (renamed from Job)
-// Note: We use the same schema but renamed for domain context
-const AnalisisPIData = new mongoose.Schema({
-    userId: String,
-    filename: String,
-    filePath: String,
-    status: { type: String, default: 'queued' },
-    status_detail: String,
-    result: Object,
-    error: String,
-    role: String,
-    uploadedAt: { type: Date, default: Date.now },
-    processedAt: Date
-});
-const AnalisisPI = mongoose.model('AnalisisPI', AnalisisPIData, 'analisis_pi');
 
 const app = express();
 const port = process.env.PORT || 4000;
 
 const upload = multer({ dest: 'uploads/' });
+connectDB();
 
-// Cargar centros.json cached
-const centrosPath = path.join(__dirname, 'centros_fixed.json');
-let centrosDataCache = [];
-if (fs.existsSync(centrosPath)) {
-    try {
-        const content = fs.readFileSync(centrosPath, 'utf-8');
-        centrosDataCache = JSON.parse(content).map(c => ({
-            code: c.Codi_centre,
-            name: c.Denominació_completa
-        }));
-    } catch (e) { }
-}
-
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:1234@mongodb:27017/school_data?authSource=admin';
-mongoose.connect(MONGO_URI).then(() => console.log('✅ MongoDB Connected')).catch(err => console.error(err));
-
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // WebSocket
-const WSS_PORT = process.env.WSS_PORT || 4001;
+const WSS_PORT = 4001;
 const wss = new WebSocket.Server({ port: WSS_PORT });
 const clients = new Map();
 
@@ -85,16 +49,10 @@ async function connectRabbitMQ() {
                 if (clientWs && clientWs.readyState === WebSocket.OPEN) clientWs.send(JSON.stringify(note));
                 channel.ack(msg);
             }
-        }, { noAck: false });
+        });
     } catch (e) { setTimeout(connectRabbitMQ, 5000); }
 }
 connectRabbitMQ();
-
-const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com", port: 587, secure: false, requireTLS: true,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    tls: { rejectUnauthorized: false }
-});
 
 function mapStatus(status, detail) {
     if (status === 'queued') return 'A LA CUA';
@@ -104,100 +62,189 @@ function mapStatus(status, detail) {
     return status;
 }
 
-// ==========================================
-// RUTAS ORIGINALES RESTAURADAS
-// ==========================================
-
-app.get('/api/centros', (req, res) => res.json(centrosDataCache));
-
-app.post('/api/login', async (req, res) => {
-    try {
-        const { username, password, center_code } = req.body;
-        const user = await User.findOne({ where: { center_code, [Op.or]: [{ username }, { email: username }] } });
-        if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) return res.status(401).json({ error: 'Contrasenya incorrecta' });
-        if (!user.isVerified) return res.status(403).json({ error: 'Compte no verificat', needsVerification: true, email: user.email });
-        if (!user.isApproved) return res.status(403).json({ error: 'Pendent d\'aprovació per l\'admin.' });
-        res.json({ user: { id: user.id, username: user.username, role: user.role, center_code: user.center_code } });
-    } catch (e) { res.status(500).json({ error: 'Error' }); }
-});
-
-app.post('/api/register', async (req, res) => {
-    try {
-        const { username, password, center_code, email, role } = req.body;
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        await User.create({ username, password, center_code, email, role: role || 'teacher', verificationCode: code, isVerified: false, isApproved: role === 'admin' });
-        // Enviar mail (Omitido por brevedad en este write, pero conservado en lógica)
-        res.status(201).json({ success: true, email });
-    } catch (e) { res.status(500).json({ error: 'Error' }); }
-});
-
-// ==========================================
-// RUTAS DE ESTUDIANTES (MERGED WITH ANALISIS)
-// ==========================================
+// --- API ---
 
 app.get('/api/students', async (req, res) => {
     try {
-        const students = await Student.find();
-        const analyses = await AnalisisPI.find().sort({ uploadedAt: -1 });
+        const db = getDB();
+        const students = await db.collection('students').find().toArray();
+        const allAnalisis = await db.collection('analisis_pi').find().sort({ uploadedAt: -1 }).toArray();
 
-        const combined = students.map(s => {
-            const sId = s._id.toString();
-            const sAnalyses = analyses.filter(a => a.userId === sId && a.filename !== "Resum Global");
-            const latest = sAnalyses[0];
-            return {
+        const combinedList = [];
+        const processedIds = new Set();
+
+        students.forEach(student => {
+            const sId = student._id.toString();
+            const studentAnalisis = allAnalisis.filter(a => a.userId === sId && a.filename !== "Resum Global");
+            const latest = studentAnalisis[0];
+            processedIds.add(sId);
+
+            combinedList.push({
                 hash_id: sId,
-                original_name: s.name,
-                original_id: sId,
-                visual_identity: s.visual_identity || { iniciales: (s.name || "UN").substring(0, 2).toUpperCase(), ralc_suffix: '000' },
+                original_name: student.name,
+                original_id: student.centerCode || sId,
+                visual_identity: student.visual_identity || {
+                    iniciales: (student.name || "UN").substring(0, 2).toUpperCase(),
+                    ralc_suffix: '000',
+                    color_bg: '#E0E0E0',
+                    color_text: '#000000'
+                },
                 has_file: !!latest,
-                files: sAnalyses.map(a => ({ filename: a.filename, uploadDate: a.uploadedAt, originalName: a.filename })),
-                ia_data: latest ? { estado: mapStatus(latest.status, latest.status_detail), last_update: latest.processedAt, resumen: latest.result || { error: latest.error } } : null,
-                global_summary: s.global_summary
-            };
+                files: studentAnalisis.map(a => ({
+                    filename: a.filename,
+                    upload_date: a.uploadedAt,
+                    analisiId: a._id.toString()
+                })),
+                ia_data: latest ? {
+                    estado: mapStatus(latest.status, latest.status_detail),
+                    last_update: latest.processedAt,
+                    resumen: latest.result || (latest.error ? { error: latest.error } : null),
+                    analisiId: latest._id.toString()
+                } : null,
+                global_summary: student.global_summary
+            });
         });
-        res.json(combined);
-    } catch (e) { res.status(500).json({ error: 'Error' }); }
+
+        allAnalisis.forEach(ana => {
+            if (ana.filename === "Resum Global" || processedIds.has(ana.userId)) return;
+            const derivedName = ana.filename.split('.')[0];
+            combinedList.push({
+                hash_id: ana.userId,
+                original_name: derivedName,
+                original_id: "Ext.",
+                visual_identity: {
+                    iniciales: derivedName.substring(0, 2).toUpperCase(),
+                    ralc_suffix: 'FILE',
+                    color_bg: '#FFCC80',
+                    color_text: '#000000'
+                },
+                has_file: true,
+                ia_data: {
+                    estado: mapStatus(ana.status, ana.status_detail),
+                    resumen: ana.result || { error: ana.error },
+                    analisiId: ana._id.toString()
+                },
+                filename: ana.filename,
+                files: [{ filename: ana.filename, upload_date: ana.uploadedAt }]
+            });
+            processedIds.add(ana.userId);
+        });
+        res.json(combinedList);
+    } catch (e) {
+        res.status(500).json({ error: 'Server Error' });
+    }
 });
 
 app.post('/api/upload', upload.single('documento_pi'), async (req, res) => {
-    if (!req.file || !channel) return res.status(400).json({ error: 'No file' });
-    const { studentHash, role } = req.body;
+    if (!req.file || !channel) return res.status(400).json({ success: false });
+    const userId = req.body.studentHash || req.body.userId;
     const analisisId = new ObjectId();
 
-    await AnalisisPI.create({ _id: analisisId, userId: studentHash, filename: req.file.originalname, filePath: req.file.path, role: role || 'docente', status: 'queued' });
+    const nuevoAnalisis = {
+        _id: analisisId,
+        userId: userId,
+        filename: req.file.originalname,
+        filePath: req.file.path,
+        status: 'queued',
+        uploadedAt: new Date(),
+        role: req.body.role || 'docente'
+    };
 
+    await getDB().collection('analisis_pi').insertOne(nuevoAnalisis);
     channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify({
-        analisiId: analisisId.toString(), filePath: req.file.path, originalFileName: req.file.originalname, userId: studentHash, role: role || 'docente'
+        analisiId: analisisId.toString(),
+        filePath: req.file.path,
+        originalFileName: req.file.originalname,
+        userId,
+        role: nuevoAnalisis.role
     })));
 
-    res.json({ success: true, analisiId, filename: req.file.originalname });
+    res.json({ success: true, analisiId: analisisId, filename: req.file.originalname });
+});
+
+app.get('/api/status/:id', async (req, res) => {
+    const analisis = await getDB().collection('analisis_pi').findOne({ _id: new ObjectId(req.params.id) });
+    res.json(analisis || { status: 'not_found' });
 });
 
 app.get('/api/analyze/:filename', async (req, res) => {
-    const ana = await AnalisisPI.findOne({ filename: req.params.filename }, { sort: { uploadedAt: -1 } });
-    if (!ana) return res.status(404).send('Not found');
-    const text = await extractTextFromFile(ana.filePath, ana.filename);
-    res.json({ text_completo: text });
-});
+    try {
+        const filename = req.params.filename;
+        const ana = await getDB().collection('analisis_pi').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
+        if (!ana) return res.status(404).json({ error: 'File not found' });
 
-app.get('/api/queue-status', async (req, res) => {
-    const queued = await AnalisisPI.find({ status: 'queued' }).sort({ uploadedAt: 1 });
-    res.json({ queue: queued.map(a => a.filename) });
+        let text = "";
+        if (ana.filePath && fs.existsSync(ana.filePath)) {
+            text = await extractTextFromFile(ana.filePath, ana.filename);
+        } else {
+            text = "Fitxer no disponible físicament al servidor.";
+        }
+        res.json({ text_completo: text });
+    } catch (error) {
+        res.status(500).json({ error: 'Error' });
+    }
 });
 
 app.post('/api/generate-summary', async (req, res) => {
     const { text, filename, role, studentHash } = req.body;
+    if (!channel) return res.status(500).json({ error: 'RabbitMQ Error' });
+
     const analisisId = new ObjectId();
-    await AnalisisPI.create({ _id: analisisId, userId: studentHash, filename, role, status: 'queued' });
+    const nuevoAnalisis = {
+        _id: analisisId,
+        userId: studentHash,
+        filename: filename,
+        status: 'queued',
+        uploadedAt: new Date(),
+        role: role
+    };
+
+    await getDB().collection('analisis_pi').insertOne(nuevoAnalisis);
     channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify({
-        analisiId: analisisId.toString(), userId: studentHash, role, filename, text
+        analisiId: analisisId.toString(),
+        userId: studentHash,
+        role: role,
+        filename: filename,
+        text: text
     })));
+
     res.json({ success: true, analisiId });
 });
 
-app.listen(port, () => {
-    console.log(`🚀 API activa en port ${port}`);
-    sequelize.sync({ alter: true }).then(() => console.log('✅ MySQL Sync')).catch(e => console.error(e));
+app.get('/api/queue-status', async (req, res) => {
+    try {
+        const queuedAnalisis = await getDB().collection('analisis_pi')
+            .find({ status: 'queued' })
+            .sort({ uploadedAt: 1 })
+            .toArray();
+        const queue = queuedAnalisis.map(a => a.filename);
+        res.json({ queue });
+    } catch (e) {
+        res.status(500).json({ error: 'Error' });
+    }
 });
+
+app.post('/api/chat', async (req, res) => {
+    const { text, question } = req.body;
+    const response = await fetch(`${process.env.OLLAMA_HOST}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: process.env.MODEL_NAME,
+            system: "Respon en Català molt breu.",
+            prompt: `Document: ${text.substring(0, 10000)}\nPregunta: ${question}`,
+            stream: false,
+            options: { num_predict: 80 }
+        })
+    });
+    const data = await response.json();
+    res.json({ answer: data.response });
+});
+
+app.delete('/api/students/:id/files/:filename', async (req, res) => {
+    const { id, filename } = req.params;
+    await getDB().collection('analisis_pi').deleteMany({ userId: id, filename: filename });
+    res.json({ success: true });
+});
+
+app.listen(port, () => console.log(`🚀 API activa en port ${port}`));
