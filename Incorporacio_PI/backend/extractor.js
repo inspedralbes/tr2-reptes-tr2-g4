@@ -45,11 +45,7 @@ async function extractPIdata(filesInput, role = 'docente') {
     let jsonStructure = "";
     let roleInstructions = "";
 
-    // -- COMMON FIELDS --
-    // We use a superset structure so frontend often works, but we populate differently.
-
     if (role === 'orientador') {
-        // ORIENTADOR: Quick Justificacio (after Diag), Extensive Adaptations
         jsonStructure = `{
             "perfil": {
                 "nomCognoms": "",
@@ -75,7 +71,6 @@ async function extractPIdata(filesInput, role = 'docente') {
         `;
 
     } else if (role === 'historial') {
-        // HISTORIAL: Global evolution across multiple years/documents
         jsonStructure = `{
             "evolució": "Resum de com ha evolucionat l'alumne des del primer document fins a l'últim.",
             "puntsClauRecurrents": "Llista de dificultats o fortaleses que apareixen sistemàticament en tots els PIs.",
@@ -92,7 +87,6 @@ async function extractPIdata(filesInput, role = 'docente') {
         `;
 
     } else {
-        // DOCENTE (Default): Classroom focus, Subjects, Evaluation
         jsonStructure = `{
             "perfil": {
                 "nomCognoms": "",
@@ -117,8 +111,11 @@ async function extractPIdata(filesInput, role = 'docente') {
         `;
     }
 
-    // OPTIMIZATION: UNLIMITED Context for High-End PC
-    const safeContext = aggregatedContext;
+    // OPTIMIZATION: Context management
+    const contextLength = aggregatedContext.length;
+    console.log(`📊 Total Context Length: ${contextLength} characters.`);
+
+    const safeContext = aggregatedContext.length > 40000 ? aggregatedContext.substring(0, 40000) + "... [TRUNCATED]" : aggregatedContext;
 
     const prompt = `
     Ets un expert en pedagogia i extracció de dades per a Plans Individualitzats (PI) a Catalunya.
@@ -143,82 +140,89 @@ async function extractPIdata(filesInput, role = 'docente') {
     - Sigues rigorós amb els termes NESE, DIL i els detalls de les mesures universals/intensives.
     `;
 
-    // 3. CALL OLLAMA WITH TIMEOUT & KEEP_ALIVE (STREAMING MODE)
-    try {
-        console.log(`🚀 Sending Prompt to Ollama (${MODEL_NAME})...`);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1800000); // 30 min timeout
+    // 3. CALL OLLAMA WITH TIMEOUT & DISPATCHER
+    const { Agent } = require('undici');
+    const agent = new Agent({
+        connectTimeout: 60000,
+        headersTimeout: 300000,
+        bodyTimeout: 1800000
+    });
 
-        const response = await fetch(OLLAMA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: MODEL_NAME,
-                prompt: prompt,
-                stream: false, // DISABLE STREAMING FOR STABILITY
-                format: 'json',
-                keep_alive: "60m",
-                options: {
-                    temperature: 0.1,
-                    num_ctx: 8192,
-                    num_predict: 1200
-                }
-            }),
-            signal: controller.signal
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            clearTimeout(timeoutId);
-            throw new Error(`Ollama API Error contacting ${OLLAMA_URL} (Status ${response.status}): ${response.statusText} - ${errorText}`);
-        }
-
-        const data = await response.json();
-        const rawJson = data.response;
-        clearTimeout(timeoutId);
-        console.log("✅ Response received. Raw Length:", rawJson.length);
-
-
-        // 4. ROBUST JSON PARSING
-        let finalData;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-            // Remove markdown code blocks if present
-            const cleanJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
-            finalData = JSON.parse(cleanJson);
-        } catch (e) {
-            console.warn("⚠️ Standard JSON parse failed. Attempting repair with jsonrepair...");
-            try {
-                // Require inside function to avoid startup error if not installed yet (though we just did)
-                const { jsonrepair } = require('jsonrepair');
-                const repaired = jsonrepair(rawJson);
-                finalData = JSON.parse(repaired);
-            } catch (repairError) {
-                console.error("❌ JSON Repair Failed. Raw output:", rawJson);
-                throw new Error(`JSON Parse Error: ${e.message} | Repair Error: ${repairError.message}`);
+            console.log(`🚀 Sending Prompt to Ollama (Attempt ${attempt}/2, Model: ${MODEL_NAME})...`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1800000);
+
+            const response = await fetch(OLLAMA_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                dispatcher: agent,
+                body: JSON.stringify({
+                    model: MODEL_NAME,
+                    prompt: prompt,
+                    stream: false,
+                    format: 'json',
+                    keep_alive: "60m",
+                    options: {
+                        temperature: 0.1,
+                        num_ctx: 8192,
+                        num_predict: 2000
+                    }
+                }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                clearTimeout(timeoutId);
+                throw new Error(`Ollama Error (Status ${response.status}): ${errorText}`);
             }
+
+            const data = await response.json();
+            clearTimeout(timeoutId);
+            console.log("✅ Response received. Parsing...");
+
+            let parsedResult = handleJsonResponse(data.response);
+            return finalizeMetadata(parsedResult, baseMetadata);
+
+        } catch (error) {
+            lastError = error;
+            console.error(`⚠️ Attempt ${attempt} failed:`, error.message);
+            if (error.name === 'AbortError' || error.code === 'UND_ERR_HEADERS_TIMEOUT' || error.message.includes('fetch failed')) {
+                console.warn("🔄 Retrying...");
+                continue;
+            }
+            throw error;
         }
-
-        // 5. MERGE METADATA (PRIORITY)
-        // Adjust for new structure (which uses 'perfil' instead of 'dadesAlumne')
-        if (!finalData.perfil) finalData.perfil = {};
-
-        if (baseMetadata.nom) finalData.perfil.nomCognoms = baseMetadata.nom;
-        if (baseMetadata.data) finalData.perfil.dataNaixement = baseMetadata.data;
-        if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
-
-        // Handle Diagnostic
-        if (baseMetadata.diagnostic && !finalData.diagnostic) {
-            finalData.diagnostic = baseMetadata.diagnostic;
-        }
-
-        console.log("✅ Extraction Complete.");
-        return finalData;
-
-    } catch (error) {
-        console.error(`❌ Error in extractPIdata (URL: ${OLLAMA_URL}):`, error.message);
-        if (error.cause) console.error('🔍 Cause:', error.cause);
-        throw error;
     }
+    throw lastError;
+}
+
+function handleJsonResponse(rawJson) {
+    try {
+        const cleanJson = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleanJson);
+    } catch (e) {
+        console.warn("⚠️ Standard JSON parse failed. Attempting repair...");
+        try {
+            const { jsonrepair } = require('jsonrepair');
+            return JSON.parse(jsonrepair(rawJson));
+        } catch (repairError) {
+            console.error("❌ JSON Repair Failed. Raw output:", rawJson);
+            throw new Error(`JSON Parse Error: ${e.message}`);
+        }
+    }
+}
+
+function finalizeMetadata(finalData, baseMetadata) {
+    if (!finalData.perfil) finalData.perfil = {};
+    if (baseMetadata.nom) finalData.perfil.nomCognoms = baseMetadata.nom;
+    if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
+    if (baseMetadata.diagnostic && !finalData.diagnostic) finalData.diagnostic = baseMetadata.diagnostic;
+    console.log("✅ Extraction Complete.");
+    return finalData;
 }
 
 async function warmupModel() {
@@ -236,7 +240,7 @@ async function warmupModel() {
         });
         console.log("✅ Model Warmed Up & Ready.");
     } catch (e) {
-        console.error("⚠️ Model Warmup Failed (Non-fatal):", e.message);
+        console.error("⚠️ Model Warmup Failed:", e.message);
     }
 }
 
