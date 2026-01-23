@@ -5,20 +5,21 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://ollama:11434';
 const OLLAMA_URL = `${OLLAMA_HOST}/api/generate`;
 const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
-async function extractPIdata(filesInput, role = 'docente', onProgress = null) {
-    const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: 'document' }];
-
-    if (onProgress) onProgress("LLEGINT ARXIUS...");
-
-    let aggregatedContext = "";
+async function extractPIdata(filesInput, role = 'docente', onProgress = null, directText = null) {
+    let aggregatedContext = directText || "";
     let baseMetadata = { nom: "Alumne ANONIMITZAT", curs: null, diagnostic: null };
 
-    for (const file of files) {
-        const parsedData = await parseFile(file.path, file.name);
-        if (parsedData) {
-            aggregatedContext += `\n--- DOC: ${file.name} ---\n${parsedData.context}\n`;
-            if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
-            if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
+    if (!directText) {
+        const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: 'document' }];
+        if (onProgress) onProgress("LLEGINT ARXIUS...");
+
+        for (const file of files) {
+            const parsedData = await parseFile(file.path, file.name);
+            if (parsedData) {
+                aggregatedContext += `\n--- DOC: ${file.name} ---\n${parsedData.context}\n`;
+                if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
+                if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
+            }
         }
     }
 

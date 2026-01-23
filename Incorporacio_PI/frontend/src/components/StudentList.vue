@@ -32,7 +32,8 @@
             <v-col cols="12">
                 <v-list lines="two">
                     <v-list-item v-for="student in filteredStudents" :key="student.hash_id"
-                        :subtitle="student.visual_identity.ralc_suffix" :title="student.visual_identity.iniciales">
+                        :subtitle="student.visual_identity?.ralc_suffix || 'PENDENT'" 
+                        :title="student.visual_identity?.iniciales || 'SENSE NOM'">
                         <template v-slot:prepend>
                             <v-avatar color="grey-lighten-1">
                                 <v-icon color="white">{{ student.has_file ? 'mdi-check-circle' : 'mdi-account' }}</v-icon>
@@ -92,12 +93,12 @@ const filteredStudents = computed(() => {
         // 1. Verificamos si coincide el NOMBRE (Si el input está vacío, devuelve true automáticamente)
         const matchesName = !nameInput || 
                             (student.original_name || '').toLowerCase().includes(nameInput) ||
-                            student.visual_identity.iniciales.toLowerCase().includes(nameInput);
+                            (student.visual_identity?.iniciales || '').toLowerCase().includes(nameInput);
 
         // 2. Verificamos si coincide el RALC (Si el input está vacío, devuelve true automáticamente)
         const matchesRalc = !ralcInput || 
                             (student.original_id || '').includes(ralcInput) ||
-                            student.visual_identity.ralc_suffix.toLowerCase().includes(ralcInput);
+                            (student.visual_identity?.ralc_suffix || '').toLowerCase().includes(ralcInput);
 
         // 3. Devuelve el estudiante solo si cumple AMBAS condiciones
         return matchesName && matchesRalc;
