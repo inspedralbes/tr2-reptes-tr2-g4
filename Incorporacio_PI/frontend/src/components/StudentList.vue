@@ -223,11 +223,10 @@ const statusOptions = [
     { title: 'Pendent de PI', value: 'without_pi' }
 ];
 
-// --- NUEVO: CONFIGURACIÓN DE ORDENACIÓN ---
-const sortOrder = ref('newest');
+// --- ORDENACIÓ SIMPLIFICADA ---
+const sortOrder = ref('default'); 
 const sortOptions = [
-    { title: 'Més recents primer', value: 'newest' },
-    { title: 'Més antics primer', value: 'oldest' },
+    { title: 'Per defecte (Sense ordre)', value: 'default' },
     { title: 'Alfabètic (A-Z)', value: 'alpha_asc' }
 ];
 
@@ -262,7 +261,7 @@ const filteredStudents = computed(() => {
         if (filterStatus.value === 'with_pi') matchesStatus = student.has_file === true;
         else if (filterStatus.value === 'without_pi') matchesStatus = !student.has_file;
 
-        // D. Ámbito (Centro vs Global)
+        // D. Ámbito
         let matchesScope = true;
         if (!isTextSearching && currentUserCenter) {
             matchesScope = String(student.codi_centre) === String(currentUserCenter);
@@ -271,28 +270,17 @@ const filteredStudents = computed(() => {
         return matchesScope && matchesName && matchesRalc && matchesStatus;
     });
 
-    // 2. Ordenación (Sorting)
-    return filtered.sort((a, b) => {
-        if (sortOrder.value === 'alpha_asc') {
+    // 2. Ordenación Simplificada
+    if (sortOrder.value === 'alpha_asc') {
+        return filtered.sort((a, b) => {
             const nameA = a.visual_identity?.iniciales || '';
             const nameB = b.visual_identity?.iniciales || '';
             return nameA.localeCompare(nameB);
-        }
+        });
+    }
 
-        // Para ordenar por fecha (Recientes/Antiguos)
-        // Intentamos usar 'created_at', si no existe usamos 'id' (asumiendo incremental), si no 'date_start'
-        const dateA = new Date(a.created_at || a.date_start || 0).getTime() || (a.id || 0);
-        const dateB = new Date(b.created_at || b.date_start || 0).getTime() || (b.id || 0);
-
-        if (sortOrder.value === 'newest') {
-            return dateB - dateA; // Descendente (Mayor a menor)
-        } 
-        if (sortOrder.value === 'oldest') {
-            return dateA - dateB; // Ascendente (Menor a mayor)
-        }
-        
-        return 0;
-    });
+    // Si es 'default', devolvemos la lista tal cual
+    return filtered;
 });
 
 onMounted(async () => {
