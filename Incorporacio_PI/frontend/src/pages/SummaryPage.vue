@@ -275,7 +275,7 @@ const checkStatus = async () => {
         loadingAI.value = false;
         errorAI.value = student.ia_data.resumen || "Procés interromput.";
         if (pollingInterval) clearInterval(pollingInterval);
-      } else if (['GENERANT...', 'A LA CUA', 'LLEGINT...'].includes(estado)) {
+      } else if (estado !== 'COMPLETAT') {
         loadingAI.value = true;
         
         // TIMER LOGIC
@@ -285,8 +285,10 @@ const checkStatus = async () => {
 
         if (student.ia_data.resumen) {
           resumenIA.value = student.ia_data.resumen;
-          currentStatus.value = `Processant... (Temps: ${elapsedStr})`;
+          currentStatus.value = `${estado} (Temps: ${elapsedStr})`;
         } else {
+          currentStatus.value = `${estado} (Temps: ${elapsedStr})`;
+          
           if (estado === 'A LA CUA') {
              // Consultar posició a la cua per donar feedback real
              try {
@@ -296,18 +298,8 @@ const checkStatus = async () => {
                      const index = qData.queue.indexOf(filename);
                      const cuaMsg = index >= 0 ? `(${index} davant)` : '';
                      currentStatus.value = `En cua d'espera ${cuaMsg}... (Temps: ${elapsedStr})`;
-                 } else {
-                     currentStatus.value = `En cua d'espera... (Temps: ${elapsedStr})`;
                  }
-             } catch (e) {
-                 currentStatus.value = `En cua d'espera... (Temps: ${elapsedStr})`;
-             }
-          }
-          else if (estado === 'LLEGINT...') {
-             currentStatus.value = `Llegint document... (Temps: ${elapsedStr})`;
-          }
-          else {
-             currentStatus.value = `Generant resum... (Temps: ${elapsedStr})`;
+             } catch (e) {}
           }
         }
         

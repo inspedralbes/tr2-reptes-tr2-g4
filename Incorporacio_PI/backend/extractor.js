@@ -22,7 +22,7 @@ async function extractPIdata(filesInput, role = 'docente', onProgress = null) {
         }
     }
 
-    if (!aggregatedContext) throw new Error("ABORT_JOB: No content.");
+    if (!aggregatedContext) throw new Error("ABORT_ANALISI: No content.");
     if (onProgress) onProgress("GENERANT RESUM...");
 
     const structures = {
