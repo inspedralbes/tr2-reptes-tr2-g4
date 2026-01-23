@@ -12,40 +12,40 @@ const openai = new OpenAI({
  * Ho intenta 5 vegades abans de rendir-se.
  */
 async function checkConnection(retries = 100) {
-    const url = "http://pi_llm:8080/health"; // Endpoint de salut de llama.cpp
-    console.log(`🔍 [aiService] Comprovant connexió amb IA Local (${url})...`);
-    
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await fetch(url);
-            if (response.ok) {
-                console.log("✅ [aiService] IA Local ONLINE (Port 8080 obert).");
-                
-                // NOU: Test real de generació per confirmar que "pensa"
-                console.log("🧪 [aiService] Fent prova de generació ràpida (Warm-up)...");
-                try {
-                    await openai.chat.completions.create({
-                        model: "default-model",
-                        messages: [{ role: "user", content: "Test" }],
-                        max_tokens: 1
-                    });
-                    console.log("🚀 [aiService] TEST SUPERAT! La IA està generant text correctament.");
-                } catch (e) {
-                    console.warn("⚠️ [aiService] El test de generació ha fallat (potser està carregant model):", e.message);
-                }
+  const url = "http://pi_llm:8080/health"; // Endpoint de salut de llama.cpp
+  console.log(`🔍 [aiService] Comprovant connexió amb IA Local (${url})...`);
 
-                return true;
-            }
-            // Si respon però no és OK (ex: 503 Loading...), avisem
-            console.warn(`⚠️ [aiService] La IA està carregant models (Status: ${response.status})...`);
-        } catch (error) {
-            console.warn(`⚠️ [aiService] Intent ${i+1}/${retries} fallit: ${error.message}`);
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        console.log("✅ [aiService] IA Local ONLINE (Port 8080 obert).");
+
+        // NOU: Test real de generació per confirmar que "pensa"
+        console.log("🧪 [aiService] Fent prova de generació ràpida (Warm-up)...");
+        try {
+          await openai.chat.completions.create({
+            model: "default-model",
+            messages: [{ role: "user", content: "Test" }],
+            max_tokens: 1
+          });
+          console.log("🚀 [aiService] TEST SUPERAT! La IA està generant text correctament.");
+        } catch (e) {
+          console.warn("⚠️ [aiService] El test de generació ha fallat (potser està carregant model):", e.message);
         }
-        // MOGUT: Esperem 3s SEMPRE si no hem acabat, tant si falla la xarxa com si està carregant
-        if (i < retries - 1) await new Promise(r => setTimeout(r, 3000));
+
+        return true;
+      }
+      // Si respon però no és OK (ex: 503 Loading...), avisem
+      console.warn(`⚠️ [aiService] La IA està carregant models (Status: ${response.status})...`);
+    } catch (error) {
+      console.warn(`⚠️ [aiService] Intent ${i + 1}/${retries} fallit: ${error.message}`);
     }
-    console.error("❌ [aiService] IMPOSSIBLE CONNECTAR AMB LA IA. Revisa que el contenidor 'pi_llm' estigui encès i a la mateixa xarxa.");
-    return false;
+    // MOGUT: Esperem 3s SEMPRE si no hem acabat, tant si falla la xarxa com si està carregant
+    if (i < retries - 1) await new Promise(r => setTimeout(r, 3000));
+  }
+  console.error("❌ [aiService] IMPOSSIBLE CONNECTAR AMB LA IA. Revisa que el contenidor 'pi_llm' estigui encès i a la mateixa xarxa.");
+  return false;
 }
 
 /**
@@ -58,58 +58,56 @@ async function generateSummaryLocal(text, role, onProgress) {
 
   // Retallem el text per no saturar el context del model
   // Si és un resum global, permetem més context per encabir diversos documents
-  const limit = role === 'global' ? 10000 : 8000; // REDUÏT: Optimització de velocitat (CPU)
+  const limit = role === 'global' ? 15000 : 12000; // AUGMENTAT: Tornem a la "vella escola" (més qualitat, encara que trigui més)
   const MAX_CHARS = limit;
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
   let currentProgress = 0;
-  
+
   // FASE 1: LECTURA
   // Eliminem la simulació. No enviarem progrés fals. El frontend mostrarà "Llegint..." sense barra o amb barra indeterminada.
 
   // --- SELECCIÓ DE PROMPT SEGONS ROL ---
   let systemPrompt = "";
-  
+
   if (role === 'global') {
     // PROMPT PER A RESUM GLOBAL (Historial)
-    systemPrompt = `Ets un assistent expert en educació.
-      OBJECTIU: Generar un resum global i cronològic de l'evolució de l'alumne basant-se en tots els seus Plans Individualitzats (PI).
+    systemPrompt = `Ets un assistent expert en educació especialITZADA.
+      OBJECTIU: Generar un resum global, profund i cronològic de l'evolució de l'alumne basant-se en tots els seus Plans Individualitzats (PI).
       
       ESTRUCTURA OBLIGATÒRIA (Usa exactament aquests títols en majúscules i negreta):
-      1. **EVOLUCIÓ**: Breu descripció del progrés. IMPORTANT: No inventis el curs actual. Si el document no ho diu clarament, digues "Curs no especificat".
-      2. **PUNTS CLAU RECURRENTS**: Diagnòstics o dificultats que es repeteixen.
-      3. **ADAPTACIONS CONSTANTS**: Mesures mantingudes en el temps.
-      4. **ESTAT ACTUAL**: Situació segons l'ÚLTIM document (per data o context). Sigues precís amb el curs i les necessitats actuals.
+      1. **EVOLUCIÓ**: Descripció detallada del progrés des del primer document fins a l'últim.
+      2. **PUNTS CLAU RECURRENTS**: Diagnòstics, barreres d'aprenentatge o dificultats que persisteixen.
+      3. **ADAPTACIONS CONSTANTS**: Mesures de suport que s'han mantingut i han demostrat ser efectives.
+      4. **ESTAT ACTUAL**: Resum de la situació actual segons l'últim PI. Identifica clarament el curs actual i les prioritats de treball.
 
-      FORMAT: Text net. No posis títol general "HISTORIAL...".`;
+      FORMAT: Text professional i empàtic. No posis títols de presentació.`;
   } else if (role === 'orientador') {
     // PROMPT PER A ORIENTADORS
-    systemPrompt = `Ets un assistent expert per a orientadors educatius.
-      OBJECTIU: Extreure informació clau per a l'orientació i seguiment de l'alumne.
+    systemPrompt = `Ets un assistent expert per a orientadors educatius (EAP/Psicopedagogs).
+      OBJECTIU: Extraure informació tècnica i d'orientació crucial.
       
-      ESTRUCTURA OBLIGATÒRIA (5 SECCIONS):
-      1. PERFIL DE L'ALUMNE (Text seguit en un sol paràgraf. NO llistes.)
-      2. DIAGNÒSTIC (Text seguit en un sol paràgraf, incloent observacions. NO llistes.)
-      3. JUSTIFICACIÓ DEL PI (Text seguit explicant el motiu basat en el diagnòstic. NO llistes.)
-      4. ORIENTACIÓ A L'AULA (Pautes d'actuació. NO incloguis dades administratives finals.)
-      5. MATÈRIES (Adaptacions curriculars i Avaluació)
+      ESTRUCTURA OBLIGATÒRIA:
+      1. PERFIL DE L'ALUMNE: Descripció biopsicosocial del cas (paràgraf).
+      2. DIAGNÒSTIC I NECESSITATS: Detalla el diagnòstic clínic/educatiu i les necessitats específiques (paràgraf).
+      3. JUSTIFICACIÓ DEL PI: Per què es realitza aquest pla i quins són els objectius prioritaris (paràgraf).
+      4. MESURES I SUPORTS: Pautes d'intervenció i coordinació.
+      5. SEGUIMENT PER MATÈRIES: Llista Totes les assignatures amb adaptacions.
 
-      FORMAT GENERAL: "Idea clau molt breu. [[Detall: Text original...]]"
-      FORMAT MATÈRIES: "Nom Matèria: Resum molt breu. [[Detall: Contingut complet i Criteris d'Avaluació originals del document]]"`;
+      FORMAT: "Idea clau. [[Detall: Text literal...]]"`;
   } else {
     // PROMPT PER A DOCENTS (Defecte)
-    systemPrompt = `Ets un assistent expert per a docents.
-      OBJECTIU: Facilitar informació pràctica per a l'aula i l'avaluació.
+    systemPrompt = `Ets un assistent expert per a professors d'aula.
+      OBJECTIU: Crear una guia pràctica i molt detallada per saber com treballar amb l'alumne demà mateix.
       
-      ESTRUCTURA OBLIGATÒRIA (5 SECCIONS):
-      1. PERFIL DE L'ALUMNE (Text seguit en un sol paràgraf. NO llistes.)
-      2. DIAGNÒSTIC (Text seguit en un sol paràgraf, incloent observacions. NO llistes.)
-      3. ORIENTACIÓ A L'AULA (Pautes d'actuació. NO incloguis dades administratives finals.)
-      4. ASSIGNATURES (Adaptacions específiques per matèria)
-      5. CRITERIS D'AVALUACIÓ (Com avaluar)
+      ESTRUCTURA OBLIGATÒRIA:
+      1. PERFIL DE L'ALUMNE: Qui és l'alumne i com aprèn millor.
+      2. DIAGNÒSTIC: Resultats de l'avaluació psicopedagògica de forma entenedora.
+      3. ORIENTACIÓ A L'AULA: Consells concrets per a la gestió de l'aula i la metodologia.
+      4. ASSIGNATURES I MATÈRIES: Llistat exhaustiu de cada matèria detectada al document amb les seves adaptacions.
+      5. CRITERIS D'AVALUACIÓ: Instruccions precises sobre com s'ha de qualificar l'alumne.
 
-      FORMAT GENERAL: "Idea clau molt breu. [[Detall: Text original...]]"
-      FORMAT ASSIGNATURES: "Nom Matèria: Resum molt breu. [[Detall: Contingut complet i Criteris d'Avaluació originals del document]]"`;
+      FORMAT: "Resum executiu. [[Detall: Cita literal del document...]]"`;
   }
 
   const messages = [
@@ -118,22 +116,20 @@ async function generateSummaryLocal(text, role, onProgress) {
       content: `${systemPrompt}
       
       INSTRUCCIONS CRÍTIQUES DE FORMAT I CONTINGUT:
-      1. TÍTOLS OBLIGATORIS: Genera SEMPRE les 5 seccions exactes llistades amunt.
-      2. PERFIL, DIAGNÒSTIC I JUSTIFICACIÓ: Redacta aquestes seccions en format de text seguit (paràgrafs). NO facis llistes verticals. Connecta la justificació amb el diagnòstic.
-      3. ANONIMITZACIÓ: NO incloguis MAI el nom de l'alumne. Substitueix-lo per "L'alumne/a".
-      4. DETECCIÓ DE CURS: Busca la llista de cursos i troba la 'X'. Escriu NOMÉS el curs marcat.
-      5. MATÈRIES / ASSIGNATURES: És IMPRESCINDIBLE que llistis TOTES les matèries que apareixen a la taula d'adaptacions. Itera per cada fila. Posa un resum de 4-5 paraules fora i TOT el text original (Continguts i Avaluació) dins del bloc [[Detall: ...]].
-      6. CRITERIS D'AVALUACIÓ: Si hi ha criteris generals, posa'ls a la secció corresponent.
-      7. NETEJA FINAL: El document acaba sovint amb signatures, dates, càrrecs (Director, Coordinador) i llistes de professionals. Aquesta informació NO forma part de "Orientació a l'Aula". NO la incloguis al resum. Atura't abans.
-      8. NO ASTERISCS: No utilitzis mai asteriscs (*) ni guions (-) al principi de les línies.
-      9. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
-      10. ANTI-AL·LUCINACIÓ: Si no trobes informació sobre un punt, no l'escriguis. No omplis buits amb text genèric o inventat.
+      1. TÍTOLS OBLIGATORIS: Genera SEMPRE les seccions exactes.
+      2. ANONIMITZACIÓ: Substitueix el nom de l'alumne per "L'alumne/a".
+      3. DETECCIÓ DE MATÈRIES (MOLT IMPORTANT): El document sol tenir taules amb assignatures (Català, Castellà, Matemàtiques, Anglès, etc.). Has de llistar-les ABSOLUTAMENT TOTES. No te'n deixis cap.
+      4. DETALLS LITERALS: Dins de [[Detall: ...]] has de posar el contingut literal, especialment en ASSIGNATURES i CRITERIS D'AVALUACIÓ. Si el document diu "Adapació de continguts: ...", copia-ho tot.
+      5. EVITA RESUMS GENÈRICS: Si el document diu coses específiques de Matemàtiques, no digues "adaptacions en general", digues exactament què es fa en Matemàtiques.
+      6. BUSCA EL CURS: Identifica a quin curs pertany el document (1r ESO, 2n Primària, etc.) i menciona'l al perfil.
+      7. NO INVENTIS: Si una secció no té informació al text, simplement no la posis o digues "Informació no disponible al document".
+      8. NO ASTERISCS: No usis asteriscs (*) ni guions (-) per llistes, usa paràgrafs o salts de línia nets.
       
-      Processa tot el text proporcionat.`
+      Analitza el següent text amb màxima atenció als detalls acadèmics:`
     },
     {
       role: "user",
-      content: `Analitza aquest PI i extreu-ne la informació rellevant:\n\n${truncatedText}`
+      content: `DOCUMENT PI:\n\n${truncatedText}`
     }
   ];
 
@@ -160,42 +156,42 @@ async function generateSummaryLocal(text, role, onProgress) {
     let chunkCount = 0;
 
     for await (const chunk of completion) {
-        // FASE 2: ESCRIPTURA (Reset a 0% -> 100%)
-        if (isFirst) {
-            console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
-            isFirst = false;
-            currentProgress = 0; // Reiniciem la barra per a la fase d'escriptura
-        }
+      // FASE 2: ESCRIPTURA (Reset a 0% -> 100%)
+      if (isFirst) {
+        console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
+        isFirst = false;
+        currentProgress = 0; // Reiniciem la barra per a la fase d'escriptura
+      }
 
-        chunkCount++;
-        const content = chunk.choices[0]?.delta?.content || "";
-        
-        // Log de "batec" cada 10 chunks per veure que està viu a la terminal (Més freqüent)
-        if (chunkCount % 10 === 0) {
-            console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
-        }
+      chunkCount++;
+      const content = chunk.choices[0]?.delta?.content || "";
 
-        fullText += content;
+      // Log de "batec" cada 10 chunks per veure que està viu a la terminal (Més freqüent)
+      if (chunkCount % 10 === 0) {
+        console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
+      }
 
-        if (onProgress) {
-            // Càlcul simple de progrés: Quantes seccions hem trobat ja?
-            let foundCount = 0;
-            sections.forEach(s => {
-                if (fullText.includes(s)) foundCount++;
-            });
-            
-            // Càlcul de progrés d'escriptura (0 a 100)
-            // MODIFICAT: Ajustem a 2000 tokens (resum complet)
-            // (chunkCount / 20) -> 2000 tokens = 100%
-            const chunkProgress = (chunkCount / 20); 
-            const sectionProgress = foundCount * 5; // Més pes a les seccions per compensar
-            
-            let writeProgress = chunkProgress + sectionProgress;
-            
-            // Enviem text ple -> Servidor marca "GENERANT..."
-            // AWAIT IMPORTANT: Esperem que s'actualitzi la BD abans de continuar per evitar race conditions al final
-            await onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
-        }
+      fullText += content;
+
+      if (onProgress) {
+        // Càlcul simple de progrés: Quantes seccions hem trobat ja?
+        let foundCount = 0;
+        sections.forEach(s => {
+          if (fullText.includes(s)) foundCount++;
+        });
+
+        // Càlcul de progrés d'escriptura (0 a 100)
+        // MODIFICAT: Ajustem a 2000 tokens (resum complet)
+        // (chunkCount / 20) -> 2000 tokens = 100%
+        const chunkProgress = (chunkCount / 20);
+        const sectionProgress = foundCount * 5; // Més pes a les seccions per compensar
+
+        let writeProgress = chunkProgress + sectionProgress;
+
+        // Enviem text ple -> Servidor marca "GENERANT..."
+        // AWAIT IMPORTANT: Esperem que s'actualitzi la BD abans de continuar per evitar race conditions al final
+        await onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
+      }
     }
 
     console.log(`🤖 [IA Local] Generació finalitzada amb èxit. Longitud: ${fullText.length} caràcters.`);
@@ -212,14 +208,14 @@ async function generateSummaryLocal(text, role, onProgress) {
  * @param {string} question - Pregunta de l'usuari
  */
 async function chatWithDocument(text, question) {
-    // OPTIMITZACIÓ EXTREMA: 1200 chars per velocitat màxima al xat
-    const MAX_CHARS = 1200; 
-    const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
+  // OPTIMITZACIÓ EXTREMA: 1200 chars per velocitat màxima al xat
+  const MAX_CHARS = 1200;
+  const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
-    const messages = [
-        {
-            role: "system",
-            content: `Ets un motor de cerca semàntic.
+  const messages = [
+    {
+      role: "system",
+      content: `Ets un motor de cerca semàntic.
             TASCA: Interpretar què vol l'usuari i trobar la frase LITERAL del text que ho respon, encara que no faci servir les mateixes paraules.
             
             EXEMPLES:
@@ -227,26 +223,26 @@ async function chatWithDocument(text, question) {
             - "què té?" -> Busca "diagnòstic", "trastorn", "dificultats".
             
             RESPOSTA: Retorna NOMÉS el fragment de text exacte del document. Si no ho trobes, digues NO_TROBAT.`
-        },
-        {
-            role: "user",
-            content: `DOCUMENT:\n"${truncatedText}"\n\nPREGUNTA: "${question}"\n\nRESPOSTA LITERAL DEL DOCUMENT:`
-        }
-    ];
-
-    try {
-        const completion = await openai.chat.completions.create({
-            model: "default-model",
-            messages: messages,
-            temperature: 0.0, // Determinista (sempre la mateixa resposta)
-            max_tokens: 60, // Molt curt (només volem la frase)
-            stream: false 
-        });
-        return completion.choices[0].message.content;
-    } catch (error) {
-        console.error("❌ Error Chat IA:", error);
-        throw new Error("Error connectant amb la IA.");
+    },
+    {
+      role: "user",
+      content: `DOCUMENT:\n"${truncatedText}"\n\nPREGUNTA: "${question}"\n\nRESPOSTA LITERAL DEL DOCUMENT:`
     }
+  ];
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "default-model",
+      messages: messages,
+      temperature: 0.0, // Determinista (sempre la mateixa resposta)
+      max_tokens: 60, // Molt curt (només volem la frase)
+      stream: false
+    });
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error("❌ Error Chat IA:", error);
+    throw new Error("Error connectant amb la IA.");
+  }
 }
 
 module.exports = { generateSummaryLocal, checkConnection, chatWithDocument };
