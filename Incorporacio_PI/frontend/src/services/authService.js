@@ -1,17 +1,14 @@
 import axios from 'axios';
 
-// 1. CORREGIDO: Lógica inteligente para Nginx/HTTPS
-// En Producción (PROD) BASE_URL será '' (vacío), así axios hará peticiones a /api/...
-// En Desarrollo, usará localhost:3001
+// Lògica URL (Igual que tenies)
 const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
-
-// Nota: Si BASE_URL es vacía, API_URL será "/api", que es perfecto para Nginx.
 const API_URL = `${BASE_URL}/api`;
 
-export const sendVerificationCode = async (email, recaptchaToken) => {
+// 1. MODIFICAT: Ja no acceptem recaptchaToken
+export const sendVerificationCode = async (email) => {
   const response = await axios.post(`${API_URL}/login/send-code`, { 
-    email: email,
-    recaptchaToken: recaptchaToken 
+    email: email
+    // recaptchaToken: ELIMINAT
   });
   return response.data;
 };

@@ -92,7 +92,7 @@ const errorMessage = ref('');
 const handleEmailSubmit = async (payload) => {
   isLoading.value = true;
   try {
-    await sendVerificationCode(payload.email, payload.token);
+    await sendVerificationCode(payload.email);
     
     email.value = payload.email;
     tempCenterCode.value = payload.codiCentre; 
@@ -102,10 +102,8 @@ const handleEmailSubmit = async (payload) => {
     console.error(error);
     if (error.response && error.response.data && error.response.data.error) {
         errorMessage.value = error.response.data.error;
-    } else if (error.response && error.response.status === 429) {
-        errorMessage.value = "Has superat el límit d'intents. Torna-ho a provar en 15 minuts.";
     } else {
-        errorMessage.value = "Error enviant el codi. Revisa la consola.";
+        errorMessage.value = "Error enviant el codi.";
     }
     showError.value = true;
   } finally {

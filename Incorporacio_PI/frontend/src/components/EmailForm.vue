@@ -43,19 +43,6 @@
       </template>
     </v-combobox>
 
-    <div class="d-flex justify-center mb-6">
-        <VueRecaptcha
-            :sitekey="siteKey"
-            @verify="onCaptchaVerify"
-            @expired="onCaptchaExpired"
-        ></VueRecaptcha>
-    </div>
-    
-    <div v-if="captchaError" class="d-flex align-center justify-center text-caption text-red-darken-3 mb-4 bg-red-lighten-5 pa-2 rounded border-red">
-        <v-icon icon="mdi-alert-circle-outline" size="small" class="mr-2"></v-icon>
-        Per seguretat, confirma que no ets un robot.
-    </div>
-
     <v-btn
       color="#D0021B"
       block
@@ -74,7 +61,6 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import VueRecaptcha from 'vue3-recaptcha2';
 
 const props = defineProps({
   loading: Boolean
@@ -87,15 +73,7 @@ const centros = ref([]);
 const loadingCentros = ref(false);
 const selectedItem = ref(null);
 
-// 1. DEFINIMOS LA URL BASE CORRECTA (CORREGIDO)
-// Si estamos en Producción, dejamos la cadena vacía '' para que use el dominio actual (HTTPS)
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
-
-// Clave del sitio (Frontend)
-const siteKey = "6LcLBUgsAAAAAO5gfUHPVfkHogRC-gaLtrDb7YrH";
-
-const recaptchaToken = ref(null);
-const captchaError = ref(false);
 
 const rules = [
   v => !!v || 'El correu o centre és obligatori',
@@ -108,9 +86,7 @@ const rules = [
 onMounted(async () => {
   loadingCentros.value = true;
   try {
-    // Ahora API_URL será '' en prod, por lo que la petición irá a /api/centros (seguro)
     const response = await fetch(`${API_URL}/api/centros`);
-    
     if (response.ok) {
       const data = await response.json();
       centros.value = data.map(c => ({
@@ -125,22 +101,8 @@ onMounted(async () => {
   }
 });
 
-const onCaptchaVerify = (token) => {
-    recaptchaToken.value = token;
-    captchaError.value = false;
-};
-
-const onCaptchaExpired = () => {
-    recaptchaToken.value = null;
-};
-
 const submit = async () => {
   const { valid } = await form.value.validate();
-  
-  if (!recaptchaToken.value) {
-      captchaError.value = true;
-      return; 
-  }
 
   if (valid) {
     let emailToSend = '';
@@ -155,7 +117,6 @@ const submit = async () => {
 
     emit('submitted', { 
         email: emailToSend.trim().toLowerCase(),
-        token: recaptchaToken.value,
         codiCentre: centerCodeToSend 
     });
   }
@@ -163,10 +124,8 @@ const submit = async () => {
 </script>
 
 <style scoped>
-/* Estils específics per afinar l'aparença */
-
 .gencat-btn {
-  border-radius: 4px !important; /* Vores lleugerament arrodonides, estil institucional */
+  border-radius: 4px !important;
   letter-spacing: 0.5px;
 }
 
@@ -174,7 +133,6 @@ const submit = async () => {
   border: 1px solid #ffcdd2;
 }
 
-/* Forçar estils d'input si Vuetify carrega altres per defecte */
 :deep(.v-field__outline__start),
 :deep(.v-field__outline__end),
 :deep(.v-field__outline__notch) {

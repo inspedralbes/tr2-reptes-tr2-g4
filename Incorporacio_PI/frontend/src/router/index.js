@@ -1,7 +1,7 @@
 /**
  * router/index.js
  */
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 // Importaciones
 import LandingPage from '@/pages/LandingPage.vue'
@@ -15,7 +15,7 @@ import Logs from '@/pages/Logs.vue'
 
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
