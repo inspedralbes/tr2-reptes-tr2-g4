@@ -173,15 +173,19 @@ app.get('/api/analyze/:filename', async (req, res) => {
         const ana = await getDB().collection('analisis_pi').findOne({ filename: filename }, { sort: { uploadedAt: -1 } });
         if (!ana) return res.status(404).json({ error: 'File not found' });
 
-        let text = "";
-        if (ana.filePath && fs.existsSync(ana.filePath)) {
+        let text = ana.rawText || "";
+
+        // Si no está en la DB, intentamos leer el archivo (compatibilidad con archivos antiguos)
+        if (!text && ana.filePath && fs.existsSync(ana.filePath)) {
             text = await extractTextFromFile(ana.filePath, ana.filename);
-        } else {
-            text = "Fitxer no disponible físicament al servidor.";
+        } else if (!text) {
+            text = "Fitxer no disponible. El text no s'ha pogut recuperar de la base de dades.";
         }
+
         res.json({ text_completo: text });
     } catch (error) {
-        res.status(500).json({ error: 'Error' });
+        console.error("Error en /api/analyze/:", error);
+        res.status(500).json({ error: 'Error intern del servidor' });
     }
 });
 

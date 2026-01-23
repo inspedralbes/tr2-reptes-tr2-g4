@@ -43,15 +43,20 @@ async function startWorker() {
 
                 await notify('processing', 'ANALITZANT DADES...');
 
-                // Si no hay filePath pero hay text, lo usamos directamente (regeneración)
-                let filesToAnalyze = [];
+                let contextToUse = text;
+                // Si hay archivo, extraemos el texto y lo guardamos en la DB para siempre
                 if (filePath) {
-                    filesToAnalyze = [{ path: filePath, name: originalFileName }];
+                    const { extractTextFromFile } = require('./fileReader');
+                    contextToUse = await extractTextFromFile(filePath, originalFileName);
+                    await analisisColl.updateOne(
+                        { _id: new ObjectId(analisiId) },
+                        { $set: { rawText: contextToUse } }
+                    );
                 }
 
-                const result = await extractPIdata(filesToAnalyze, role || 'docente', (prog) => {
+                const result = await extractPIdata([], role || 'docente', (prog) => {
                     notify('processing', prog);
-                }, text);
+                }, contextToUse);
 
                 // Guardar en la ficha del alumno
                 try {
