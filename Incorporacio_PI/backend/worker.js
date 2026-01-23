@@ -44,10 +44,12 @@ async function startWorker() {
                 await notify('processing', 'ANALITZANT DADES...');
 
                 let contextToUse = text;
-                // Si hay archivo, extraemos el texto y lo guardamos en la DB para siempre
+                // Si hay archivo, usamos el SmartParser para detectar las 'X' en las tablas
                 if (filePath) {
-                    const { extractTextFromFile } = require('./fileReader');
-                    contextToUse = await extractTextFromFile(filePath, originalFileName);
+                    const { parseFile } = require('./smartParser');
+                    const parsedData = await parseFile(filePath, originalFileName);
+                    contextToUse = parsedData ? parsedData.context : "";
+
                     await analisisColl.updateOne(
                         { _id: new ObjectId(analisiId) },
                         { $set: { rawText: contextToUse } }

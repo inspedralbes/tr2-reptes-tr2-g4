@@ -224,10 +224,33 @@ app.post('/api/chat', async (req, res) => {
     res.json({ answer: data.response });
 });
 
-app.delete('/api/students/:id/files/:filename', async (req, res) => {
+// RUTA DE BORRADO REFORZADA (Acepta nombres con puntos extra)
+app.delete('/api/students/:id/files/:filename(*)', async (req, res) => {
     const { id, filename } = req.params;
-    await getDB().collection('analisis_pi').deleteMany({ userId: id, filename: filename });
-    res.json({ success: true });
+    console.log(`🗑️ SOL·LICITUD ESBORRAR: Fitxer='${filename}', ID='${id}'`);
+
+    try {
+        const db = getDB();
+        // 1. Borramos de la colección principal
+        const q = { filename: filename };
+        if (id && id !== "undefined" && id !== "null") q.userId = id;
+        const res1 = await db.collection('analisis_pi').deleteMany(q);
+
+        // 2. Limpiamos en la ficha del alumno
+        let res2 = { modifiedCount: 0 };
+        if (id && id !== "undefined" && ObjectId.isValid(id)) {
+            res2 = await db.collection('students').updateOne(
+                { _id: new ObjectId(id) },
+                { $pull: { "files": { filename: filename }, "documents": { filename: filename } } }
+            );
+        }
+
+        console.log(`✅ Netejat: ${res1.deletedCount} de DB, ${res2.modifiedCount} del perfil alumne.`);
+        res.json({ success: true });
+    } catch (e) {
+        console.error("❌ Error crític en esborrar:", e.message);
+        res.status(500).json({ error: 'Falla intern' });
+    }
 });
 
 app.listen(port, () => console.log(`🚀 API activa en port ${port}`));

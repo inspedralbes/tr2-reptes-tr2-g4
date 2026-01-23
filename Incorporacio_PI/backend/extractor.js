@@ -47,41 +47,54 @@ ${structures[role] || structures.docente}
 
 ### REGLA: Respon NOMÉS amb el JSON. Sigues directe.`;
 
-    const maxRetries = 3;
+    const maxRetries = 2;
     let lastError = null;
+
+    // AUMENTAMOS CONTEXTO: 12.000 carácteres para capturar todo el documento
+    const fullContext = aggregatedContext.substring(0, 12000);
+
+    const finalPrompt = `Ets un expert en orientació pedagògica. 
+Analitza el document PI i genera un SUMMARY DETALLAT. 
+Extreu TOTES les adaptacions d'aula i les de cada assignatura (materia, continguts i avaluació). 
+És vital que NO et deixis detalls tècnics.
+
+### CONTEXT DEL DOCUMENT:
+"""
+${fullContext}
+"""
+
+### ESTRUCTURA JSON REQUERIDA:
+${structures[role] || structures.docente}
+
+REGLA DE FORMAT: RESPON NOMÉS AMB UN OBJECTE JSON. SIGUES EXTENS I DETALLAT.`;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            console.log(`🤖 [IA] Intent ${attempt}/${maxRetries} - Enviant a Ollama (${MODEL_NAME})`);
-            console.log(`📊 [IA] Mida del context: ${aggregatedContext.length} caràcters`);
+            console.log(`🤖 [IA] Intent ${attempt}/${maxRetries} - Ollama (${MODEL_NAME})`);
+            console.log(`📊 [IA] Mida del context enviat: ${fullContext.length} caràcters`);
 
-            // Usamos un simple AbortController para el timeout
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 600000); // 10 minutos
+            const timeout = setTimeout(() => controller.abort(), 300000);
 
             const response = await fetch(OLLAMA_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: MODEL_NAME,
-                    prompt: prompt,
+                    prompt: finalPrompt,
                     stream: false,
                     format: 'json',
                     options: {
                         temperature: 0.1,
                         num_ctx: 8192,
-                        num_predict: 800
+                        num_predict: 1000
                     }
                 }),
                 signal: controller.signal
             });
 
             clearTimeout(timeout);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Ollama Error ${response.status}: ${errorText}`);
-            }
+            if (!response.ok) throw new Error(`Ollama Error ${response.status}`);
 
             const data = await response.json();
             if (onProgress) onProgress("FINALITZANT...");
@@ -91,31 +104,25 @@ ${structures[role] || structures.docente}
                 const clean = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
                 finalData = JSON.parse(clean);
             } catch (e) {
-                console.warn("⚠️ [IA] Error parsejant JSON, intentant reparar...");
                 const { jsonrepair } = require('jsonrepair');
                 finalData = JSON.parse(jsonrepair(data.response));
             }
 
+            // Mínimos de seguridad para el frontend
             if (!finalData.perfil) finalData.perfil = {};
             finalData.perfil.nomCognoms = "Alumne ANONIMITZAT";
-            if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
-            if (baseMetadata.diagnostic && (role === 'docente' || role === 'orientador')) {
-                finalData.diagnostic = baseMetadata.diagnostic;
-            }
+            if (baseMetadata.curs && !finalData.perfil.curs) finalData.perfil.curs = baseMetadata.curs;
+            if (baseMetadata.diagnostic && !finalData.diagnostic) finalData.diagnostic = baseMetadata.diagnostic;
 
-            console.log(`✅ [IA] Resum generat en intent ${attempt}.`);
+            console.log(`✅ [IA] Resum ric generat OK.`);
             return finalData;
 
         } catch (e) {
             lastError = e;
-            console.error(`⚠️ [IA] Intent ${attempt} fallat:`, e.name === 'AbortError' ? 'Timeout excedit' : e.message);
-            if (attempt < maxRetries) {
-                await new Promise(r => setTimeout(r, 2000));
-            }
+            console.error(`⚠️ [IA] Intent ${attempt} fallat:`, e.message);
+            if (attempt < maxRetries) await new Promise(r => setTimeout(r, 2000));
         }
     }
-
-    console.error(`🔥 [IA] ERROR FINAL.`);
     throw lastError;
 }
 
