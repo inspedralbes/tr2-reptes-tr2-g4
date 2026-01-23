@@ -3,125 +3,119 @@ const path = require('path');
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse-fork');
 const AdmZip = require('adm-zip');
+const cheerio = require('cheerio');
 
-/**
- * SMART PARSER STRATEGY
- * Instead of dumping the whole text to the AI, we:
- * 1. Extract raw text cleanly.
- * 2. Snipe Metadata (Name, ID, Date) using Regex on the first 1000 chars.
- * 3. Crop the text to only the "Adaptacions" section for the AI to process.
- */
-
-// --- 1. DOCX RAW TEXT EXTRACTOR (MAMMOTH) ---
-async function extractDocxText(buffer) {
+async function extractDocxSmart(buffer) {
     try {
-        const result = await mammoth.extractRawText({ buffer: buffer });
-        return result.value.trim();
+        // Convertimos a HTML para poder usar Cheerio y analizar las tablas
+        const result = await mammoth.convertToHtml({ buffer: buffer });
+        const $ = cheerio.load(result.value);
+        let extractedLines = [];
+
+        // BUSCAR EN TABLAS (Donde suelen estar las X)
+        $('tr').each((i, row) => {
+            const cells = $(row).find('td, th');
+            let hasX = false;
+            let rowText = [];
+
+            cells.each((j, cell) => {
+                const text = $(cell).text().trim();
+                // Si la celda tiene una X sola, es una marca
+                if (text.match(/^[xX]$|^[sS][íi]$/)) {
+                    hasX = true;
+                } else if (text.length > 0) {
+                    rowText.push(text);
+                }
+            });
+
+            if (hasX && rowText.length > 0) {
+                extractedLines.push("✅ SELECCIONAT: " + rowText.join(" - "));
+            }
+        });
+
+        // BUSCAR ORIENTACIONES (Párrafos fuera de tablas)
+        let inOrientations = false;
+        $('p, h1, h2, h3, li').each((i, el) => {
+            if ($(el).parents('table').length === 0) {
+                const text = $(el).text().trim();
+                if (text.match(/Orientacions|Pautes|Recomanacions/i)) inOrientations = true;
+                if (text.match(/Signatura|Lloc i data|Vistiplau/i)) inOrientations = false;
+
+                if (inOrientations && text.length > 10 && !text.match(/Orientacions/i)) {
+                    extractedLines.push("💡 ORIENTACIÓ: " + text);
+                }
+            }
+        });
+
+        const smartText = extractedLines.join("\n");
+        // Si no hemos encontrado marcas, devolvemos el texto normal como fallback
+        if (smartText.length < 100) {
+            const raw = await mammoth.extractRawText({ buffer: buffer });
+            return raw.value;
+        }
+
+        return smartText;
     } catch (e) {
-        console.error("❌ SmartParser DOCX Error:", e);
+        console.error("❌ Error en extractDocxSmart:", e);
         return "";
     }
 }
 
-// --- 2. ODT EXTRACTOR ---
-function extractOdtText(buffer) {
-    try {
-        const zip = new AdmZip(buffer);
-        const contentXml = zip.readAsText("content.xml");
-        return contentXml
-            .replace(/<text:p[^>]*>/g, '\n') // Paragraphs to newlines
-            .replace(/<[^>]+>/g, ' ')        // Remove tags
-            .replace(/[ \t]+/g, ' ')         // Normalize horizontal spacing, preserve newlines
-            .trim();
-    } catch (e) {
-        console.error("❌ SmartParser ODT Error:", e);
-        return "";
-    }
-}
-
-// --- 3. PDF EXTRACTOR ---
 async function extractPdfText(buffer) {
     try {
         const data = await pdf(buffer);
-        return data.text;
+        // En el PDF es difícil buscar tablas, pero podemos limpiar el texto redundante
+        return data.text.replace(/\s+/g, ' ').trim();
     } catch (e) {
-        console.error("❌ SmartParser PDF Error:", e);
         return "";
     }
 }
 
-// --- MAIN SMART LOGIC ---
-async function parseFile(filePath, originalFileName = '') {
-    if (!fs.existsSync(filePath)) {
-        console.error(`❌ [SmartParser] File not found at path: ${filePath}`);
-        return null;
-    }
-
-    let buffer;
+function extractOdtSmart(buffer) {
     try {
-        buffer = fs.readFileSync(filePath);
+        const zip = new AdmZip(buffer);
+        const contentXml = zip.readAsText("content.xml");
+        // Lógica simplificada para ODT
+        let text = contentXml
+            .replace(/<text:p[^>]*>/g, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/[ \t]+/g, ' ')
+            .trim();
+        return text;
     } catch (e) {
-        console.warn(`⚠️ [SmartParser] Could not read file (deleted during process?): ${filePath}`);
-        return null;
+        return "";
     }
-    console.log(`📂 [SmartParser] Reading file: ${filePath} (Size: ${buffer.length} bytes)`);
+}
 
-    if (buffer.length === 0) {
-        console.error("❌ [SmartParser] File is empty (0 bytes).");
-        return null;
-    }
-
-    // Use original filename for extension if provided, otherwise fallback to filePath
+async function parseFile(filePath, originalFileName = '') {
+    if (!fs.existsSync(filePath)) return null;
+    const buffer = fs.readFileSync(filePath);
     const nameToCheck = originalFileName || filePath;
     const ext = path.extname(nameToCheck).toLowerCase();
 
-    console.log(`Current Extension detected: ${ext} for file ${nameToCheck}`);
+    let context = "";
+    if (ext === '.docx') context = await extractDocxSmart(buffer);
+    else if (ext === '.odt') context = extractOdtSmart(buffer);
+    else if (ext === '.pdf') context = await extractPdfText(buffer);
+    else return null;
 
-    // A. READ RAW TEXT
-    let rawText = "";
-    try {
-        if (ext === '.docx') rawText = await extractDocxText(buffer);
-        else if (ext === '.odt') rawText = extractOdtText(buffer);
-        else if (ext === '.pdf') rawText = await extractPdfText(buffer);
-        else {
-            console.error(`❌ Extension not supported: ${ext} (File: ${nameToCheck})`);
-            return null;
-        }
-    } catch (parseErr) {
-        console.error(`❌ [SmartParser] Parser crashed for ${ext}:`, parseErr);
-        return null;
-    }
-
-    console.log(`✅ [SmartParser] Raw text extracted. Length: ${rawText ? rawText.length : 0} chars.`);
-
-    if (!rawText || rawText.length < 50) {
-        console.warn(`⚠️ [SmartParser] Extracted text is too short (<50 chars). Content: "${rawText}"`);
-        return null;
-    }
-
-    // B. METADATA SNIPER (First 1500 chars)
-    const headerText = rawText.substring(0, 1500);
+    // METADATA SNIPER (Evitar directores/tutores)
+    const headerText = context.substring(0, 2000);
     const metadata = {
-        nom: extractRegex(headerText, /(?:Nom i cognoms|Nom|Alumne|Nombre)[:\.\-\s]+([^\n\r]+)/i),
-        data: extractRegex(headerText, /(?:Data de naixement|Naixement)[:\.\-\s]+([0-9\/]{8,10})/i),
+        nom: null,
         curs: extractRegex(headerText, /(?:Curs|Nivell|Estudis)[:\.\-\s]+([^\n\r]+)/i),
-        diagnostic: extractRegex(rawText.substring(0, 3000), /(?:Diagnòstic|Motiu|NESE|Trastorn)[:\.\-\s]+([^\n\r]+)/i)
+        diagnostic: extractRegex(context.substring(0, 5000), /(?:Diagnòstic|Motiu|NESE|Trastorn)[:\.\-\s]+([^\n\r]+)/i)
     };
 
-    // Clean up Name
-    if (metadata.nom) metadata.nom = metadata.nom.replace(/Nom i cognoms/i, "").replace(/[:\.\-]/g, "").trim();
+    // Búsqueda de nombre con filtro de "Staff"
+    const nameMatch = headerText.match(/(?:Nom i cognoms|Nom|Alumne|Nombre)[:\.\-\s]+([^\n\r]+)/i);
+    if (nameMatch) {
+        const candidate = nameMatch[1].trim();
+        const isStaff = candidate.match(/Director|Tutor|Coordinador|Pare|Mare|Representant/i);
+        if (!isStaff) metadata.nom = candidate;
+    }
 
-    // C. NO CROP (Full Context Strategy)
-    // We pass the full text to the AI to ensure we don't miss Diagnostic (Sec 2) or Evaluation (Sec 4)
-    // The AI model (Llama 3.2) has enough context window (8k+) for typical PI documents.
-    const context = rawText;
-
-    return {
-        metadata,
-        context, // The filtered text for AI
-        fullTextLength: rawText.length,
-        contextLength: context.length
-    };
+    return { metadata, context };
 }
 
 function extractRegex(text, regex) {

@@ -7,59 +7,49 @@ const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
 async function extractPIdata(filesInput, role = 'docente') {
     const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: 'document' }];
-    console.log(`📂 Analysis started (Role: ${role})...`);
+    console.log(`🚀 STARTING SMART EXTRACTION (Role: ${role})...`);
 
     let aggregatedContext = "";
     let baseMetadata = {};
 
     for (const file of files) {
-        try {
-            const parsedData = await parseFile(file.path, file.name);
-            if (parsedData) {
-                aggregatedContext += `\n[DOC: ${file.name}]\n${parsedData.context}\n`;
-                if (parsedData.metadata.nom) baseMetadata.nom = parsedData.metadata.nom;
-                if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
-                if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
-            }
-        } catch (e) { }
+        const parsedData = await parseFile(file.path, file.name);
+        if (parsedData) {
+            aggregatedContext += `\n--- CONTINGUT DE: ${file.name} ---\n${parsedData.context}\n`;
+            if (parsedData.metadata.nom) baseMetadata.nom = parsedData.metadata.nom;
+            if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
+            if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
+        }
     }
 
-    if (!aggregatedContext) throw new Error("ABORT_JOB: No content.");
-
-    // BALANCED CONTEXT (18k characters covers the most important sections)
-    const safeContext = aggregatedContext.length > 18000 ? aggregatedContext.substring(0, 18000) + "..." : aggregatedContext;
+    if (!aggregatedContext) throw new Error("ABORT_JOB: No usable content.");
 
     const structures = {
-        orientador: `{"perfil":{"nomCognoms":"","dataNaixement":"","curs":""},"diagnostic":"","justificacio":"","necessitats":[],"adaptacions":[],"orientacions":[]}`,
+        orientador: `{"perfil":{"nomCognoms":"","curs":""},"diagnostic":"","necessitats":[],"adaptacions":[],"orientacions":[]}`,
         historial: `{"evolució":"","puntsClauRecurrents":[],"adaptacionsConstants":[],"estatActual":""}`,
         docente: `{"perfil":{"nomCognoms":"","curs":""},"diagnostic":"","prioritats":[],"orientacioAula":[],"assignatures":[{"materia":"","continguts":"","avaluacio":""}],"criterisAvaluacioGeneral":[]}`
     };
 
-    // PROFESSIONAL PROMPT
-    const prompt = `Ets un expert en Plans Individualitzats (PI) a Catalunya. 
-Analitza el document i extreu la informació seguint exactament l'estructura JSON proporcionada.
+    const prompt = `Ets un motor d'IA per a resums de PI. 
+Analitza el text resumit i omple el JSON següent.
 
-### INSTRUCCIONS CRÍTIQUES:
-1. **Assignatures**: Llista totes les matèries trobades. Per a cada una, descriu l'adaptació aplicada i els criteris d'avaluació. No les deixis buides.
-2. **Prioritats i Orientacions**: Explica de forma clara què s'ha de fer a l'aula.
-3. **Idioma**: Respon sempre en Català.
-4. **Format**: Respon EXCLUSIVAMENT amb el codi JSON, sense text introductori.
+### DADOS RECOLLITS:
+"""${aggregatedContext}"""
 
 ### ESTRUCTURA OBJECTIU:
 ${structures[role] || structures.docente}
 
-### TEXT DEL DOCUMENT:
-"""${safeContext}"""`;
+### INSTRUCCIONS:
+1. **Assignatures**: Si veus línies que comencen per "✅ SELECCIONAT", aquestes són les adaptacions reals. Agrupa-les per matèria.
+2. **Orientacions**: Si veus "💡 ORIENTACIÓ", inclou-ho a l'apartat corresponent.
+3. El nom de l'alumne és: "${baseMetadata.nom || 'Desconegut'}".
+4. Sigues breu i professional. Respon NOMÉS amb el JSON.`;
 
     const { Agent } = require('undici');
-    const agent = new Agent({
-        connectTimeout: 60000,
-        headersTimeout: 600000, // 10 min
-        bodyTimeout: 1200000    // 20 min
-    });
+    const agent = new Agent({ connectTimeout: 60000, headersTimeout: 300000, bodyTimeout: 600000 });
 
     try {
-        console.log(`🚀 AI Starting Analysis (Context: ${safeContext.length} chars)...`);
+        console.log(`📤 Sending Smart Context to AI (Length: ${aggregatedContext.length} chars)...`);
         const response = await fetch(OLLAMA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -69,38 +59,34 @@ ${structures[role] || structures.docente}
                 prompt: prompt,
                 stream: false,
                 format: 'json',
-                keep_alive: "60m",
-                options: {
-                    temperature: 0.1,
-                    num_ctx: 8192, // High context for better quality
-                    num_predict: 1500 // Allow enough space for detailed subject lists
-                }
+                options: { temperature: 0.1, num_ctx: 4096, num_predict: 1000 }
             })
         });
 
-        if (!response.ok) throw new Error(`Ollama Error ${response.status}`);
+        if (!response.ok) throw new Error(`Status ${response.status}`);
         const data = await response.json();
 
+        // Parse with repair support
         let finalData;
         try {
-            const cleanJson = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
-            finalData = JSON.parse(cleanJson);
+            const clean = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
+            finalData = JSON.parse(clean);
         } catch (e) {
             const { jsonrepair } = require('jsonrepair');
             finalData = JSON.parse(jsonrepair(data.response));
         }
 
-        // Metadata Injection (Protect original data)
+        // Hard-set Metadata
         if (!finalData.perfil) finalData.perfil = {};
-        if (baseMetadata.nom) finalData.perfil.nomCognoms = baseMetadata.nom;
-        if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
+        finalData.perfil.nomCognoms = baseMetadata.nom || finalData.perfil.nomCognoms;
+        finalData.perfil.curs = baseMetadata.curs || finalData.perfil.curs;
         if (baseMetadata.diagnostic && !finalData.diagnostic) finalData.diagnostic = baseMetadata.diagnostic;
 
-        console.log("✅ AI Summary Complete and formatted.");
+        console.log("✅ Smart extraction complete.");
         return finalData;
-    } catch (error) {
-        console.error("❌ AI Error during generation:", error.message);
-        throw error;
+    } catch (e) {
+        console.error("❌ Extraction Error:", e.message);
+        throw e;
     }
 }
 
