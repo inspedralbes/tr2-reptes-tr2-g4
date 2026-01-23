@@ -49,71 +49,81 @@ ${structures[role] || structures.docente}
 
     const { Agent } = require('undici');
     const agent = new Agent({
-        connectTimeout: 60000,
-        headersTimeout: 300000,
-        bodyTimeout: 600000,
-        keepAliveTimeout: 60000,
-        maxRedirections: 5
+        connectTimeout: 90000,
+        headersTimeout: 400000,
+        bodyTimeout: 800000,
+        keepAliveTimeout: 60000
     });
 
-    console.log(`🤖 [IA] Iniciant petició a Ollama (${MODEL_NAME}) - URL: ${OLLAMA_URL}`);
+    const maxRetries = 3;
+    let lastError = null;
 
-    try {
-        const response = await fetch(OLLAMA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            dispatcher: agent,
-            body: JSON.stringify({
-                model: MODEL_NAME,
-                prompt: prompt,
-                stream: false,
-                format: 'json',
-                options: {
-                    temperature: 0.1,
-                    num_ctx: 4096,
-                    num_predict: 1000
-                }
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ [IA] Ollama ha retornat error ${response.status}:`, errorText);
-            throw new Error(`Ollama Error ${response.status}: ${errorText}`);
-        }
-
-        const data = await response.json();
-
-        if (onProgress) onProgress("FINALITZANT...");
-
-        let finalData;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const clean = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
-            finalData = JSON.parse(clean);
+            console.log(`🤖 [IA] Intent ${attempt}/${maxRetries} - Enviant a Ollama (${MODEL_NAME})`);
+            console.log(`📊 [IA] Mida del context: ${aggregatedContext.length} caràcters`);
+
+            const response = await fetch(OLLAMA_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                dispatcher: agent,
+                body: JSON.stringify({
+                    model: MODEL_NAME,
+                    prompt: prompt,
+                    stream: false,
+                    format: 'json',
+                    options: {
+                        temperature: 0.1,
+                        num_ctx: 4096,
+                        num_predict: 1000
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Ollama Error ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            if (onProgress) onProgress("FINALITZANT...");
+
+            let finalData;
+            try {
+                const clean = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
+                finalData = JSON.parse(clean);
+            } catch (e) {
+                console.warn("⚠️ [IA] Error parsejant JSON, intentant reparar...");
+                const { jsonrepair } = require('jsonrepair');
+                finalData = JSON.parse(jsonrepair(data.response));
+            }
+
+            if (!finalData.perfil) finalData.perfil = {};
+            finalData.perfil.nomCognoms = "Alumne ANONIMITZAT";
+            if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
+            if (baseMetadata.diagnostic && (role === 'docente' || role === 'orientador')) {
+                finalData.diagnostic = baseMetadata.diagnostic;
+            }
+
+            console.log(`✅ [IA] Resum generat correctament en l'intent ${attempt}.`);
+            return finalData;
+
         } catch (e) {
-            console.warn("⚠️ [IA] Error parsejant JSON, intentant reparar...");
-            const { jsonrepair } = require('jsonrepair');
-            finalData = JSON.parse(jsonrepair(data.response));
+            lastError = e;
+            console.error(`⚠️ [IA] Intent ${attempt} fallit:`, e.message);
+            if (attempt < maxRetries) {
+                const waitTime = attempt * 2000;
+                console.log(`⏳ [IA] Reintentant en ${waitTime}ms...`);
+                await new Promise(r => setTimeout(r, waitTime));
+            }
         }
-
-        if (!finalData.perfil) finalData.perfil = {};
-        finalData.perfil.nomCognoms = "Alumne ANONIMITZAT";
-        if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
-        if (baseMetadata.diagnostic && (role === 'docente' || role === 'orientador')) {
-            finalData.diagnostic = baseMetadata.diagnostic;
-        }
-
-        console.log(`✅ [IA] Resum generat correctament.`);
-        return finalData;
-    } catch (e) {
-        console.error(`🔥 [IA] ERROR CRÍTIC en fetch a Ollama:`, e.message);
-        console.error(`   Detalls:`, e);
-        // Si el error es "fetch failed", devolvemos algo más descriptivo para el usuario
-        if (e.message === 'fetch failed') {
-            throw new Error(`No s'ha pogut connectar amb el servidor d'IA (Ollama). Verifica que el contenidor 'pi_llm' estigui actiu i el model '${MODEL_NAME}' carregat.`);
-        }
-        throw e;
     }
+
+    console.error(`🔥 [IA] ERROR FINAL després de ${maxRetries} intents.`);
+    if (lastError.message === 'fetch failed') {
+        throw new Error(`No s'ha pogut connectar amb Ollama (fetch failed). Revisa que el contenidor 'pi_llm' tingui el model '${MODEL_NAME}' carregat correctament.`);
+    }
+    throw lastError;
 }
 
 async function warmupModel() {
