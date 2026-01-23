@@ -48,7 +48,15 @@ ${structures[role] || structures.docente}
 ### REGLA: Respon NOMÉS amb el JSON. Sigues directe.`;
 
     const { Agent } = require('undici');
-    const agent = new Agent({ connectTimeout: 30000, headersTimeout: 200000, bodyTimeout: 400000 });
+    const agent = new Agent({
+        connectTimeout: 60000,
+        headersTimeout: 300000,
+        bodyTimeout: 600000,
+        keepAliveTimeout: 60000,
+        maxRedirections: 5
+    });
+
+    console.log(`🤖 [IA] Iniciant petició a Ollama (${MODEL_NAME}) - URL: ${OLLAMA_URL}`);
 
     try {
         const response = await fetch(OLLAMA_URL, {
@@ -62,13 +70,18 @@ ${structures[role] || structures.docente}
                 format: 'json',
                 options: {
                     temperature: 0.1,
-                    num_ctx: 4096, // Reducido para velocidad
-                    num_predict: 800 // Resumen más corto = más rápido
+                    num_ctx: 4096,
+                    num_predict: 1000
                 }
             })
         });
 
-        if (!response.ok) throw new Error(`Status ${response.status}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ [IA] Ollama ha retornat error ${response.status}:`, errorText);
+            throw new Error(`Ollama Error ${response.status}: ${errorText}`);
+        }
+
         const data = await response.json();
 
         if (onProgress) onProgress("FINALITZANT...");
@@ -78,6 +91,7 @@ ${structures[role] || structures.docente}
             const clean = data.response.replace(/```json/g, '').replace(/```/g, '').trim();
             finalData = JSON.parse(clean);
         } catch (e) {
+            console.warn("⚠️ [IA] Error parsejant JSON, intentant reparar...");
             const { jsonrepair } = require('jsonrepair');
             finalData = JSON.parse(jsonrepair(data.response));
         }
@@ -89,8 +103,15 @@ ${structures[role] || structures.docente}
             finalData.diagnostic = baseMetadata.diagnostic;
         }
 
+        console.log(`✅ [IA] Resum generat correctament.`);
         return finalData;
     } catch (e) {
+        console.error(`🔥 [IA] ERROR CRÍTIC en fetch a Ollama:`, e.message);
+        console.error(`   Detalls:`, e);
+        // Si el error es "fetch failed", devolvemos algo más descriptivo para el usuario
+        if (e.message === 'fetch failed') {
+            throw new Error(`No s'ha pogut connectar amb el servidor d'IA (Ollama). Verifica que el contenidor 'pi_llm' estigui actiu i el model '${MODEL_NAME}' carregat.`);
+        }
         throw e;
     }
 }
