@@ -75,6 +75,7 @@ app.get('/api/students', async (req, res) => {
 
         students.forEach(student => {
             const sId = student._id.toString();
+            // Solo mostramos análisis que pertenezcan a este alumno
             const studentAnalisis = allAnalisis.filter(a => a.userId === sId && a.filename !== "Resum Global");
             const latest = studentAnalisis[0];
             processedIds.add(sId);
@@ -104,31 +105,7 @@ app.get('/api/students', async (req, res) => {
                 global_summary: student.global_summary
             });
         });
-
-        allAnalisis.forEach(ana => {
-            if (ana.filename === "Resum Global" || processedIds.has(ana.userId)) return;
-            const derivedName = ana.filename.split('.')[0];
-            combinedList.push({
-                hash_id: ana.userId,
-                original_name: derivedName,
-                original_id: "Ext.",
-                visual_identity: {
-                    iniciales: derivedName.substring(0, 2).toUpperCase(),
-                    ralc_suffix: 'FILE',
-                    color_bg: '#FFCC80',
-                    color_text: '#000000'
-                },
-                has_file: true,
-                ia_data: {
-                    estado: mapStatus(ana.status, ana.status_detail),
-                    resumen: ana.result || { error: ana.error },
-                    analisiId: ana._id.toString()
-                },
-                filename: ana.filename,
-                files: [{ filename: ana.filename, upload_date: ana.uploadedAt }]
-            });
-            processedIds.add(ana.userId);
-        });
+        // YA NO añadimos los huerfanos (ana => ...) para evitar el spam de "EX FILE"
         res.json(combinedList);
     } catch (e) {
         res.status(500).json({ error: 'Server Error' });

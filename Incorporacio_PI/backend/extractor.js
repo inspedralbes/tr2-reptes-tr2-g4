@@ -47,14 +47,6 @@ ${structures[role] || structures.docente}
 
 ### REGLA: Respon NOMÉS amb el JSON. Sigues directe.`;
 
-    const { Agent } = require('undici');
-    const agent = new Agent({
-        connectTimeout: 90000,
-        headersTimeout: 400000,
-        bodyTimeout: 800000,
-        keepAliveTimeout: 60000
-    });
-
     const maxRetries = 3;
     let lastError = null;
 
@@ -63,10 +55,13 @@ ${structures[role] || structures.docente}
             console.log(`🤖 [IA] Intent ${attempt}/${maxRetries} - Enviant a Ollama (${MODEL_NAME})`);
             console.log(`📊 [IA] Mida del context: ${aggregatedContext.length} caràcters`);
 
+            // Usamos un simple AbortController para el timeout
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 600000); // 10 minutos
+
             const response = await fetch(OLLAMA_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                dispatcher: agent,
                 body: JSON.stringify({
                     model: MODEL_NAME,
                     prompt: prompt,
@@ -74,11 +69,14 @@ ${structures[role] || structures.docente}
                     format: 'json',
                     options: {
                         temperature: 0.1,
-                        num_ctx: 4096,
-                        num_predict: 1000
+                        num_ctx: 8192,
+                        num_predict: 800
                     }
-                })
+                }),
+                signal: controller.signal
             });
+
+            clearTimeout(timeout);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -105,24 +103,19 @@ ${structures[role] || structures.docente}
                 finalData.diagnostic = baseMetadata.diagnostic;
             }
 
-            console.log(`✅ [IA] Resum generat correctament en l'intent ${attempt}.`);
+            console.log(`✅ [IA] Resum generat en intent ${attempt}.`);
             return finalData;
 
         } catch (e) {
             lastError = e;
-            console.error(`⚠️ [IA] Intent ${attempt} fallit:`, e.message);
+            console.error(`⚠️ [IA] Intent ${attempt} fallat:`, e.name === 'AbortError' ? 'Timeout excedit' : e.message);
             if (attempt < maxRetries) {
-                const waitTime = attempt * 2000;
-                console.log(`⏳ [IA] Reintentant en ${waitTime}ms...`);
-                await new Promise(r => setTimeout(r, waitTime));
+                await new Promise(r => setTimeout(r, 2000));
             }
         }
     }
 
-    console.error(`🔥 [IA] ERROR FINAL després de ${maxRetries} intents.`);
-    if (lastError.message === 'fetch failed') {
-        throw new Error(`No s'ha pogut connectar amb Ollama (fetch failed). Revisa que el contenidor 'pi_llm' tingui el model '${MODEL_NAME}' carregat correctament.`);
-    }
+    console.error(`🔥 [IA] ERROR FINAL.`);
     throw lastError;
 }
 
