@@ -12,7 +12,7 @@ const studentRoutes = require('./routes/studentRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const miscRoutes = require('./routes/miscRoutes');
 const statsRoutes = require('./routes/statsRoutes');
-const unityRouytes = require('./routes/unityRoutes');
+const unityRoutes = require('./routes/unityRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001; // Usa el puerto del entorno o 3001
