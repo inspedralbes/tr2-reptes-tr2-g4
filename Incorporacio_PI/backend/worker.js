@@ -11,8 +11,19 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://user:1234@rabbitmq:5672
 async function startWorker() {
     console.log('Worker Iniciado...');
 
-    // Warmup AI in background (Blocking until ready to prevent timeout on first job)
-    await warmupModel();
+    // 1. WAIT FOR OLLAMA (Retry indefinitely until active)
+    let ollamaReady = false;
+    while (!ollamaReady) {
+        try {
+            console.log("🔍 Checking Ollama availability...");
+            await warmupModel();
+            ollamaReady = true;
+            console.log("✅ Ollama is READY.");
+        } catch (e) {
+            console.warn("⏳ Ollama not ready yet, retrying in 5s...", e.message);
+            await new Promise(res => setTimeout(res, 5000));
+        }
+    }
 
     try {
         await connectDB();

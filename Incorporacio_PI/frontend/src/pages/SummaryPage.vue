@@ -331,8 +331,11 @@ const regenerarResumenIA = async () => {
   resumenIA.value = '';
   errorAI.value = null;
   progress.value = 0;
-  startTime.value = null; // Reset timer
-  currentStatus.value = 'Enviant document a la cua de processament...';
+  startTime.value = null; 
+  currentStatus.value = 'Iniciant procés...';
+
+  // Force local state to QUEUED immediately to override any stale data from server
+  const tempStatus = { ia_data: { estado: 'A LA CUA', resumen: null } };
   
   try {
     const response = await fetch('http://localhost:4002/api/generate-summary', {
@@ -346,7 +349,9 @@ const regenerarResumenIA = async () => {
     });
 
     if (!response.ok) throw new Error("Error enviant a la cua");
-    checkStatus();
+    
+    // Give backend 500ms to update DB before the first poll
+    setTimeout(checkStatus, 500);
 
   } catch (e) {
     console.error(e);

@@ -7,7 +7,7 @@ const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
 async function extractPIdata(filesInput, role = 'docente') {
     const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: arguments[1] || 'Unknown' }];
-    console.log(`📂 Processing ${files.length} files (Role: ${role})...`);
+    console.log(`📂 Analysis started (Role: ${role})...`);
 
     let aggregatedContext = "";
     let baseMetadata = {};
@@ -27,32 +27,68 @@ async function extractPIdata(filesInput, role = 'docente') {
     if (!aggregatedContext) throw new Error("ABORT_JOB: No content.");
 
     let jsonStructure = "";
+    let specificTask = "";
+
     if (role === 'orientador') {
-        jsonStructure = `{"perfil":{"nomCognoms":"","dataNaixement":"","curs":""},"diagnostic":"","justificacio":"","necessitats":[],"adaptacions":[],"orientacions":[]}`;
+        jsonStructure = `{
+            "perfil": { "nomCognoms": "", "dataNaixement": "", "curs": "" },
+            "diagnostic": "",
+            "justificacio": "",
+            "necessitats": [],
+            "adaptacions": [], 
+            "orientacions": []
+        }`;
+        specificTask = "Extreu dades personals, el diagnòstic tècnic, una justificació molt breu del PI i llista totes les barreres (necessitats) i mesures generals (adaptacions).";
     } else if (role === 'historial') {
-        jsonStructure = `{"evolució":"","puntsClauRecurrents":[],"adaptacionsConstants":[],"estatActual":""}`;
+        jsonStructure = `{
+            "evolució": "",
+            "puntsClauRecurrents": [],
+            "adaptacionsConstants": [],
+            "estatActual": ""
+        }`;
+        specificTask = "Compara els documents per resumir com ha evolucionat l'alumne, quins problemes es repeteixen sempre i quina és la situació actual.";
     } else {
-        jsonStructure = `{"perfil":{"nomCognoms":"","curs":""},"diagnostic":"","prioritats":[],"orientacioAula":[],"assignatures":[{"materia":"","continguts":"","avaluacio":""}]}`;
+        // DOCENTE
+        jsonStructure = `{
+            "perfil": { "nomCognoms": "", "curs": "" },
+            "diagnostic": "",
+            "prioritats": [],
+            "orientacioAula": [], 
+            "assignatures": [
+                { "materia": "", "continguts": "", "avaluacio": "" }
+            ],
+            "criterisAvaluacioGeneral": []
+        }`;
+        specificTask = "Prioritza la informació útil per al dia a dia a l'aula. Extreu prioritats immediates, consells pràctics (orientació aula), el detall d'adaptacions per cada matèria i els criteris d'avaluació generals.";
     }
 
-    // Context limit: 12k chars for speed (approx 3k tokens)
-    const safeContext = aggregatedContext.length > 12000 ? aggregatedContext.substring(0, 12000) + "..." : aggregatedContext;
+    // Context limit: 20k chars (Reasonable for quality on an 8-core machine)
+    const safeContext = aggregatedContext.length > 20000 ? aggregatedContext.substring(0, 20000) + "..." : aggregatedContext;
 
-    const prompt = `Ets un expert en PIs. Genera JSON en Català.
-Font: """${safeContext}"""
-JSON: ${jsonStructure}
-Instruccions: Sigues breu. NOMÉS el JSON.`;
+    const prompt = `
+    Ets un expert en Plans Individualitzats (PI) a Catalunya. 
+    Analitza el següent text i genera un objecte JSON en Català.
+
+    ### TEXT FONT:
+    """${safeContext}"""
+    
+    ### INSTRUCCIONS:
+    1. **Estructura**: Omple exclusivament aquest format: ${jsonStructure}
+    2. **Tasques**: ${specificTask}
+    3. **Rigor**: Sigues precís amb les adaptacions de les matèries. Si no hi ha dades per a una secció, deixa-la com a array buit [] o text buit "".
+    4. **Format**: Respon NOMÉS amb el JSON vàlid. No afegeixis cap text explicatiu abans ni després.
+    `;
 
     const { Agent } = require('undici');
     const agent = new Agent({
-        connectTimeout: 30000,
-        headersTimeout: 300000, // 5 min
-        bodyTimeout: 600000     // 10 min
+        connectTimeout: 60000,
+        headersTimeout: 300000,
+        bodyTimeout: 600000
     });
 
     for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-            console.log(`🚀 AI Attempt ${attempt}/2 (Ctx: ${safeContext.length} chars)...`);
+            console.log(`🚀 AI Attempt ${attempt}/2 (Context: ${safeContext.length} chars)...`);
             const response = await fetch(OLLAMA_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -63,7 +99,11 @@ Instruccions: Sigues breu. NOMÉS el JSON.`;
                     stream: false,
                     format: 'json',
                     keep_alive: "60m",
-                    options: { temperature: 0.1, num_ctx: 4096, num_predict: 800 }
+                    options: {
+                        temperature: 0.1,
+                        num_ctx: 8192,
+                        num_predict: 2000
+                    }
                 })
             });
 
@@ -72,12 +112,13 @@ Instruccions: Sigues breu. NOMÉS el JSON.`;
 
             let finalData = handleJsonResponse(data.response);
 
+            // Final Meta Injection
             if (!finalData.perfil) finalData.perfil = {};
             if (baseMetadata.nom) finalData.perfil.nomCognoms = baseMetadata.nom;
             if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
             if (baseMetadata.diagnostic && !finalData.diagnostic) finalData.diagnostic = baseMetadata.diagnostic;
 
-            console.log("✅ AI Processed OK.");
+            console.log("✅ AI Summary Complete.");
             return finalData;
         } catch (error) {
             console.error(`⚠️ Attempt ${attempt} failed:`, error.message);
@@ -99,7 +140,8 @@ function handleJsonResponse(rawJson) {
             const { jsonrepair } = require('jsonrepair');
             return JSON.parse(jsonrepair(rawJson));
         } catch (err) {
-            throw new Error("JSON Parse Error");
+            console.error("Critical JSON Parse Error. Raw:", rawJson);
+            throw new Error("ERROR_JSON_FORMAT");
         }
     }
 }
