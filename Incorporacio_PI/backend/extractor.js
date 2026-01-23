@@ -7,7 +7,7 @@ const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
 async function extractPIdata(filesInput, role = 'docente') {
     const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: 'document' }];
-    console.log(`📂 FAST ANALYSIS (Role: ${role})...`);
+    console.log(`📂 Analysis started (Role: ${role})...`);
 
     let aggregatedContext = "";
     let baseMetadata = {};
@@ -26,7 +26,7 @@ async function extractPIdata(filesInput, role = 'docente') {
 
     if (!aggregatedContext) throw new Error("ABORT_JOB: No content.");
 
-    // BALANCED CONTEXT LIMIT (18k chars ~ approx 7-10 pages of relevant text)
+    // BALANCED CONTEXT (18k characters covers the most important sections)
     const safeContext = aggregatedContext.length > 18000 ? aggregatedContext.substring(0, 18000) + "..." : aggregatedContext;
 
     const structures = {
@@ -35,20 +35,31 @@ async function extractPIdata(filesInput, role = 'docente') {
         docente: `{"perfil":{"nomCognoms":"","curs":""},"diagnostic":"","prioritats":[],"orientacioAula":[],"assignatures":[{"materia":"","continguts":"","avaluacio":""}],"criterisAvaluacioGeneral":[]}`
     };
 
-    const prompt = `Analitza el PI i genera un JSON en Català.
-Text: """${safeContext}"""
-Estructura: ${structures[role] || structures.docente}
-Instruccions: Sigues molt breu. Respon NOMÉS amb el JSON.`;
+    // PROFESSIONAL PROMPT
+    const prompt = `Ets un expert en Plans Individualitzats (PI) a Catalunya. 
+Analitza el document i extreu la informació seguint exactament l'estructura JSON proporcionada.
+
+### INSTRUCCIONS CRÍTIQUES:
+1. **Assignatures**: Llista totes les matèries trobades. Per a cada una, descriu l'adaptació aplicada i els criteris d'avaluació. No les deixis buides.
+2. **Prioritats i Orientacions**: Explica de forma clara què s'ha de fer a l'aula.
+3. **Idioma**: Respon sempre en Català.
+4. **Format**: Respon EXCLUSIVAMENT amb el codi JSON, sense text introductori.
+
+### ESTRUCTURA OBJECTIU:
+${structures[role] || structures.docente}
+
+### TEXT DEL DOCUMENT:
+"""${safeContext}"""`;
 
     const { Agent } = require('undici');
     const agent = new Agent({
         connectTimeout: 60000,
-        headersTimeout: 600000, // 10 min for headers
-        bodyTimeout: 1200000    // 20 min for full body
+        headersTimeout: 600000, // 10 min
+        bodyTimeout: 1200000    // 20 min
     });
 
     try {
-        console.log(`🚀 AI Process started (Length: ${safeContext.length} chars)...`);
+        console.log(`🚀 AI Starting Analysis (Context: ${safeContext.length} chars)...`);
         const response = await fetch(OLLAMA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -61,8 +72,8 @@ Instruccions: Sigues molt breu. Respon NOMÉS amb el JSON.`;
                 keep_alive: "60m",
                 options: {
                     temperature: 0.1,
-                    num_ctx: 4096,
-                    num_predict: 1000
+                    num_ctx: 8192, // High context for better quality
+                    num_predict: 1500 // Allow enough space for detailed subject lists
                 }
             })
         });
@@ -79,16 +90,16 @@ Instruccions: Sigues molt breu. Respon NOMÉS amb el JSON.`;
             finalData = JSON.parse(jsonrepair(data.response));
         }
 
-        // Metadata Injection
+        // Metadata Injection (Protect original data)
         if (!finalData.perfil) finalData.perfil = {};
         if (baseMetadata.nom) finalData.perfil.nomCognoms = baseMetadata.nom;
         if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
         if (baseMetadata.diagnostic && !finalData.diagnostic) finalData.diagnostic = baseMetadata.diagnostic;
 
-        console.log("✅ AI Processed successfully.");
+        console.log("✅ AI Summary Complete and formatted.");
         return finalData;
     } catch (error) {
-        console.error("❌ AI Error:", error.message);
+        console.error("❌ AI Error during generation:", error.message);
         throw error;
     }
 }
