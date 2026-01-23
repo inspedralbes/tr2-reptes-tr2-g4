@@ -85,14 +85,23 @@ const email = ref('');
 const tempCenterCode = ref(null);
 const isLoading = ref(false);
 
-// Per mostrar errors
 const showError = ref(false);
 const errorMessage = ref('');
 
 const handleEmailSubmit = async (payload) => {
   isLoading.value = true;
   try {
-    await sendVerificationCode(payload.email);
+    // -------------------------------------------------------------
+    // CORRECCIÓ AQUÍ:
+    // Passem TOTS els paràmetres que ens envia l'EmailForm.
+    // payload.token serà el Captcha (Web) o null (Electron)
+    // payload.isDesktop serà true (Electron) o false (Web)
+    // -------------------------------------------------------------
+    await sendVerificationCode(
+      payload.email, 
+      payload.token, 
+      payload.isDesktop
+    );
     
     email.value = payload.email;
     tempCenterCode.value = payload.codiCentre; 
@@ -102,6 +111,8 @@ const handleEmailSubmit = async (payload) => {
     console.error(error);
     if (error.response && error.response.data && error.response.data.error) {
         errorMessage.value = error.response.data.error;
+    } else if (error.response && error.response.status === 429) {
+        errorMessage.value = "Has superat el límit d'intents. Torna-ho a provar més tard.";
     } else {
         errorMessage.value = "Error enviant el codi.";
     }
@@ -122,11 +133,9 @@ const handleCodeVerification = async (code) => {
     
     localStorage.setItem('userEmail', email.value);
 
-    // 2. Si el login es correcto y tenemos un código de centro, lo guardamos
     if (tempCenterCode.value) {
         localStorage.setItem('userCenterCode', tempCenterCode.value);
     } else {
-        // Si entra como admin o manual, nos aseguramos de limpiar cualquier código anterior
         localStorage.removeItem('userCenterCode');
     }
 
@@ -146,15 +155,13 @@ const handleCodeVerification = async (code) => {
 </script>
 
 <style scoped>
-/* ESTILS CORPORATIUS GENCAT */
-
 .gencat-top-bar {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 4px;
-  background-color: #D0021B; /* Vermell Corporatiu */
+  background-color: #D0021B;
   z-index: 10;
 }
 
@@ -166,13 +173,11 @@ const handleCodeVerification = async (code) => {
   letter-spacing: 2px !important;
 }
 
-/* Efecto hover para el botón de volver */
 .hover-underline:hover {
   text-decoration: underline;
-  background-color: transparent !important; /* Evita el fondo gris por defecto */
+  background-color: transparent !important;
 }
 
-/* Assegurar tipografia de sistema */
 .v-container, .v-card {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }

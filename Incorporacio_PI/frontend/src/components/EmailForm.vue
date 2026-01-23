@@ -43,6 +43,22 @@
       </template>
     </v-combobox>
 
+    <!-- 1. BLOC RECAPTCHA CONDICIONAL -->
+    <!-- Només es renderitza si NO estem a l'Electron (!isElectronApp) -->
+    <div v-if="!isElectronApp" class="d-flex flex-column align-center mb-6">
+        <VueRecaptcha
+            :sitekey="siteKey"
+            @verify="onCaptchaVerify"
+            @expired="onCaptchaExpired"
+        ></VueRecaptcha>
+        
+        <!-- Missatge d'error del captcha -->
+        <div v-if="captchaError" class="d-flex align-center justify-center text-caption text-red-darken-3 mt-4 bg-red-lighten-5 pa-2 rounded border-red w-100">
+            <v-icon icon="mdi-alert-circle-outline" size="small" class="mr-2"></v-icon>
+            Per seguretat, confirma que no ets un robot.
+        </div>
+    </div>
+
     <v-btn
       color="#D0021B"
       block
@@ -60,7 +76,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import VueRecaptcha from 'vue3-recaptcha2'; // 2. IMPORTEM RECAPTCHA
 
 const props = defineProps({
   loading: Boolean
@@ -73,7 +90,20 @@ const centros = ref([]);
 const loadingCentros = ref(false);
 const selectedItem = ref(null);
 
+// Variables pel Captcha
+const recaptchaToken = ref(null);
+const captchaError = ref(false);
+// Clau pública (Site Key)
+const siteKey = "6LcLBUgsAAAAAO5gfUHPVfkHogRC-gaLtrDb7YrH"; 
+
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+
+// 3. DETECCIÓ INTEL·LIGENT D'ELECTRON
+// Electron posa una marca al User Agent. La busquem per saber on som.
+const isElectronApp = computed(() => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  return userAgent.indexOf(' electron/') > -1;
+});
 
 const rules = [
   v => !!v || 'El correu o centre és obligatori',
@@ -101,8 +131,26 @@ onMounted(async () => {
   }
 });
 
+// Handlers del Captcha
+const onCaptchaVerify = (token) => {
+    recaptchaToken.value = token;
+    captchaError.value = false;
+};
+
+const onCaptchaExpired = () => {
+    recaptchaToken.value = null;
+};
+
 const submit = async () => {
   const { valid } = await form.value.validate();
+
+  // 4. VALIDACIÓ CONDICIONAL
+  // Si estem a la WEB (!isElectronApp) i no tenim token => Error
+  // Si estem a ELECTRON, aquesta comprovació se salta
+  if (!isElectronApp.value && !recaptchaToken.value) {
+      captchaError.value = true;
+      return; 
+  }
 
   if (valid) {
     let emailToSend = '';
@@ -115,9 +163,12 @@ const submit = async () => {
       emailToSend = selectedItem.value;
     }
 
+    // 5. ENVIEM TOTES LES DADES AL PARE (LOGINVIEW)
     emit('submitted', { 
         email: emailToSend.trim().toLowerCase(),
-        codiCentre: centerCodeToSend 
+        token: recaptchaToken.value, // Serà null a Electron
+        codiCentre: centerCodeToSend,
+        isDesktop: isElectronApp.value // <--- LA CLAU DE TOT
     });
   }
 };
@@ -137,5 +188,9 @@ const submit = async () => {
 :deep(.v-field__outline__end),
 :deep(.v-field__outline__notch) {
   border-color: rgba(0,0,0,0.3) !important;
+}
+
+.w-100 {
+    width: 100%;
 }
 </style>
