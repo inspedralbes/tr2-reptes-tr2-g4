@@ -115,35 +115,47 @@ async function connectRabbit() {
                 let initUpdate = {};
                 initUpdate[`${updateFieldPrefix}.estado`] = "LLEGINT...";
                 initUpdate[`${updateFieldPrefix}.resumen`] = "";
-                initUpdate[`${updateFieldPrefix}.progress`] = 0;
+                initUpdate[`${updateFieldPrefix}.progress`] = 5;
                 if (role !== 'global') initUpdate[`${updateFieldPrefix}.role`] = role || 'docent';
 
                 await db.collection('students').updateOne(query, { $set: initUpdate });
+
+                // --- NOU: Simulació de progrés durant la lectura profunda ---
+                let lecturaProgress = 5;
+                const lecturaInterval = setInterval(async () => {
+                    if (lecturaProgress < 89 && isProcessing) {
+                        lecturaProgress += 1;
+                        try {
+                            let progUpdate = {};
+                            progUpdate[`${updateFieldPrefix}.progress`] = lecturaProgress;
+                            await db.collection('students').updateOne(query, { $set: progUpdate });
+                        } catch (e) { }
+                    }
+                }, 1500);
 
                 // 2. Cridem a la IA (Això triga minuts)
                 console.log(`⏳ [Worker] Iniciant generació IA (${role})...`);
 
                 let lastUpdate = 0;
                 const summary = await generateSummaryLocal(text, role, async (partialText, progress) => {
+                    clearInterval(lecturaInterval); // Aturem la simulació
                     const now = Date.now();
                     if (now - lastUpdate > 1000) {
                         lastUpdate = now;
-                        const estatActual = partialText.length > 0 ? "GENERANT..." : "LLEGINT...";
+                        const estatActual = "GENERANT...";
 
                         let progressUpdate = {};
                         progressUpdate[`${updateFieldPrefix}.estado`] = estatActual;
-                        progressUpdate[`${updateFieldPrefix}.progress`] = progress;
+                        // El progress d'escriptura va de 90 a 100
+                        progressUpdate[`${updateFieldPrefix}.progress`] = Math.min(90 + (progress / 10), 99.9);
                         progressUpdate[`${updateFieldPrefix}.resumen`] = partialText;
 
-                        // PROTECCIÓ: Si falla l'actualització de progrés (micro-tall BD), NO parem la generació
                         try {
                             await db.collection('students').updateOne(query, { $set: progressUpdate });
-                            console.log(`🐰 [Worker] Progrés: ${progress}% (${estatActual})`);
-                        } catch (progErr) {
-                            console.warn(`⚠️ [Worker] Error puntual actualitzant progrés (ignorat): ${progErr.message}`);
-                        }
+                        } catch (progErr) { }
                     }
                 });
+                clearInterval(lecturaInterval);
 
                 // 3. Guardem resultat
                 let finalUpdate = {};
@@ -301,6 +313,7 @@ app.get('/api/students', async (req, res) => {
         const students = await db.collection('students').find().toArray();
         res.json(students);
     } catch (error) {
+        console.error("❌ Error a /api/students:", error);
         res.status(500).json({ error: 'Error al servidor' });
     }
 });

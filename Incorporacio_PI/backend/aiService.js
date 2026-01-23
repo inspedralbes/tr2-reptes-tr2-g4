@@ -56,9 +56,30 @@ async function checkConnection(retries = 100) {
  */
 async function generateSummaryLocal(text, role, onProgress) {
 
+  // FASE 0: ESPERAR A QUE LA IA ESTE LLESTA (Status 200)
+  // Si el servidor retorna 503, significa que encara està carregant el model. Esperem.
+  const healthUrl = "http://pi_llm:8080/health";
+  let ready = false;
+  let attempts = 0;
+  while (!ready && attempts < 20) { // Esperem fins a 1 minut extra (20 * 3s)
+    try {
+      const hRes = await fetch(healthUrl);
+      if (hRes.ok) {
+        ready = true;
+      } else {
+        console.log(`⏳ [aiService] La IA encara està carregant (Status ${hRes.status}). Esperant 3s...`);
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    } catch (e) {
+      console.log(`⏳ [aiService] Esperant que el contenidor IA respongui...`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    attempts++;
+  }
+
   // Retallem el text per no saturar el context del model
-  // Si és un resum global, permetem més context per encabir diversos documents
-  const limit = role === 'global' ? 15000 : 12000; // AUGMENTAT: Tornem a la "vella escola" (més qualitat, encara que trigui més)
+  // Si és un resum global, permetem molt més context per encabir diversos documents (aprox 10.000 tokens)
+  const limit = role === 'global' ? 40000 : 25000;
   const MAX_CHARS = limit;
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
@@ -73,39 +94,39 @@ async function generateSummaryLocal(text, role, onProgress) {
   if (role === 'global') {
     // PROMPT PER A RESUM GLOBAL (Historial)
     systemPrompt = `Ets un assistent expert en educació especialITZADA.
-      OBJECTIU: Generar un resum global, profund i cronològic de l'evolució de l'alumne basant-se en tots els seus Plans Individualitzats (PI).
-      
-      ESTRUCTURA OBLIGATÒRIA (Usa exactament aquests títols en majúscules i negreta):
-      1. **EVOLUCIÓ**: Descripció detallada del progrés des del primer document fins a l'últim.
-      2. **PUNTS CLAU RECURRENTS**: Diagnòstics, barreres d'aprenentatge o dificultats que persisteixen.
-      3. **ADAPTACIONS CONSTANTS**: Mesures de suport que s'han mantingut i han demostrat ser efectives.
-      4. **ESTAT ACTUAL**: Resum de la situació actual segons l'últim PI. Identifica clarament el curs actual i les prioritats de treball.
-
-      FORMAT: Text professional i empàtic. No posis títols de presentació.`;
-  } else if (role === 'orientador') {
-    // PROMPT PER A ORIENTADORS
-    systemPrompt = `Ets un assistent expert per a orientadors educatius (EAP/Psicopedagogs).
-      OBJECTIU: Extraure informació tècnica i d'orientació crucial.
+      OBJECTIU: Generar un resum global, profund i cronològic de l'evolució de l'alumne.
       
       ESTRUCTURA OBLIGATÒRIA:
-      1. PERFIL DE L'ALUMNE: Descripció biopsicosocial del cas (paràgraf).
-      2. DIAGNÒSTIC I NECESSITATS: Detalla el diagnòstic clínic/educatiu i les necessitats específiques (paràgraf).
-      3. JUSTIFICACIÓ DEL PI: Per què es realitza aquest pla i quins són els objectius prioritaris (paràgraf).
-      4. MESURES I SUPORTS: Pautes d'intervenció i coordinació.
-      5. SEGUIMENT PER MATÈRIES: Llista Totes les assignatures amb adaptacions.
+      1. **EVOLUCIÓ**: Progrés des del primer document. Detecta canvis de centre o de suport (SIEI, ordinària).
+      2. **PUNTS CLAU RECURRENTS**: Diagnòstics tècnics (Paresia, TDAH, Dislèxia) i barreres.
+      3. **ADAPTACIONS CONSTANTS**: Mesures de suport que persisteixen (Auxiliars, Fisioteràpia).
+      4. **ESTAT ACTUAL**: Prioritats de l'últim curs (3r ESO, 4t ESO, etc.).
+
+      FORMAT: Text professional i directe.`;
+  } else if (role === 'orientador') {
+    // PROMPT PER A ORIENTADORS
+    systemPrompt = `Ets un assistent expert per a orientadors educatius.
+      OBJECTIU: Extraure informació tècnica i jurídica del PI.
+      
+      ESTRUCTURA OBLIGATÒRIA:
+      1. PERFIL DE L'ALUMNE: Descripció biopsicosocial i fets rellevants (adoptat, nouvingut, etc.).
+      2. DIAGNÒSTIC I NECESSITATS: Diagnòstic literal (ej: Tetraparèsia espàstica, Dislèxia severa). Menciona el grau de discapacitat (CAD %) si apareix.
+      3. JUSTIFICACIÓ DEL PI: Motiu de l'elaboració (Dictamen, NESE, etc.).
+      4. MESURES I SUPORTS: Professionals que intervenen (SIEI, EAP, Fisioterapeuta, Auxiliar). Menciona l'equipament (Tobii, Braille, Tablet).
+      5. SEGUIMENT PER MATÈRIES: Llistat d'assignatures i nivell d'assoliment.
 
       FORMAT: "Idea clau. [[Detall: Text literal...]]"`;
   } else {
     // PROMPT PER A DOCENTS (Defecte)
     systemPrompt = `Ets un assistent expert per a professors d'aula.
-      OBJECTIU: Crear una guia pràctica i molt detallada per saber com treballar amb l'alumne demà mateix.
+      OBJECTIU: Guia pràctica per saber com treballar amb l'alumne.
       
       ESTRUCTURA OBLIGATÒRIA:
-      1. PERFIL DE L'ALUMNE: Qui és l'alumne i com aprèn millor.
-      2. DIAGNÒSTIC: Resultats de l'avaluació psicopedagògica de forma entenedora.
-      3. ORIENTACIÓ A L'AULA: Consells concrets per a la gestió de l'aula i la metodologia.
+      1. PERFIL DE L'ALUMNE: Com aprèn i quin caràcter té (autoexigent, participatiu, tímid).
+      2. DIAGNÒSTIC: Resum entenedor del diagnòstic i el curs actual.
+      3. ORIENTACIÓ A L'AULA: Metodologia concreta (Tobii-Eye Tracking, ordinador, Braille, més temps, enunciats curts).
       4. ASSIGNATURES I MATÈRIES: Llistat exhaustiu de cada matèria detectada al document amb les seves adaptacions.
-      5. CRITERIS D'AVALUACIÓ: Instruccions precises sobre com s'ha de qualificar l'alumne.
+      5. CRITERIS D'AVALUACIÓ: Molt important: com s'ha de qualificar (ej: no penalitzar faltes, valorar contingut sobre forma, ús de calculadora).
 
       FORMAT: "Resum executiu. [[Detall: Cita literal del document...]]"`;
   }
@@ -136,11 +157,11 @@ async function generateSummaryLocal(text, role, onProgress) {
   try {
     console.log(`🤖 [aiService] Enviant petició a IA Local (http://pi_llm:8080/v1)...`);
     const completion = await openai.chat.completions.create({
-      model: "default-model", // Tornem al model principal (Llama)
+      model: "default-model",
       messages: messages,
       temperature: 0.1,
-      max_tokens: 2000, // RESTAURAT: 2000 tokens per permetre resums llargs
-      stream: true, // ACTIVEM STREAMING per veure el progrés
+      max_tokens: 4000, // AUGMENTAT: 4000 tokens per permetre resums molt detallats sense talls
+      stream: true,
       top_p: 0.9,
       presence_penalty: 0,
       frequency_penalty: 0

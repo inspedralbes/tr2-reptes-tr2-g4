@@ -21,7 +21,6 @@
     "mammoth": "^1.11.0",
     "mongodb": "^7.0.0",
     "multer": "^2.0.2",
-    "ollama": "^0.6.3",
     "openai": "^4.104.0",
     "path": "^0.12.7",
     "pdf-parse-fork": "^1.2.0",

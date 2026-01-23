@@ -24,26 +24,55 @@
 
     <!-- Estat de Càrrega -->
     <!-- Modificat: Ara mostrem això SEMPRE que estigui carregant, amagant el text parcial -->
-    <div v-if="loading || loadingAI" class="d-flex flex-column justify-center align-center pa-10 text-center">
-      <v-progress-circular indeterminate color="teal" size="64"></v-progress-circular>
-      <span class="mt-4 text-h6 text-teal text-center">{{ currentStatus }}</span>
-      <div class="mt-4" style="width: 100%; max-width: 300px">
-        <!-- Barra indeterminada durant la lectura (LLEGINT...) -->
-        <v-progress-linear v-if="progress <= 1 || currentStatus.includes('Llegint') || currentStatus.includes('Enviant') || currentStatus.includes('cua') || currentStatus.includes('Iniciant') || currentStatus.includes('Preparant')" indeterminate color="teal" height="25" rounded striped>
-          <template v-slot:default>
-            <strong>Processant...</strong>
-          </template>
-        </v-progress-linear>
-        <!-- Barra real durant la generació -->
-        <v-progress-linear v-else v-model="progress" color="teal" height="25" rounded striped>
-          <template v-slot:default="{ value }">
-            <strong>{{ Math.ceil(value) }}% completat</strong>
-          </template>
-        </v-progress-linear>
-      </div>
-      <div class="mt-2 text-caption text-grey">
-        Pots sortir d'aquesta pàgina, el procés continuarà en segon pla.
-      </div>
+    <!-- Estat de Càrrega (MILLORAT per a cada procés) -->
+    <div v-if="loading || loadingAI" class="d-flex flex-column justify-center align-center pa-6 text-center">
+      
+      <v-card variant="flat" border class="pa-6 w-100" max-width="500">
+        <h2 class="text-h6 mb-6">Processant Document</h2>
+        
+        <!-- Pas 1: Extracció -->
+        <div class="d-flex align-center mb-4">
+          <v-icon :color="progress >= 5 ? 'success' : 'grey'" :icon="progress >= 5 ? 'mdi-check-circle' : 'mdi-circle-outline'" class="mr-3"></v-icon>
+          <span :class="{'text-grey': progress < 5, 'font-weight-bold': progress >= 5 && progress < 10}">1. Extracció de text del document</span>
+        </div>
+
+        <!-- Pas 2: Lectura -->
+        <div class="d-flex align-center mb-4">
+          <v-icon 
+            :color="backendStatus === 'GENERANT...' || backendStatus === 'COMPLETAT' ? 'success' : (backendStatus === 'LLEGINT...' ? 'primary' : 'grey')" 
+            :icon="backendStatus === 'GENERANT...' || backendStatus === 'COMPLETAT' ? 'mdi-check-circle' : 'mdi-school'" 
+            class="mr-3"
+          ></v-icon>
+          <div class="text-left flex-grow-1">
+            <span :class="{'text-grey': backendStatus !== 'LLEGINT...', 'font-weight-bold font-italic': backendStatus === 'LLEGINT...'}">2. Lectura i comprensió (IA)</span>
+            <v-progress-linear v-if="backendStatus === 'LLEGINT...'" color="primary" height="6" :model-value="((progress - 5) / 85) * 100" rounded class="mt-1" striped></v-progress-linear>
+          </div>
+          <span v-if="backendStatus === 'LLEGINT...'" class="ml-2 text-caption font-weight-bold text-primary">{{ Math.round(((progress - 5) / 85) * 100) }}%</span>
+        </div>
+
+        <!-- Pas 3: Generació -->
+        <div class="d-flex align-center mb-6">
+          <v-icon 
+            :color="backendStatus === 'COMPLETAT' ? 'success' : (backendStatus === 'GENERANT...' ? 'teal' : 'grey')" 
+            :icon="backendStatus === 'COMPLETAT' ? 'mdi-check-circle' : 'mdi-auto-fix'" 
+            class="mr-3"
+          ></v-icon>
+          <div class="text-left flex-grow-1">
+            <span :class="{'text-grey': backendStatus !== 'GENERANT...', 'font-weight-bold font-italic font-variant-small-caps': backendStatus === 'GENERANT...'}">3. Escriptura del resum detallat</span>
+            <v-progress-linear v-if="backendStatus === 'GENERANT...'" color="teal" height="6" :model-value="((progress - 90) / 10) * 100" rounded class="mt-1" striped></v-progress-linear>
+          </div>
+          <span v-if="backendStatus === 'GENERANT...'" class="ml-2 text-caption font-weight-bold text-teal">{{ Math.round(((progress - 90) / 10) * 100) }}%</span>
+        </div>
+
+        <div class="text-caption text-grey-darken-1 mb-4 d-flex align-center">
+            <v-progress-circular v-if="backendStatus !== 'COMPLETAT'" indeterminate size="12" width="2" class="mr-2"></v-progress-circular>
+            {{ currentStatus }}
+        </div>
+        
+        <v-alert density="compact" variant="tonal" color="info" size="small" icon="mdi-information">
+          Pots sortir de la pàgina, t'avisarem quan acabi.
+        </v-alert>
+      </v-card>
     </div>
 
     <!-- Resultat de la IA -->
@@ -66,7 +95,7 @@
     <v-alert v-else-if="fileNotFound" type="warning" variant="tonal" class="mt-4" border="start" border-color="warning">
       <div class="d-flex align-center">
         <v-icon icon="mdi-file-remove-outline" class="mr-2" color="warning"></v-icon>
-        <div><strong>Document no disponible:</strong> El fitxer PDF no s'ha trobat al servidor.</div>
+        <div><strong>Document no disponible:</strong> El fitxer no s'ha trobat al servidor.</div>
       </div>
       <div class="ml-8 mt-1 text-caption text-grey-darken-1">
         Això passa si el servidor s'ha reiniciat i no s'han guardat els fitxers, o si l'enllaç és antic.
@@ -104,6 +133,7 @@ const errorAI = ref(null);
 const fileNotFound = ref(false);
 const progress = ref(0);
 const currentStatus = ref('Iniciant...');
+const backendStatus = ref(''); // Estat real (LLEGINT, GENERANT, etc.)
 const modelIndex = ref(0); // Per rotar models
 let pollingInterval = null; // Variable per guardar l'interval de comprovació
 
@@ -127,10 +157,10 @@ const parsedAnalysis = computed(() => {
   const markers = [
     // MODIFICAT: Regex arreglades. Ara accepten '.' com a separador i NO tenen '.*' al final per no menjar-se el text.
     { key: 'perfil', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:PERFIL DE L'ALUMNE|DADES PERSONALS)/i },
-    { key: 'dificultats', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:DIAGNÒSTIC|DIFICULTATS)/i },
+    { key: 'dificultats', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:DIAGNÒSTIC|DIFICULTATS|NECESSITATS)/i },
     { key: 'justificacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:JUSTIFICACIÓ DEL PI|JUSTIFICACIÓ)/i },
     { key: 'recomanacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ORIENTACIÓ A L'AULA|ORIENTACIONS)/i },
-    { key: 'adaptacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ASSIGNATURES|MATÈRIES|ADAPTACIONS)/i },
+    { key: 'adaptacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ASSIGNATURES|MATÈRIES|ADAPTACIONS|MESURES I SUPORTS|SEGUIMENT)/i },
     { key: 'avaluacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:CRITERIS D'AVALUACIÓ|AVALUACIÓ)/i }
   ];
 
@@ -209,9 +239,20 @@ onUnmounted(() => {
 
 const checkStatus = async () => {
   try {
-    // Obtenim la llista d'estudiants per buscar el nostre (no és el més eficient però funciona amb el backend actual)
     const response = await fetch('http://localhost:3001/api/students');
+    if (!response.ok) {
+        console.warn(`⚠️ [API] El servidor ha retornat un error ${response.status}. Reintentant en el següent cicle...`);
+        return; 
+    }
+    
     const students = await response.json();
+    
+    // VALIDACIÓ CRÍTICA: Assegurem que tenim un array abans de fer .find()
+    if (!Array.isArray(students)) {
+        console.error("❌ [API] La resposta no és un llistat vàlid:", students);
+        return;
+    }
+
     // Busquem l'alumne que tingui aquest fitxer
     const student = students.find(s => s.filename === filename || (s.files && s.files.some(f => f.filename === filename)));
     
@@ -219,6 +260,7 @@ const checkStatus = async () => {
 
     if (student && student.ia_data) {
       const estado = student.ia_data.estado;
+      backendStatus.value = estado;
       
       if (estado === 'COMPLETAT' && student.ia_data.resumen) {
         resumenIA.value = student.ia_data.resumen;

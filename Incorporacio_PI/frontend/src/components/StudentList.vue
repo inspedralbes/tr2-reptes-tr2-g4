@@ -55,8 +55,8 @@
                             </v-chip>
 
                             <div style="width: 250px">
-                                <v-file-input label="Pujar PI (PDF)" variant="outlined" density="compact"
-                                    accept=".pdf" prepend-icon="mdi-cloud-upload" hide-details
+                                <v-file-input label="Pujar PI (PDF, DOCX, ODT)" variant="outlined" density="compact"
+                                    accept=".pdf,.docx,.odt" prepend-icon="mdi-cloud-upload" hide-details
                                     @update:model-value="(files) => handleUpload(files, student.hash_id)"></v-file-input>
                             </div>
                         </template>
@@ -112,8 +112,11 @@ const handleUpload = async (files, hashId) => {
     const file = Array.isArray(files) ? files[0] : files;
 
     if (file) {
-        if (file.type !== 'application/pdf') {
-            studentStore.error = "Només s'accepten fitxers PDF!";
+        const allowedExtensions = ['pdf', 'docx', 'odt'];
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        
+        if (!allowedExtensions.includes(fileExt)) {
+            studentStore.error = "Format no acceptat! Només PDF, DOCX o ODT.";
             showError.value = true;
             return;
         }

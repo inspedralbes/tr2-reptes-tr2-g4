@@ -286,7 +286,7 @@ const normalizedFiles = computed(() => {
 const getFileIcon = (filename) => {
   const ext = filename.split('.').pop().toLowerCase();
   if (ext === 'pdf') return 'mdi-file-pdf-box';
-  if (['doc', 'docx'].includes(ext)) return 'mdi-file-word-box';
+  if (['doc', 'docx', 'odt'].includes(ext)) return 'mdi-file-word-box';
   if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'mdi-file-image';
   return 'mdi-file-document-outline';
 };
