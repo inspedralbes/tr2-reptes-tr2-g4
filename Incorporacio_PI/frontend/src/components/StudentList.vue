@@ -15,11 +15,11 @@
                 <v-card class="pa-6 mb-6 gencat-card" elevation="0" rounded="lg">
                     <div class="d-flex align-center mb-4">
                         <v-icon icon="mdi-filter-variant" color="#D0021B" class="mr-2"></v-icon>
-                        <h2 class="text-h6 font-weight-bold text-grey-darken-3">Filtres de cerca</h2>
+                        <h2 class="text-h6 font-weight-bold text-grey-darken-3">Filtres i Ordenació</h2>
                     </div>
                     
                     <v-row dense>
-                        <v-col cols="12" md="6">
+                        <v-col cols="12" sm="6" md="3">
                             <v-text-field
                                 v-model="searchName"
                                 label="Cercar per Inicials"
@@ -35,10 +35,10 @@
                             ></v-text-field>
                         </v-col>
 
-                        <v-col cols="12" md="6">
+                        <v-col cols="12" sm="6" md="3">
                             <v-text-field
                                 v-model="searchRalc"
-                                label="Cercar per RALC (últims dígits)"
+                                label="RALC (últims dígits)"
                                 placeholder="Ex: ***123"
                                 prepend-inner-icon="mdi-numeric"
                                 variant="outlined"
@@ -49,6 +49,40 @@
                                 hide-details="auto"
                                 class="gencat-input"
                             ></v-text-field>
+                        </v-col>
+
+                        <v-col cols="12" sm="6" md="3">
+                            <v-select
+                                v-model="filterStatus"
+                                :items="statusOptions"
+                                item-title="title"
+                                item-value="value"
+                                label="Estat Documentació"
+                                prepend-inner-icon="mdi-file-document-check-outline"
+                                variant="outlined"
+                                density="comfortable"
+                                color="#D0021B"
+                                base-color="grey-darken-1"
+                                hide-details="auto"
+                                class="gencat-input"
+                            ></v-select>
+                        </v-col>
+
+                        <v-col cols="12" sm="6" md="3">
+                            <v-select
+                                v-model="sortOrder"
+                                :items="sortOptions"
+                                item-title="title"
+                                item-value="value"
+                                label="Ordenar per..."
+                                prepend-inner-icon="mdi-sort-clock-ascending-outline"
+                                variant="outlined"
+                                density="comfortable"
+                                color="#D0021B"
+                                base-color="grey-darken-1"
+                                hide-details="auto"
+                                class="gencat-input"
+                            ></v-select>
                         </v-col>
                     </v-row>
                 </v-card>
@@ -77,29 +111,41 @@
                                     {{ student.visual_identity.iniciales }}
                                 </v-list-item-title>
                                 
-                                <v-list-item-subtitle class="d-flex align-center flex-wrap">
-                                    <v-chip size="x-small" label class="mr-2 font-weight-medium bg-grey-lighten-3 text-grey-darken-3">
+                                <v-list-item-subtitle class="d-flex align-center flex-wrap" style="gap: 8px;">
+                                    
+                                    <v-chip size="x-small" label class="font-weight-medium bg-grey-lighten-3 text-grey-darken-3">
                                         {{ student.visual_identity.ralc_suffix }}
                                     </v-chip>
 
                                     <v-chip 
-                                        v-if="!student.codi_centre"
+                                        v-if="student.codi_centre" 
+                                        size="x-small" 
+                                        color="blue-grey-lighten-4" 
+                                        class="font-weight-bold text-blue-grey-darken-3"
+                                        prepend-icon="mdi-domain"
+                                    >
+                                        {{ getSchoolName(student.codi_centre) }}
+                                    </v-chip>
+
+                                    <v-chip 
+                                        v-else
                                         color="orange-darken-3" 
                                         variant="flat" 
                                         size="x-small" 
-                                        class="mr-2 font-weight-bold"
+                                        class="font-weight-bold"
                                     >
                                         <v-icon start icon="mdi-alert-circle-outline" size="small"></v-icon>
                                         Sense Centre
                                     </v-chip>
 
-                                    <span v-if="student.has_file" class="text-caption text-green-darken-2 d-flex align-center">
+                                    <span v-if="student.has_file" class="text-caption text-green-darken-2 d-flex align-center ml-2">
                                         <v-icon start icon="mdi-file-document-outline" size="small"></v-icon>
                                         {{ student.files?.length || 1 }} Document(s)
                                     </span>
-                                    <span v-else class="text-caption text-orange-darken-3">
+                                    <span v-else class="text-caption text-orange-darken-3 ml-2">
                                         Pendent de documentació
                                     </span>
+
                                 </v-list-item-subtitle>
 
                                 <template v-slot:append>
@@ -139,9 +185,9 @@
                         </template>
 
                         <div v-if="filteredStudents.length === 0" class="text-center pa-8">
-                            <v-icon icon="mdi-account-search-outline" size="64" color="grey-lighten-2" class="mb-4"></v-icon>
-                            <h3 class="text-h6 text-grey-darken-2">No s'han trobat alumnes</h3>
-                            <p class="text-body-2 text-grey">Proveu de modificar els filtres de cerca.</p>
+                            <v-icon icon="mdi-filter-off-outline" size="64" color="grey-lighten-2" class="mb-4"></v-icon>
+                            <h3 class="text-h6 text-grey-darken-2">No hi ha resultats</h3>
+                            <p class="text-body-2 text-grey">Proveu de canviar els filtres o l'estat de documentació.</p>
                         </div>
                     </v-list>
                 </v-card>
@@ -167,49 +213,98 @@ const showError = ref(false);
 
 const searchName = ref('');
 const searchRalc = ref('');
+const schoolsList = ref([]);
 
-// Recuperamos el código del centro logueado
+// Filtro Estado PI
+const filterStatus = ref('all');
+const statusOptions = [
+    { title: 'Tots els estats', value: 'all' },
+    { title: 'Amb PI pujat', value: 'with_pi' },
+    { title: 'Pendent de PI', value: 'without_pi' }
+];
+
+// --- NUEVO: CONFIGURACIÓN DE ORDENACIÓN ---
+const sortOrder = ref('newest');
+const sortOptions = [
+    { title: 'Més recents primer', value: 'newest' },
+    { title: 'Més antics primer', value: 'oldest' },
+    { title: 'Alfabètic (A-Z)', value: 'alpha_asc' }
+];
+
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const currentUserCenter = localStorage.getItem('userCenterCode');
 
+const getSchoolName = (code) => {
+  if (!code) return '';
+  const found = schoolsList.value.find(s => String(s.codi_centre) === String(code));
+  return found ? (found.denominacio_completa || found.nom_centre) : `Centre: ${code}`;
+};
+
 const filteredStudents = computed(() => {
-    // 1. Preparamos los términos de búsqueda
+    // 1. Filtrado
     const nameInput = (searchName.value || '').trim().toLowerCase();
     const ralcInput = (searchRalc.value || '').trim().toLowerCase();
+    const isTextSearching = nameInput.length > 0 || ralcInput.length > 0;
 
-    // 2. Detectamos si el usuario está usando el buscador
-    const isSearching = nameInput.length > 0 || ralcInput.length > 0;
-
-    return studentStore.students.filter(student => {
-        // --- LÓGICA DE COINCIDENCIA DE TEXTO ---
+    let filtered = studentStore.students.filter(student => {
+        // A. Nombre
         const matchesName = !nameInput || 
                             (student.original_name || '').toLowerCase().includes(nameInput) ||
                             student.visual_identity.iniciales.toLowerCase().includes(nameInput);
 
+        // B. RALC
         const matchesRalc = !ralcInput || 
                             (student.original_id || '').includes(ralcInput) ||
                             student.visual_identity.ralc_suffix.toLowerCase().includes(ralcInput);
-
-        // --- LÓGICA DE VISIBILIDAD FINAL ---
         
-        if (isSearching) {
-            // CASO A: ESTÁ BUSCANDO
-            // Si hay texto en los inputs, buscamos en TODOS los centros (Global)
-            // Solo devolvemos si coinciden los filtros de texto.
-            return matchesName && matchesRalc;
-        } else {
-            // CASO B: LISTA POR DEFECTO (NO BUSCA)
-            // Si no escribe nada, aplicamos el filtro de seguridad estricto (Solo mi centro)
-            if (currentUserCenter) {
-                return String(student.codi_centre) === String(currentUserCenter);
-            }
-            // Si no hay usuario logueado (o es admin), mostramos todo por defecto
-            return true;
+        // C. Estado PI
+        let matchesStatus = true;
+        if (filterStatus.value === 'with_pi') matchesStatus = student.has_file === true;
+        else if (filterStatus.value === 'without_pi') matchesStatus = !student.has_file;
+
+        // D. Ámbito (Centro vs Global)
+        let matchesScope = true;
+        if (!isTextSearching && currentUserCenter) {
+            matchesScope = String(student.codi_centre) === String(currentUserCenter);
         }
+
+        return matchesScope && matchesName && matchesRalc && matchesStatus;
+    });
+
+    // 2. Ordenación (Sorting)
+    return filtered.sort((a, b) => {
+        if (sortOrder.value === 'alpha_asc') {
+            const nameA = a.visual_identity?.iniciales || '';
+            const nameB = b.visual_identity?.iniciales || '';
+            return nameA.localeCompare(nameB);
+        }
+
+        // Para ordenar por fecha (Recientes/Antiguos)
+        // Intentamos usar 'created_at', si no existe usamos 'id' (asumiendo incremental), si no 'date_start'
+        const dateA = new Date(a.created_at || a.date_start || 0).getTime() || (a.id || 0);
+        const dateB = new Date(b.created_at || b.date_start || 0).getTime() || (b.id || 0);
+
+        if (sortOrder.value === 'newest') {
+            return dateB - dateA; // Descendente (Mayor a menor)
+        } 
+        if (sortOrder.value === 'oldest') {
+            return dateA - dateB; // Ascendente (Menor a mayor)
+        }
+        
+        return 0;
     });
 });
 
-onMounted(() => {
+onMounted(async () => {
     studentStore.fetchStudents();
+    try {
+        const res = await fetch(`${API_URL}/api/centros`);
+        if (res.ok) {
+            schoolsList.value = await res.json();
+        }
+    } catch (e) {
+        console.error("Error cargando lista de centros:", e);
+    }
 });
 
 const handleUpload = async (files, hashId) => {
@@ -237,7 +332,6 @@ watch(() => studentStore.error, (newVal) => {
 
 <style scoped>
 /* ESTILS CORPORATIUS GENCAT */
-
 .gencat-font {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }
@@ -247,14 +341,12 @@ watch(() => studentStore.error, (newVal) => {
   background-color: white;
 }
 
-/* Ajust fi per als inputs perquè semblin més nets */
 .gencat-input :deep(.v-field__outline__start),
 .gencat-input :deep(.v-field__outline__end),
 .gencat-input :deep(.v-field__outline__notch) {
   border-color: rgba(0,0,0,0.2) !important;
 }
 
-/* El input de fitxer més petit */
 .gencat-file-input :deep(.v-field) {
     font-size: 0.85rem;
     border-radius: 4px;
