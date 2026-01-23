@@ -121,7 +121,7 @@ app.get('/api/students', async (req, res) => {
                 has_file: !!latestJob,
                 files: studentJobs.map(j => ({ filename: j.filename, upload_date: j.uploadedAt, originalName: j.filename })),
                 ia_data: latestJob ? {
-                    estado: mapStatus(latestJob.status),
+                    estado: mapStatus(latestJob.status, latestJob.status_detail),
                     last_update: latestJob.processedAt,
                     resumen: latestJob.result || (latestJob.error ? { error: latestJob.error } : null)
                 } : null,
@@ -151,7 +151,7 @@ app.get('/api/students', async (req, res) => {
                     has_file: true,
                     files: [{ filename: job.filename, upload_date: job.uploadedAt }],
                     ia_data: {
-                        estado: mapStatus(job.status),
+                        estado: mapStatus(job.status, job.status_detail),
                         last_update: job.processedAt,
                         resumen: job.result || (job.error ? { error: job.error } : null)
                     },
@@ -169,10 +169,9 @@ app.get('/api/students', async (req, res) => {
     }
 });
 
-function mapStatus(status) {
+function mapStatus(status, jobDetail = null) {
     if (status === 'queued') return 'A LA CUA';
-    if (status === 'processing') return 'GENERANT...';
-    if (status === 'reading') return 'LLEGINT...';
+    if (status === 'processing') return jobDetail || 'GENERANT...';
     if (status === 'completed') return 'COMPLETAT';
     if (status === 'failed') return 'ERROR';
     return status;

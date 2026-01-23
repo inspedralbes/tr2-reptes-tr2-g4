@@ -5,9 +5,10 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://ollama:11434';
 const OLLAMA_URL = `${OLLAMA_HOST}/api/generate`;
 const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
-async function extractPIdata(filesInput, role = 'docente') {
+async function extractPIdata(filesInput, role = 'docente', onProgress = null) {
     const files = Array.isArray(filesInput) ? filesInput : [{ path: filesInput, name: 'document' }];
-    console.log(`🚀 STARTING ANONYMOUS EXTRACTION (Role: ${role})...`);
+
+    if (onProgress) onProgress("LLEGINT ARXIUS...");
 
     let aggregatedContext = "";
     let baseMetadata = { nom: "Alumne ANONIMITZAT", curs: null, diagnostic: null };
@@ -15,41 +16,38 @@ async function extractPIdata(filesInput, role = 'docente') {
     for (const file of files) {
         const parsedData = await parseFile(file.path, file.name);
         if (parsedData) {
-            aggregatedContext += `\n--- CONTINGUT DEO: ${file.name} ---\n${parsedData.context}\n`;
+            aggregatedContext += `\n--- DOC: ${file.name} ---\n${parsedData.context}\n`;
             if (parsedData.metadata.curs) baseMetadata.curs = parsedData.metadata.curs;
             if (parsedData.metadata.diagnostic) baseMetadata.diagnostic = parsedData.metadata.diagnostic;
         }
     }
 
-    if (!aggregatedContext) throw new Error("ABORT_JOB: No usable content.");
+    if (!aggregatedContext) throw new Error("ABORT_JOB: No content.");
+    if (onProgress) onProgress("GENERANT RESUM...");
 
-    // Estructuras sin campo de nombre (nomCognoms)
     const structures = {
         orientador: `{"perfil":{"curs":""},"diagnostic":"","necessitats":[],"adaptacions":[],"orientacions":[]}`,
         historial: `{"evolució":"","puntsClauRecurrents":[],"adaptacionsConstants":[],"estatActual":""}`,
         docente: `{"perfil":{"curs":""},"diagnostic":"","prioritats":[],"orientacioAula":[],"assignatures":[{"materia":"","continguts":"","avaluacio":""}],"criterisAvaluacioGeneral":[]}`
     };
 
-    const prompt = `Ets un motor d'IA professional. Omple el JSON estrictament amb les dades pedagògiques.
-AVÍS: NO busquis ni incloguis el NOM de l'alumne. L'expedient és ANONIMITZAT.
+    const prompt = `Ets un motor d'IA ultra-ràpid. Genera el JSON pedagògic.
+ANONIMITZAT: NO incloguis noms.
 
-### TEXT RECOLLIT:
+### DADES:
 """${aggregatedContext}"""
 
 ### METADATA:
 - Curs: "${baseMetadata.curs || 'N/D'}"
 - Diagnòstic: "${baseMetadata.diagnostic || 'N/D'}"
 
-### JSON OBJECTIU:
+### JSON:
 ${structures[role] || structures.docente}
 
-### INSTRUCCIONS:
-1. Omple el JSON amb la informació pedagògica.
-2. Usa estrictament la estructura proporcionada (no incloguis camps de noms).
-3. Respon NOMÉS amb el JSON.`;
+### REGLA: Respon NOMÉS amb el JSON. Sigues directe.`;
 
     const { Agent } = require('undici');
-    const agent = new Agent({ connectTimeout: 60000, headersTimeout: 300000, bodyTimeout: 600000 });
+    const agent = new Agent({ connectTimeout: 30000, headersTimeout: 200000, bodyTimeout: 400000 });
 
     try {
         const response = await fetch(OLLAMA_URL, {
@@ -61,12 +59,18 @@ ${structures[role] || structures.docente}
                 prompt: prompt,
                 stream: false,
                 format: 'json',
-                options: { temperature: 0.1, num_ctx: 8192, num_predict: 1500 }
+                options: {
+                    temperature: 0.1,
+                    num_ctx: 4096, // Reducido para velocidad
+                    num_predict: 800 // Resumen más corto = más rápido
+                }
             })
         });
 
         if (!response.ok) throw new Error(`Status ${response.status}`);
         const data = await response.json();
+
+        if (onProgress) onProgress("FINALITZANT...");
 
         let finalData;
         try {
@@ -77,18 +81,15 @@ ${structures[role] || structures.docente}
             finalData = JSON.parse(jsonrepair(data.response));
         }
 
-        // --- SOBREESCRIPTURA FINAL (FORZAR ANONIMATO) ---
         if (!finalData.perfil) finalData.perfil = {};
-        finalData.perfil.nomCognoms = "Alumne ANONIMITZAT"; // Por si el frontend lo busca
+        finalData.perfil.nomCognoms = "Alumne ANONIMITZAT";
         if (baseMetadata.curs) finalData.perfil.curs = baseMetadata.curs;
         if (baseMetadata.diagnostic && (role === 'docente' || role === 'orientador')) {
             finalData.diagnostic = baseMetadata.diagnostic;
         }
 
-        console.log("✅ Anonymous extraction complete.");
         return finalData;
     } catch (e) {
-        console.error("❌ Extraction Error:", e.message);
         throw e;
     }
 }
