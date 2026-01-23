@@ -16,9 +16,7 @@ async function startWorker() {
         const db = client.db();
         const studentsColl = db.collection('students');
         const jobsColl = db.collection('jobs');
-        console.log('✅ Connectat a MongoDB.');
 
-        console.log('🧠 Escalfant model IA...');
         await warmupModel();
 
         const connection = await amqp.connect(RABBITMQ_URL);
@@ -27,82 +25,58 @@ async function startWorker() {
         await channel.assertQueue('job_notification_queue', { durable: true });
         await channel.prefetch(1);
 
-        console.log('✅ Worker preparat. Esperant missatges...');
-
         channel.consume('pi_processing_queue', async (msg) => {
             if (!msg) return;
 
             const jobData = JSON.parse(msg.content.toString());
             const { jobId, filePath, originalFileName, userId, role } = jobData;
 
-            // Determinar ID de búsqueda (ObjectId o RALC)
             let searchId = userId;
             try { if (ObjectId.isValid(userId)) searchId = new ObjectId(userId); } catch (e) { }
-
-            console.log(`⚙️ Job ${jobId} [${role}] - ${originalFileName}`);
 
             try {
                 await jobsColl.updateOne({ _id: new ObjectId(jobId) }, { $set: { status: 'processing', startedAt: new Date() } });
 
-                // Función para enviar notificaciones de estado intermedio
-                const notify = async (status, message) => {
-                    const note = { jobId, userId, filename: originalFileName, status, message };
+                const notify = async (status, message, result = null) => {
+                    const note = { jobId, userId, filename: originalFileName, status, message, resumen: result };
                     channel.sendToQueue('job_notification_queue', Buffer.from(JSON.stringify(note)), { persistent: true });
-                    // Actualizar DB para que el polling vea el cambio
                     await jobsColl.updateOne({ _id: new ObjectId(jobId) }, { $set: { status_detail: message } });
                 };
 
-                await notify('processing', 'LLEGINT DADES...');
+                await notify('processing', 'GENERANT RESUM...');
 
-                let filesToAnalyze = [];
-                if (role === 'historial') {
-                    await notify('processing', 'RECUPERANT HISTORIAL...');
-                    const student = await studentsColl.findOne({ _id: searchId });
-                    if (student && student.documents) {
-                        filesToAnalyze = student.documents
-                            .filter(d => d.filename !== "Resum Global" && fs.existsSync(d.filePath))
-                            .map(d => ({ path: d.filePath, name: d.filename }));
+                // 1. EXTRAER DATOS DE LA IA
+                const result = await extractPIdata([{ path: filePath, name: originalFileName }], role || 'docente');
+
+                // 2. GUARDADO ROBUSTO (Si falla el alumno, el JOB sigue siendo OK)
+                try {
+                    if (role === 'historial') {
+                        await studentsColl.updateOne({ _id: searchId }, {
+                            $set: { "global_summary.data": result, "global_summary.estado": 'COMPLETAT', "global_summary.updatedAt": new Date() }
+                        });
+                    } else {
+                        await studentsColl.updateOne(
+                            { _id: searchId, "documents.jobId": jobId },
+                            { $set: { "documents.$.resultIA": result, "documents.$.statusIA": 'COMPLETAT' } }
+                        );
                     }
-                    if (filesToAnalyze.length === 0) throw new Error("No s'han trobat fitxers físics per l'historial.");
-                } else {
-                    filesToAnalyze = [{ path: filePath, name: originalFileName }];
+                } catch (saveErr) {
+                    console.warn("⚠️ No se pudo actualizar la ficha del alumno, pero el Job es válido.");
                 }
 
-                const result = await extractPIdata(filesToAnalyze, role || 'docente', (prog) => {
-                    notify('processing', prog);
+                // 3. ACTUALIZAR EL JOB (Esto es lo que ve el frontend)
+                await jobsColl.updateOne({ _id: new ObjectId(jobId) }, {
+                    $set: { status: 'completed', result, completedAt: new Date() }
                 });
 
-                // Casos especials de guardat
-                if (role === 'historial') {
-                    await studentsColl.updateOne({ _id: searchId }, {
-                        $set: { "global_summary.data": result, "global_summary.estado": 'COMPLETAT', "global_summary.updatedAt": new Date() }
-                    });
-                } else {
-                    // Si es un doc individual, actualizamos el documento en el array del estudiante
-                    await studentsColl.updateOne(
-                        { _id: searchId, "documents.jobId": jobId },
-                        { $set: { "documents.$.resultIA": result, "documents.$.statusIA": 'COMPLETAT' } }
-                    );
-                }
+                await notify('completed', 'FET!', result);
 
-                await jobsColl.updateOne({ _id: new ObjectId(jobId) }, { $set: { status: 'completed', result, completedAt: new Date() } });
-                await notify('completed', 'FET!');
-
-                if (fs.existsSync(filePath) && role !== 'historial') fs.unlinkSync(filePath);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
                 channel.ack(msg);
 
             } catch (error) {
                 console.error(`❌ Error Job ${jobId}:`, error.message);
                 await jobsColl.updateOne({ _id: new ObjectId(jobId) }, { $set: { status: 'failed', error: error.message } });
-
-                if (role === 'historial') {
-                    await studentsColl.updateOne({ _id: searchId }, { $set: { "global_summary.estado": 'ERROR' } });
-                } else {
-                    await studentsColl.updateOne(
-                        { _id: searchId, "documents.jobId": jobId },
-                        { $set: { "documents.$.statusIA": 'ERROR' } }
-                    );
-                }
 
                 const failNote = { jobId, userId, filename: originalFileName, status: 'failed', message: error.message };
                 channel.sendToQueue('job_notification_queue', Buffer.from(JSON.stringify(failNote)), { persistent: true });
@@ -112,7 +86,6 @@ async function startWorker() {
             }
         });
     } catch (error) {
-        console.error('❌ Fallo Crític Worker:', error);
         setTimeout(startWorker, 5000);
     }
 }
