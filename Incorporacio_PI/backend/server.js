@@ -12,6 +12,7 @@ const studentRoutes = require('./routes/studentRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const miscRoutes = require('./routes/miscRoutes');
 const statsRoutes = require('./routes/statsRoutes');
+const unityRouytes = require('./routes/unityRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001; // Usa el puerto del entorno o 3001
@@ -61,6 +62,7 @@ app.use('/api/students', studentRoutes);
 app.use('/api/upload', uploadRoutes);    
 app.use('/api/stats', statsRoutes);      
 app.use('/api', miscRoutes);             
+app.use('/api/unity', unityRoutes);
 
 // --- 4. INICIAR SERVIDOR ---
 connectDB().then(async () => {
