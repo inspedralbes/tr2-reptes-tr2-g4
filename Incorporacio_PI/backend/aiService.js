@@ -2,9 +2,9 @@ const OpenAI = require("openai");
 
 // Configuració del client per a IA LOCAL
 const openai = new OpenAI({
-  baseURL: "http://pi_llm:8080/v1", // MODIFICAT: Connecta amb 'pi_llm' (nom real del contenidor)
-  apiKey: "sk-no-key-required",  // La IA local no necessita clau real
-  timeout: 30 * 60 * 1000,       // NOU: 30 minuts de timeout (augmentat per si va lent)
+  baseURL: "http://pi_llm:8080/v1",
+  apiKey: "sk-no-key-required",
+  timeout: 60 * 60 * 1000, // 60 minuts EXTREMS per evitar talls en resums globals
 });
 
 /**
@@ -21,7 +21,8 @@ async function checkConnection(retries = 100) {
       if (response.ok) {
         console.log("✅ [aiService] IA Local ONLINE (Port 8080 obert).");
 
-        // NOU: Test real de generació per confirmar que "pensa"
+        /* 
+        // Desactivat temporalment per evitar bloquejos en l'arrencada
         console.log("🧪 [aiService] Fent prova de generació ràpida (Warm-up)...");
         try {
           await openai.chat.completions.create({
@@ -33,6 +34,7 @@ async function checkConnection(retries = 100) {
         } catch (e) {
           console.warn("⚠️ [aiService] El test de generació ha fallat (potser està carregant model):", e.message);
         }
+        */
 
         return true;
       }
@@ -78,57 +80,67 @@ async function generateSummaryLocal(text, role, onProgress) {
   }
 
   // Retallem el text per no saturar el context del model
-  // Si és un resum global, permetem molt més context per encabir diversos documents (aprox 10.000 tokens)
-  const limit = role === 'global' ? 40000 : 25000;
+  const limit = role === 'global' ? 25000 : 14000;
   const MAX_CHARS = limit;
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
   let currentProgress = 0;
 
-  // FASE 1: LECTURA
-  // Eliminem la simulació. No enviarem progrés fals. El frontend mostrarà "Llegint..." sense barra o amb barra indeterminada.
-
   // --- SELECCIÓ DE PROMPT SEGONS ROL ---
   let systemPrompt = "";
+  let structureExample = "";
 
   if (role === 'global') {
-    // PROMPT PER A RESUM GLOBAL (Historial)
-    systemPrompt = `Ets un assistent expert en educació especialITZADA.
-      OBJECTIU: Generar un resum global, profund i cronològic de l'evolució de l'alumne.
-      
-      ESTRUCTURA OBLIGATÒRIA:
-      1. **EVOLUCIÓ**: Progrés des del primer document. Detecta canvis de centre o de suport (SIEI, ordinària).
-      2. **PUNTS CLAU RECURRENTS**: Diagnòstics tècnics (Paresia, TDAH, Dislèxia) i barreres.
-      3. **ADAPTACIONS CONSTANTS**: Mesures de suport que persisteixen (Auxiliars, Fisioteràpia).
-      4. **ESTAT ACTUAL**: Prioritats de l'últim curs (3r ESO, 4t ESO, etc.).
+    systemPrompt = "Ets un expert en educació especial. Genera un resum cronològic de l'historial de l'alumne en format JSON.";
+    structureExample = `
+EXEMPLE DE FORMAT JSON (Segueix-lo EXACTAMENT):
+{
+  "EVOLUCIÓ": ["L'alumne ha mostrat una millora...", "2020: Canvi d'etapa..."],
+  "PUNTS CLAU RECURRENTS": ["Dificultat en atenció sostinguda", "Bona predisposició verbal"],
+  "ADAPTACIONS CONSTANTS": ["Ús d'ordinador", "Temps extra a exàmens"],
+  "ESTAT ACTUAL": ["Cursa 3r d'ESO", "Manté suports de la USEE"]
+}`;
 
-      FORMAT: Text professional i directe.`;
   } else if (role === 'orientador') {
-    // PROMPT PER A ORIENTADORS
-    systemPrompt = `Ets un assistent expert per a orientadors educatius.
-      OBJECTIU: Extraure informació tècnica i jurídica del PI.
-      
-      ESTRUCTURA OBLIGATÒRIA:
-      1. PERFIL DE L'ALUMNE: Descripció biopsicosocial i fets rellevants (adoptat, nouvingut, etc.).
-      2. DIAGNÒSTIC I NECESSITATS: Diagnòstic literal (ej: Tetraparèsia espàstica, Dislèxia severa). Menciona el grau de discapacitat (CAD %) si apareix.
-      3. JUSTIFICACIÓ DEL PI: Motiu de l'elaboració (Dictamen, NESE, etc.).
-      4. MESURES I SUPORTS: Professionals que intervenen (SIEI, EAP, Fisioterapeuta, Auxiliar). Menciona l'equipament (Tobii, Braille, Tablet).
-      5. SEGUIMENT PER MATÈRIES: Llistat d'assignatures i nivell d'assoliment.
+    systemPrompt = `Ets un expert orientador psicopedagògic analitzant un Pla Individualitzat (PI).
+    LA TEVA MISSIÓ: Extreure informació tècnica i legal detallada per a l'expediente de l'alumne.
+    
+    ESTRUCTURA OBLIGATÒRIA DEL JSON:
+    1. "PERFIL": Resum de la situació actual, dades demogràfiques i historial rellevant.
+    2. "DIAGNÒSTIC": Llistat exhaustiu de diagnòstics oficials i dificultats d'aprenentatge.
+    3. "JUSTIFICACIÓ": Motius legals i pedagògics que emparen la creació del PI.
+    4. "ORIENTACIÓ": Pautes de coordinació amb la família i suports externs.
+    5. "ADAPTACIONS": Resum de les adaptacions metodològiques generals.
+    6. "CRITERIS": Marc normatiu per a l'avaluació.`;
 
-      FORMAT: "Idea clau. [[Detall: Text literal...]]"`;
+    structureExample = `
+    {
+      "PERFIL": ["L'alumne presenta una trajectòria de dificultats des de primària..."],
+      "DIAGNÒSTIC": ["TDAH combinat", "Trastorn de l'aprenentatge no verbal"],
+      "JUSTIFICACIÓ": ["Dictamen de l'EAP conforme a la Resolució ENS/1544/2013"],
+      "ORIENTACIÓ": ["Seguiment mensual amb el CSMIJ", "Plataforma de comunicació diària amb pares"],
+      "ADAPTACIONS": ["Adaptació curricular no significativa en continguts"],
+      "CRITERIS": ["Avaluació per objectius mínims personalitzats"]
+    }`;
+
   } else {
-    // PROMPT PER A DOCENTS (Defecte)
-    systemPrompt = `Ets un assistent expert per a professors d'aula.
-      OBJECTIU: Guia pràctica per saber com treballar amb l'alumne.
-      
-      ESTRUCTURA OBLIGATÒRIA:
-      1. PERFIL DE L'ALUMNE: Com aprèn i quin caràcter té (autoexigent, participatiu, tímid).
-      2. DIAGNÒSTIC: Resum entenedor del diagnòstic i el curs actual.
-      3. ORIENTACIÓ A L'AULA: Metodologia concreta (Tobii-Eye Tracking, ordinador, Braille, més temps, enunciats curts).
-      4. ASSIGNATURES I MATÈRIES: Llistat exhaustiu de cada matèria detectada al document amb les seves adaptacions.
-      5. CRITERIS D'AVALUACIÓ: Molt important: com s'ha de qualificar (ej: no penalitzar faltes, valorar contingut sobre forma, ús de calculadora).
+    // DOCENT (Default) - ENFOCAMENT A L'AULA
+    systemPrompt = `Ets un psicopedagog expert ajudant a un MESTRE a entendre un PI.
+    LA TEVA MISSIÓ: Donar consells pràctics i directes per aplicar demà mateix a l'aula.
+    
+    ESTRUCTURA OBLIGATÒRIA DEL JSON:
+    1. "PERFIL": TEXT SEGUIT (narratiu) de 4-5 línies explicant qui és l'alumne de forma humana.
+    2. "ORIENTACIÓ": Llistat DETALLAT de pautes per a l'aula (on asseure'l, com parlar-li, etc.).
+    3. "ADAPTACIONS": Llistat per assignatura de què s'ha de canviar exactamente.
+    4. "CRITERIS": Com puntuar els seus exàmens i treballs de forma justa.`;
 
-      FORMAT: "Resum executiu. [[Detall: Cita literal del document...]]"`;
+    structureExample = `
+    {
+      "PERFIL": ["El Joan és un alumne molt creatiu però que es bloqueja amb la lectura..."],
+      "ORIENTACIÓ": ["Asseure a primera fila", "Instruccions curtes i visuals"],
+      "ADAPTACIONS": ["Mates: Menys exercicis", "Anglès: Exàmens orals"],
+      "CRITERIS": ["Temps extra +30%", "No penalitzar faltes d'ortografia"]
+    }`;
   }
 
   const messages = [
@@ -136,82 +148,140 @@ async function generateSummaryLocal(text, role, onProgress) {
       role: "system",
       content: `${systemPrompt}
       
-      INSTRUCCIONS CRÍTIQUES DE FORMAT I CONTINGUT:
-      1. TÍTOLS OBLIGATORIS: Genera SEMPRE les seccions exactes.
-      2. ANONIMITZACIÓ: Substitueix el nom de l'alumne per "L'alumne/a".
-      3. DETECCIÓ DE MATÈRIES (MOLT IMPORTANT): El document sol tenir taules amb assignatures (Català, Castellà, Matemàtiques, Anglès, etc.). Has de llistar-les ABSOLUTAMENT TOTES. No te'n deixis cap.
-      4. DETALLS LITERALS: Dins de [[Detall: ...]] has de posar el contingut literal, especialment en ASSIGNATURES i CRITERIS D'AVALUACIÓ. Si el document diu "Adapació de continguts: ...", copia-ho tot.
-      5. EVITA RESUMS GENÈRICS: Si el document diu coses específiques de Matemàtiques, no digues "adaptacions en general", digues exactament què es fa en Matemàtiques.
-      6. BUSCA EL CURS: Identifica a quin curs pertany el document (1r ESO, 2n Primària, etc.) i menciona'l al perfil.
-      7. NO INVENTIS: Si una secció no té informació al text, simplement no la posis o digues "Informació no disponible al document".
-      8. NO ASTERISCS: No usis asteriscs (*) ni guions (-) per llistes, usa paràgrafs o salts de línia nets.
+      InSTRUCCIONS TÈCNIQUES:
+      ✅ Retorna NOMÉS un objecte JSON vàlid.
+      ✅ El "PERFIL" ha de ser un array amb UN SOL string llarg (text narratiu pur). NO facis llistes, NO separis per paràgrafs.
+      ✅ "ORIENTACIÓ" ha de ser molt complet.
       
-      Analitza el següent text amb màxima atenció als detalls acadèmics:`
+      ${structureExample}`
     },
     {
       role: "user",
-      content: `DOCUMENT PI:\n\n${truncatedText}`
+      content: `Analitza aquest document PI i extreu-ne el JSON:\n\n"${truncatedText}"`
     }
   ];
 
   try {
     console.log(`🤖 [aiService] Enviant petició a IA Local (http://pi_llm:8080/v1)...`);
-    const completion = await openai.chat.completions.create({
-      model: "default-model",
-      messages: messages,
-      temperature: 0.1,
-      max_tokens: 4000, // AUGMENTAT: 4000 tokens per permetre resums molt detallats sense talls
-      stream: true,
-      top_p: 0.9,
-      presence_penalty: 0,
-      frequency_penalty: 0
-    });
+
+    // --- NOU: POLLING DE PROGRÉS REAL (LECTURA) ---
+    // Iniciem el polling abans de fer la crida que bloqueja
+    // --- NOU: POLLING DE PROGRÉS REAL (LECTURA) ---
+    // Iniciem el polling abans de fer la crida que bloqueja
+    let readingProgress = 0;
+    let lastKnownProgress = 0;
+    let lastUpdateTs = Date.now();
+
+    const pollReading = setInterval(async () => {
+      try {
+        console.log("🔍 [aiService] Polling /slots...");
+        const res = await fetch("http://pi_llm:8080/slots");
+        if (res.ok) {
+          const slots = await res.json();
+          // DEBUG TOTAL: Veure què retorna la IA
+          console.log("🔍 [LLM RAW SLOTS]:", JSON.stringify(slots));
+
+          // Busquem el slot que realment està treballant
+          const activeSlot = slots.find(s => s.is_processing === true || s.prompt_processing_progress > 0);
+
+          let calculatedSlotProgress = 0;
+          if (activeSlot) {
+            let raw = activeSlot.prompt_processing_progress || 0;
+
+            // Si no tenim prompt_processing_progress però is_processing és true, 
+            // intentem calcular-lo a la vella usança
+            if (raw === 0 && activeSlot.n_prompt > 0) {
+              raw = activeSlot.n_past / activeSlot.n_prompt;
+            }
+
+            console.log(`🧠 Slot Actiu trobat: ID=${activeSlot.id}, Progress=${(raw * 100).toFixed(2)}%`);
+            calculatedSlotProgress = Math.floor(raw * 100);
+          } else {
+            console.log("🔍 Cap slot processant actualment.");
+          }
+
+          if (calculatedSlotProgress > lastKnownProgress) {
+            lastKnownProgress = calculatedSlotProgress;
+            console.log(`🧠 [LLM] Slot processing: ${lastKnownProgress}% (Real)`);
+            if (onProgress) onProgress(null, lastKnownProgress, true);
+          }
+        } else {
+          console.warn(`⚠️ [aiService] /slots returned ${res.status}`);
+        }
+      } catch (e) {
+        console.error("❌ [aiService] Polling error:", e.message);
+      }
+    }, 500); // Polling cada 0.5s per màxima fluïdesa
+
+    // RETRY LOGIC (3 intents)
+    let tries = 0;
+    const maxTries = 3;
+    let completion = null;
+
+    while (tries < maxTries) {
+      try {
+        console.log(`🤖 Attempt ${tries + 1}/${maxTries} invoking LLM...`);
+        completion = await openai.chat.completions.create({
+          model: "default-model",
+          messages: messages,
+          temperature: 0.1,
+          max_tokens: 2048, // Augmentat per evitar JSON tallats
+          stream: true,
+          top_p: 0.9,
+          presence_penalty: 0,
+          frequency_penalty: 0
+        });
+        break; // Èxit, sortim del bucle
+      } catch (openaiErr) {
+        tries++;
+        console.error(`❌ [aiService] Error en intent ${tries}:`, openaiErr.message);
+        if (tries >= maxTries) throw openaiErr; // Si fallen tots, petem
+
+        // Esperem 2 segons abans de reintentar
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    // Parem el polling de lectura
+    clearInterval(pollReading);
 
     console.log("🤖 [aiService] Connexió establerta amb LLM! Esperant el primer token (Fase de Lectura/Pre-fill)...");
 
     let fullText = "";
     // Seccions esperades per calcular el progrés (aprox 20% per secció)
-    // MODIFICAT: Keywords actualitzades segons els nous prompts (Docent/Orientador)
     const sections = ["PERFIL", "DADES", "DIAGNÒSTIC", "ORIENTACIÓ", "ADAPTACIONS", "MATÈRIES", "ASSIGNATURES", "CRITERIS", "JUSTIFICACIÓ"];
     let isFirst = true;
     let chunkCount = 0;
 
     for await (const chunk of completion) {
-      // FASE 2: ESCRIPTURA (Reset a 0% -> 100%)
       if (isFirst) {
         console.log("🤖 [aiService] Primer token rebut! Comença la generació de text.");
         isFirst = false;
-        currentProgress = 0; // Reiniciem la barra per a la fase d'escriptura
+        currentProgress = 0;
       }
 
       chunkCount++;
       const content = chunk.choices[0]?.delta?.content || "";
 
-      // Log de "batec" cada 10 chunks per veure que està viu a la terminal (Més freqüent)
       if (chunkCount % 10 === 0) {
-        console.log(`... generant (${chunkCount} tokens)`); // Més visible als logs de Docker
+        console.log(`... generant (${chunkCount} tokens)`);
       }
 
       fullText += content;
 
       if (onProgress) {
-        // Càlcul simple de progrés: Quantes seccions hem trobat ja?
         let foundCount = 0;
         sections.forEach(s => {
           if (fullText.includes(s)) foundCount++;
         });
 
-        // Càlcul de progrés d'escriptura (0 a 100)
-        // MODIFICAT: Ajustem a 2000 tokens (resum complet)
-        // (chunkCount / 20) -> 2000 tokens = 100%
         const chunkProgress = (chunkCount / 20);
-        const sectionProgress = foundCount * 5; // Més pes a les seccions per compensar
+        const sectionProgress = foundCount * 5;
 
         let writeProgress = chunkProgress + sectionProgress;
 
-        // Enviem text ple -> Servidor marca "GENERANT..."
-        // AWAIT IMPORTANT: Esperem que s'actualitzi la BD abans de continuar per evitar race conditions al final
-        await onProgress(fullText, Math.min(Math.floor(writeProgress), 99));
+        // Fase d'escriptura (isReading = false)
+        await onProgress(fullText, Math.min(Math.floor(writeProgress), 99), false);
       }
     }
 

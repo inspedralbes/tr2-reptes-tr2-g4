@@ -1,21 +1,23 @@
-<services:
+services:
   # --- SERVICIO BACKEND ---
   backend:
     build: ./backend
+    restart: unless-stopped
     container_name: pi_backend
     ports:
-      - "3001:3001" # Mapeamos puerto 3001 del PC al 3001 del contenedor
+      - "3001:3001" 
     dns:
       - 8.8.8.8
       - 8.8.4.4
+      - 1.1.1.1
     env_file:
       - ./backend/.env
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     volumes:
-      - ./backend:/app # Hot Reload: Lo que edites en tu PC se ve en Docker
-      - ./backend/uploads:/app/uploads # Persistencia: Las fotos no se borran al apagar
-      - /app/node_modules # Evita que tu node_modules local machaque el de linux
+      - ./backend:/app 
+      - ./backend/uploads:/app/uploads 
+      - /app/node_modules 
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -25,40 +27,43 @@
   # --- SERVICIO FRONTEND ---
   frontend:
     build: ./frontend
+    restart: unless-stopped
     container_name: pi_frontend
     ports:
       - "3000:3000" 
     volumes:
-      - ./frontend:/app # Hot Reload para Vue
+      - ./frontend:/app 
       - /app/node_modules
     environment:
-      - CHOKIDAR_USEPOLLING=true # Necesario a veces en Windows/Docker para que detecte cambios
+      - CHOKIDAR_USEPOLLING=true 
     depends_on:
-      - backend # Espera a que el backend arranque un poco
+      - backend 
 
   # --- SERVEI RABBITMQ (Cua de missatges) ---
   rabbitmq:
     image: rabbitmq:3-management
+    restart: unless-stopped
     container_name: pi_rabbitmq
     ports:
-      - "5672:5672"   # Port comunicació
-      - "15672:15672" # Panell de control web (usuari: guest / guest)
+      - "5672:5672"   
+      - "15672:15672" 
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 30s
       timeout: 10s
       retries: 5
     volumes:
-      - ./backend/rabbitmq_data:/var/lib/rabbitmq # Persistència de la cua
+      - ./backend/rabbitmq_data:/var/lib/rabbitmq 
 
   # --- SERVEI IA LOCAL (Llama.cpp Server) ---
   llm:
     build:
       context: ./backend
       dockerfile: Dockerfile.llm
+    restart: unless-stopped
     container_name: pi_llm
     volumes:
-      - ./backend/models:/models # Mapegem la carpeta on has posat el fitxer .gguf
+      - ./backend/models:/models 
     ports:
       - "8080:8080"
     # --- CONFIGURACIÓ GPU (Descomentar si tens NVIDIA) ---
@@ -69,12 +74,13 @@
     #         - driver: nvidia
     #           count: 1
     #           capabilities: [gpu]
-    # Ajusta el nom del fitxer .gguf si és diferent
-    # Afegim -ngl 99 per enviar capes a la GPU si està disponible
-    # Afegim -c 8192 per consumir menys RAM i anar més ràpid
-    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c 8192 --host 0.0.0.0 --port 8080 --threads 4 --n-predict 4096 --batch-size 512
+    
+    # Comanda optimitzada per a estabilitat
+    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c 8192 --host 0.0.0.0 --port 8080 --threads 3 --batch-size 256 --n-predict 1024 --cont-batching
+    
+    # Relaxem el healthcheck per evitar que Docker el mati si està pensant molt fort
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 100
+      interval: 30s
+      timeout: 60s
+      retries: 10

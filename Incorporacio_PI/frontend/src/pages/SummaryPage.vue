@@ -26,51 +26,75 @@
     <!-- Modificat: Ara mostrem això SEMPRE que estigui carregant, amagant el text parcial -->
     <!-- Estat de Càrrega (MILLORAT per a cada procés) -->
     <div v-if="loading || loadingAI" class="d-flex flex-column justify-center align-center pa-6 text-center">
-      
-      <v-card variant="flat" border class="pa-6 w-100" max-width="500">
-        <h2 class="text-h6 mb-6">Processant Document</h2>
+      <v-card variant="flat" border class="pa-8 w-100" max-width="500" rounded="xl">
+        <v-icon size="64" color="primary" class="mb-4">mdi-robot-vacuum-variant</v-icon>
+        <h2 class="text-h5 mb-2">Processant Document</h2>
+        <p class="text-body-2 text-grey-darken-1 mb-6">L'IA està analitzant cada detall per crear el millor resum.</p>
         
-        <!-- Pas 1: Extracció -->
-        <div class="d-flex align-center mb-4">
-          <v-icon :color="progress >= 5 ? 'success' : 'grey'" :icon="progress >= 5 ? 'mdi-check-circle' : 'mdi-circle-outline'" class="mr-3"></v-icon>
-          <span :class="{'text-grey': progress < 5, 'font-weight-bold': progress >= 5 && progress < 10}">1. Extracció de text del document</span>
-        </div>
-
-        <!-- Pas 2: Lectura -->
-        <div class="d-flex align-center mb-4">
-          <v-icon 
-            :color="backendStatus === 'GENERANT...' || backendStatus === 'COMPLETAT' ? 'success' : (backendStatus === 'LLEGINT...' ? 'primary' : 'grey')" 
-            :icon="backendStatus === 'GENERANT...' || backendStatus === 'COMPLETAT' ? 'mdi-check-circle' : 'mdi-school'" 
-            class="mr-3"
-          ></v-icon>
-          <div class="text-left flex-grow-1">
-            <span :class="{'text-grey': backendStatus !== 'LLEGINT...', 'font-weight-bold font-italic': backendStatus === 'LLEGINT...'}">2. Lectura i comprensió (IA)</span>
-            <v-progress-linear v-if="backendStatus === 'LLEGINT...'" color="primary" height="6" :model-value="((progress - 5) / 85) * 100" rounded class="mt-1" striped></v-progress-linear>
+        <!-- STEPPER VISUAL (NOU) -->
+        <div class="d-flex justify-space-between align-start mb-8 px-2 w-100">
+          <!-- Pas 1: Cua -->
+          <div class="d-flex flex-column align-center" style="width: 30%">
+            <v-avatar :color="getStepState(1) === 'completed' ? 'green-lighten-5' : (getStepState(1) === 'active' ? 'blue-lighten-5' : 'grey-lighten-4')" size="40" class="mb-2">
+                <v-icon :color="getStepState(1) === 'completed' ? 'success' : (getStepState(1) === 'active' ? 'primary' : 'grey-lighten-1')" size="20">
+                {{ getStepState(1) === 'completed' ? 'mdi-check' : 'mdi-tray-full' }}
+                </v-icon>
+            </v-avatar>
+            <div class="text-caption font-weight-bold text-center lh-1" :class="{'text-primary': getStepState(1) === 'active', 'text-grey': getStepState(1) === 'pending'}">En cua</div>
           </div>
-          <span v-if="backendStatus === 'LLEGINT...'" class="ml-2 text-caption font-weight-bold text-primary">{{ Math.round(((progress - 5) / 85) * 100) }}%</span>
-        </div>
 
-        <!-- Pas 3: Generació -->
-        <div class="d-flex align-center mb-6">
-          <v-icon 
-            :color="backendStatus === 'COMPLETAT' ? 'success' : (backendStatus === 'GENERANT...' ? 'teal' : 'grey')" 
-            :icon="backendStatus === 'COMPLETAT' ? 'mdi-check-circle' : 'mdi-auto-fix'" 
-            class="mr-3"
-          ></v-icon>
-          <div class="text-left flex-grow-1">
-            <span :class="{'text-grey': backendStatus !== 'GENERANT...', 'font-weight-bold font-italic font-variant-small-caps': backendStatus === 'GENERANT...'}">3. Escriptura del resum detallat</span>
-            <v-progress-linear v-if="backendStatus === 'GENERANT...'" color="teal" height="6" :model-value="((progress - 90) / 10) * 100" rounded class="mt-1" striped></v-progress-linear>
+          <!-- Connector 1-2 -->
+          <v-divider class="mt-5" :color="getStepState(1) === 'completed' ? 'success' : 'grey-lighten-2'" style="opacity: 1; border-width: 2px" thickness="2"></v-divider>
+
+          <!-- Pas 2: Lectura -->
+          <div class="d-flex flex-column align-center" style="width: 30%">
+            <v-avatar :color="getStepState(2) === 'completed' ? 'green-lighten-5' : (getStepState(2) === 'active' ? 'blue-lighten-5' : 'grey-lighten-4')" size="40" class="mb-2">
+                <v-icon :color="getStepState(2) === 'completed' ? 'success' : (getStepState(2) === 'active' ? 'primary' : 'grey-lighten-1')" size="20">
+                {{ getStepState(2) === 'completed' ? 'mdi-check' : 'mdi-book-search' }}
+                </v-icon>
+            </v-avatar>
+            <div class="text-caption font-weight-bold text-center lh-1" :class="{'text-primary': getStepState(2) === 'active', 'text-grey': getStepState(2) === 'pending'}">Llegint</div>
           </div>
-          <span v-if="backendStatus === 'GENERANT...'" class="ml-2 text-caption font-weight-bold text-teal">{{ Math.round(((progress - 90) / 10) * 100) }}%</span>
+
+          <!-- Connector 2-3 -->
+          <v-divider class="mt-5" :color="getStepState(2) === 'completed' ? 'success' : 'grey-lighten-2'" style="opacity: 1; border-width: 2px" thickness="2"></v-divider>
+
+          <!-- Pas 3: Escriptura -->
+          <div class="d-flex flex-column align-center" style="width: 30%">
+            <v-avatar :color="getStepState(3) === 'completed' ? 'green-lighten-5' : (getStepState(3) === 'active' ? 'blue-lighten-5' : 'grey-lighten-4')" size="40" class="mb-2">
+                <v-icon :color="getStepState(3) === 'completed' ? 'success' : (getStepState(3) === 'active' ? 'primary' : 'grey-lighten-1')" size="20">
+                {{ getStepState(3) === 'completed' ? 'mdi-check' : 'mdi-pencil-outline' }}
+                </v-icon>
+            </v-avatar>
+            <div class="text-caption font-weight-bold text-center lh-1" :class="{'text-primary': getStepState(3) === 'active', 'text-grey': getStepState(3) === 'pending'}">Generant</div>
+          </div>
         </div>
 
-        <div class="text-caption text-grey-darken-1 mb-4 d-flex align-center">
-            <v-progress-circular v-if="backendStatus !== 'COMPLETAT'" indeterminate size="12" width="2" class="mr-2"></v-progress-circular>
+        <!-- BARRA DE PROGRÉS UNIFICADA -->
+        <div class="mb-6">
+          <div class="d-flex justify-space-between align-end mb-2">
+            <span class="text-subtitle-2 font-weight-bold text-primary">{{ backendStatus === 'LLEGINT...' ? 'LECTURA ANALÍTICA' : 'GENERANT RESUM' }}</span>
+            <!-- Porcentaje oculto por petición del usuario -->
+          </div>
+          
+          <v-progress-linear 
+            color="primary" 
+            height="12" 
+            :model-value="progress"
+            rounded="pill"
+            striped 
+          ></v-progress-linear>
+        </div>
+
+        <div class="text-body-2 text-grey-darken-2 mb-6 d-flex align-center justify-center">
+            <v-progress-circular v-if="backendStatus !== 'COMPLETAT'" indeterminate size="16" width="2" class="mr-3" color="primary"></v-progress-circular>
             {{ currentStatus }}
         </div>
         
-        <v-alert density="compact" variant="tonal" color="info" size="small" icon="mdi-information">
-          Pots sortir de la pàgina, t'avisarem quan acabi.
+        <v-divider class="mb-6"></v-divider>
+
+        <v-alert density="compact" variant="tonal" color="info" rounded="lg" icon="mdi-shield-check-outline">
+          <div class="text-caption">Privacitat garantida: El processament es realitza 100% en local.</div>
         </v-alert>
       </v-card>
     </div>
@@ -111,7 +135,7 @@
         <v-icon icon="mdi-alert-circle-outline" class="mr-2"></v-icon>
         <div>No s'ha pogut analitzar el document. Potser el servidor s'està reiniciant.</div>
       </div>
-      <v-btn class="mt-2 ml-8" variant="outlined" size="small" @click="analyzeDocument">Tornar a provar</v-btn>
+      <v-btn class="mt-2 ml-8" variant="outlined" size="small" @click="retryAndQueue">Tornar a provar i Generar</v-btn>
     </v-alert>
   </v-container>
 </template>
@@ -143,40 +167,65 @@ const wordCount = computed(() => {
 
 // --- NOVA FUNCIÓ: Parsejar el text de la IA a l'estructura de PiSummary ---
 const parsedAnalysis = computed(() => {
-  const text = resumenIA.value || '';
+  let text = resumenIA.value || '';
   const result = {
-    perfil: [],
-    dificultats: [],
-    justificacio: [],
-    adaptacions: [],
-    avaluacio: [],
-    recomanacions: []
+    perfil: [], dificultats: [], justificacio: [], adaptacions: [], avaluacio: [], recomanacions: []
   };
 
-  // Definim els marcadors amb REGEX per detectar les seccions que genera la IA
-  const markers = [
-    // MODIFICAT: Regex arreglades. Ara accepten '.' com a separador i NO tenen '.*' al final per no menjar-se el text.
-    { key: 'perfil', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:PERFIL DE L'ALUMNE|DADES PERSONALS)/i },
-    { key: 'dificultats', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:DIAGNÒSTIC|DIFICULTATS|NECESSITATS)/i },
-    { key: 'justificacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:JUSTIFICACIÓ DEL PI|JUSTIFICACIÓ)/i },
-    { key: 'recomanacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ORIENTACIÓ A L'AULA|ORIENTACIONS)/i },
-    { key: 'adaptacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ASSIGNATURES|MATÈRIES|ADAPTACIONS|MESURES I SUPORTS|SEGUIMENT)/i },
-    { key: 'avaluacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:CRITERIS D'AVALUACIÓ|AVALUACIÓ)/i }
-  ];
+  // 1. INTENT DE PARSEJAR COM A JSON (Prioritat Màxima)
+  try {
+    // Netejem possibles blocs markdown (```json ... ```)
+    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    if (jsonStr.startsWith('{')) {
+      const data = JSON.parse(jsonStr);
+      
+      // MAPATGE DE CLAUS JSON -> VISTA
+      // Docent: PERFIL, ORIENTACIÓ, ADAPTACIONS, CRITERIS
+      // Orientador: PERFIL, DIAGNÒSTIC, JUSTIFICACIÓ, MATÈRIES, ORIENTACIÓ
+      
+      if (data.PERFIL) result.perfil = Array.isArray(data.PERFIL) ? data.PERFIL : [data.PERFIL];
+      
+      if (data.DIAGNÒSTIC) result.dificultats = Array.isArray(data.DIAGNÒSTIC) ? data.DIAGNÒSTIC : [data.DIAGNÒSTIC];
+      // Docent no té 'DIAGNÒSTIC' explícit al JSON nou, però si n'hi hagués...
+      
+      if (data.JUSTIFICACIÓ) result.justificacio = Array.isArray(data.JUSTIFICACIÓ) ? data.JUSTIFICACIÓ : [data.JUSTIFICACIÓ];
+      
+      if (data.ORIENTACIÓ) result.recomanacions = Array.isArray(data.ORIENTACIÓ) ? data.ORIENTACIÓ : [data.ORIENTACIÓ];
+      
+      if (data.ADAPTACIONS) result.adaptacions = Array.isArray(data.ADAPTACIONS) ? data.ADAPTACIONS : [data.ADAPTACIONS];
+      if (data.MATÈRIES) result.adaptacions.push(...(Array.isArray(data.MATÈRIES) ? data.MATÈRIES : [data.MATÈRIES]));
+      
+      if (data.CRITERIS) result.avaluacio = Array.isArray(data.CRITERIS) ? data.CRITERIS : [data.CRITERIS];
+      if (data.AVALUACIÓ) result.avaluacio.push(...(Array.isArray(data.AVALUACIÓ) ? data.AVALUACIÓ : [data.AVALUACIÓ]));
 
-  // Busquem on comença cada secció
-  const positions = markers.map(m => {
-    const match = text.match(m.regex);
-    return match ? { key: m.key, index: match.index, labelLength: match[0].length } : null;
-  }).filter(p => p !== null).sort((a, b) => a.index - b.index);
-
-  // Si no troba cap secció, ho posem tot a perfil (fallback)
-  if (positions.length === 0 && text.trim().length > 0) {
-    result.perfil = text.split('\n').filter(l => l.trim().length > 0);
-    return result;
+      // Si hem trobat alguna cosa, retornem
+      if (Object.values(result).some(arr => arr.length > 0)) return result;
+    }
+  } catch (e) {
+    console.warn("⚠️ El text no és un JSON vàlid. Provant mode text manual...", e);
   }
 
-  // Tallem el text per seccions
+  // 2. PARSING LEGACY BASAT EN TEXT (Fallback)
+  const markers = [
+    { key: 'perfil', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:PERFIL HUMÀ I DIFICULTATS|PERFIL DE L'ALUMNE|PERFIL)/i },
+    { key: 'dificultats', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:DIAGNÒSTIC|DIFICULTATS|NECESSITATS)/i },
+    { key: 'justificacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:JUSTIFICACIÓ DEL PI|JUSTIFICACIÓ)/i },
+    { key: 'recomanacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ORIENTACIÓ A L'AULA|ORIENTACIONS|RECOMANACIONS|PAUTES)/i },
+    { key: 'adaptacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ADAPTACIONS PER ASSIGNATURES|ASSIGNATURES|MATÈRIES|ADAPTACIONS|SUPORTS)/i },
+    { key: 'avaluacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:CRITERIS DE QUALIFICACIÓ|CRITERIS D'AVALUACIÓ|AVALUACIÓ|QUALIFICACIÓ)/i }
+  ];
+
+  const positions = markers.map(m => {
+      const match = text.match(m.regex);
+      return match ? { key: m.key, index: match.index, labelLength: match[0].length } : null;
+  }).filter(p => p !== null).sort((a, b) => a.index - b.index);
+
+  // FALLBACK: Si no trobem cap títol però tenim text, ho posem tot a 'Perfil' per a que es vegi
+  if (positions.length === 0 && text.trim().length > 0) {
+      console.warn("⚠️ No s'han detectat seccions. Mostrant text en brut.");
+      return { ...result, perfil: text.split('\n').filter(l => l.trim().length > 0) };
+  }
+
   for (let i = 0; i < positions.length; i++) {
     const current = positions[i];
     const next = positions[i + 1];
@@ -184,11 +233,10 @@ const parsedAnalysis = computed(() => {
     const end = next ? next.index : text.length;
     const sectionText = text.substring(start, end).trim();
     
-    // MILLORA: Forcem salts de línia si la IA els ha oblidat (ex: "text.Next" -> "text.\nNext")
-    // També separem els asteriscs (*) si estan enganxats
+    // Neteja extra per a llistes
     const processedText = sectionText
-      .replace(/([a-z0-9à-ú])\.([A-Z\*])/g, '$1.\n$2') // Punt seguit de Majúscula o *
-      .replace(/([a-z0-9à-ú])\.\s+([A-Z\*])/g, '$1.\n$2'); // Punt + espai seguit de Majúscula o *
+      .replace(/([a-z0-9à-ú])\.([A-Z\*])/g, '$1.\n$2')
+      .replace(/([a-z0-9à-ú])\.\s+([A-Z\*])/g, '$1.\n$2');
 
     result[current.key] = processedText.split('\n').filter(l => l.trim().length > 0);
   }
@@ -199,38 +247,58 @@ const parsedAnalysis = computed(() => {
 const analyzeDocument = async () => {
   if (!filename) return;
   loading.value = true;
+  currentStatus.value = "Descarregant contingut del document...";
 
-  try {
-    // 1. Obtenim el text del PDF des del backend
-    const response = await fetch(`http://localhost:3001/api/analyze/${encodeURIComponent(filename)}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      rawText.value = data.text_completo;
-      
-      // 2. Comprovem si JA tenim un resum guardat a la BD (per no regenerar si no cal)
-      // Necessitem una ruta per obtenir l'estat actual de l'alumne.
-      // Com que no tenim ruta específica, fem servir la llista d'alumnes o una crida nova.
-      // Per simplificar, assumim que si entrem aquí volem veure l'estat.
-      
-      // Truc: Fem servir la ruta de fitxers o creem una funció de checkStatus
-      checkStatus(); 
+  // Intentem 3 vegades per si el servidor just està arrencant
+  let attempts = 0;
+  let success = false;
 
-    } else {
-      if (response.status === 404) {
-        fileNotFound.value = true;
+  while (attempts < 3 && !success) {
+      try {
+        attempts++;
+        const response = await fetch(`http://localhost:3001/api/analyze/${encodeURIComponent(filename)}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          rawText.value = data.text_completo;
+          console.log("📄 Text del document carregat correctament.");
+          success = true;
+        } else {
+          if (response.status === 404) {
+            fileNotFound.value = true;
+            success = true; // No cal reintentar si no existeix
+          } else {
+            console.warn(`⚠️ Intent ${attempts}/3 fallit: Servidor ${response.status}`);
+            if (attempts < 3) await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Intent ${attempts}/3 fallit: Error xarxa`, error);
+        if (attempts < 3) await new Promise(r => setTimeout(r, 1000)); // Espera 1s
       }
-      console.error("Error del servidor:", response.status);
-    }
-  } catch (error) {
-    console.error("Error de connexió:", error);
-  } finally {
-    loading.value = false;
   }
+
+  // 2. INDEPENDENTMENT de si hem baixat el text, mirem l'estat a la BD.
+  loading.value = false; // Ara sí, acabem càrrega inicial
+  checkStatus();
 };
 
-onMounted(() => {
-  analyzeDocument();
+onMounted(async () => {
+  // 1. Iniciem càrrega
+  await analyzeDocument();
+  
+  // 2. Esperem una mica a que checkStatus s'actualitzi
+  // (per si l'estat inicial és 'INTERROMPUT' i cal autoregenerar)
+  setTimeout(() => {
+      // Si després de carregar, no estem carregant i hi ha error/buit, forcem
+      if (!loadingAI.value && !resumenIA.value && !pollingInterval) {
+          // Double-check de l'estat per si de cas
+          if (backendStatus.value === 'INTERROMPUT' || backendStatus.value === 'ERROR' || !backendStatus.value) {
+             console.log("🚀 [Mount] Autoregenerant estat invàlid inicial...");
+             regenerarResumenIA();
+          }
+      }
+  }, 1000);
 });
 
 onUnmounted(() => {
@@ -247,7 +315,6 @@ const checkStatus = async () => {
     
     const students = await response.json();
     
-    // VALIDACIÓ CRÍTICA: Assegurem que tenim un array abans de fer .find()
     if (!Array.isArray(students)) {
         console.error("❌ [API] La resposta no és un llistat vàlid:", students);
         return;
@@ -256,85 +323,140 @@ const checkStatus = async () => {
     // Busquem l'alumne que tingui aquest fitxer
     const student = students.find(s => s.filename === filename || (s.files && s.files.some(f => f.filename === filename)));
     
-    if (student) console.log("🔍 [Frontend] Estat rebut:", student.ia_data);
-
-    if (student && student.ia_data) {
-      const estado = student.ia_data.estado;
-      backendStatus.value = estado;
+    // Busquem la ia_data específica d'aquest fitxer (pot estar al top-level o dins de files)
+    let iaData = null;
+    if (student) {
+      // FIX: Prioritzem la cerca dins de l'array 'files', que és on el worker i la nova API escriuen
+      console.log(`🔍 [Debug] Buscant fitxer: '${filename}' en array de ${student.files ? student.files.length : 0} elements.`);
       
-      if (estado === 'COMPLETAT' && student.ia_data.resumen) {
-        resumenIA.value = student.ia_data.resumen;
-        
-        // Si el rol guardat és diferent del que volem, regenerem automàticament
-        if (student.ia_data.role && student.ia_data.role !== currentRole.value) {
-            console.log(`🔄 Rol diferent detectat (DB: ${student.ia_data.role} vs ACTUAL: ${currentRole.value}). Regenerant...`);
-            regenerarResumenIA();
-            return;
-        }
-
-        loadingAI.value = false;
-        currentStatus.value = "Completat";
-        if (pollingInterval) clearInterval(pollingInterval);
-      } else if (estado === 'INTERROMPUT' || estado === 'ERROR') { // NOU: Detectem també ERROR
-        loadingAI.value = false;
-        errorAI.value = student.ia_data.resumen || "Procés interromput.";
-        if (pollingInterval) clearInterval(pollingInterval);
-      } else if (['GENERANT...', 'A LA CUA', 'LLEGINT...'].includes(estado)) {
-        loadingAI.value = true;
-        
-        // ACTUALITZACIÓ EN TEMPS REAL
-        // Si tenim progrés a la BD, l'utilitzem. Si no, estimem.
-        const dbProgress = student.ia_data.progress || 0;
-
-        // Ara el backend calcula el progrés real (lectura + escriptura), així que confiem en ell
-        progress.value = estado === 'A LA CUA' ? 0 : dbProgress;
-
-        // Si ja tenim text parcial, el mostrem (efecte streaming)
-        if (student.ia_data.resumen) {
-          resumenIA.value = student.ia_data.resumen;
-          currentStatus.value = `Generant resum... (${Math.ceil(progress.value)}%)`;
+      if (student.files) {
+        // Normalització per evitar errors d'espais o encoding
+        const file = student.files.find(f => f.filename === filename || decodeURIComponent(f.filename) === decodeURIComponent(filename));
+        if (file) {
+            console.log("   ✅ Fitxer trobat a l'array:", file.filename);
+            iaData = file.ia_data;
         } else {
-          if (estado === 'A LA CUA') {
-            // NOU: Consultem la posició real a la cua
-            try {
-                const qRes = await fetch('http://localhost:3001/api/queue-status');
-                if (qRes.ok) {
-                    const qData = await qRes.json();
-                    const index = qData.queue.indexOf(filename);
-                    
-                    if (index === 0) {
-                        currentStatus.value = "Ets el següent! Preparant...";
-                    } else if (index > 0) {
-                        currentStatus.value = `En cua d'espera... (Tens ${index} resums davant)`;
-                    } else {
-                        currentStatus.value = "En cua d'espera...";
-                    }
-                }
-            } catch (e) { currentStatus.value = 'En cua d\'espera...'; }
-          }
-          else if (estado === 'LLEGINT...') {
-            // Missatge fix durant la lectura real (sense simulació)
-            currentStatus.value = 'Llegint document (això pot trigar uns minuts)...';
-          }
-          else currentStatus.value = 'Preparant resposta...';
+            console.warn("   ⚠️ Fitxer NO trobat a l'array. Noms disponibles:", student.files.map(f => f.filename));
         }
-        
-        // Si no estem fent polling, comencem
-        if (!pollingInterval) {
-          pollingInterval = setInterval(checkStatus, 3000); // Comprovar cada 3 segons
-        }
-      } else {
-        // Si no hi ha estat, potser és la primera vegada
-        if (!loadingAI.value && !resumenIA.value) regenerarResumenIA();
+      }
+      
+      // Fallback: Si no el trobem a l'array, mirem si és el fitxer legacy (top-level)
+      // Però NOMÉS si no tenim iaData ja
+      if (!iaData && student.filename === filename) {
+        console.log("   ℹ️ Usant dades legacy (Top Level)");
+        iaData = student.ia_data;
       }
     }
+
+    if (student && iaData) {
+      const estado = iaData.estado;
+      backendStatus.value = estado;
+      
+      console.log(`🔍 [Frontend] Estat per ${filename}:`, estado);
+
+      // 1. SI JA ESTÀ COMPLETAT -> FI
+      if (estado === 'COMPLETAT' && iaData.resumen) {
+        console.log("✅ RESUM TROBAT! Mostrant resultat.");
+        resumenIA.value = iaData.resumen;
+        loadingAI.value = false;
+        currentStatus.value = "Completat";
+        if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+        return;
+      } 
+      
+      // 2. SI ESTÀ EN PROCÉS -> ACTUALITZAR BARRA
+      if (['GENERANT...', 'A LA CUA', 'LLEGINT...'].includes(estado)) {
+        loadingAI.value = true;
+        const dbProgress = iaData.progress || 0;
+        progress.value = estado === 'A LA CUA' ? 0 : dbProgress;
+        
+        if (estado === 'LLEGINT...') {
+             // FIX: Forcem "Analitzant..." si IA està processant rawProgress > 0
+             currentStatus.value = `Analitzant estructura i contingut... ${Math.ceil(progress.value)}%`;
+        } else if (estado === 'GENERANT...') {
+             currentStatus.value = `Redactant el resum final... ${Math.ceil(progress.value)}%`;
+             if (iaData.resumen) resumenIA.value = iaData.resumen;
+        } else {
+             currentStatus.value = "Esperant torn a la cua...";
+        }
+        return; // Continuem esperant
+      }
+
+      // 3. SI ELIMINAT, ERROR, INTERROMPUT O BUIT
+      else if ((estado === 'INTERROMPUT' || estado === 'ERROR')) {
+        
+        // NOU: Detecció de CRASH durant l'execució
+        // Si estàvem carregant (loadingAI=true) i de cop passem a ERROR/INTERROMPUT, és un error NOU.
+        // No l'hem d'ignorar. L'hem de gestionar (autoregenerar).
+        
+        if (loadingAI.value) {
+             console.warn("⚠️ Crash detectat durant la generació! (LLEGINT -> INTERROMPUT)");
+             loadingAI.value = false; // Reset per permetre nova regeneració
+             
+             // Opcional: Afegir petit delay per no saturar en bucle si falla molt ràpid
+             setTimeout(() => {
+                 regenerarResumenIA();
+             }, 1000);
+             return;
+        }
+
+        // Si NO estem carregant manualment, vol dir que hem entrat a la pàgina i estava trencat.
+        if (!loadingAI.value) {
+            console.log(`⚠️ Estat guardat invàlid (${estado}). Regenerant automàticament...`);
+            regenerarResumenIA();
+        } else {
+            // Aquest cas teòricament ja no es dona amb l'if de dalt, 
+            // però per seguretat (si loadingAI encara està true per una altra raó)
+            console.log("⏳ Esperant canvi d'estat...");
+        }
+      }
+    }
+
+    // SEMPRE activem el polling si estem en mode loading, fins que tinguem un estat final
+    // MODIFICAT: Més ràpid encara (0.5s) per caçar el progrés de la IA en temps real
+    if (loadingAI.value && !pollingInterval) {
+      pollingInterval = setInterval(checkStatus, 500);
+    }
+
   } catch (e) {
-    console.error("Error comprovant estat:", e);
+    if (e.message === 'Failed to fetch') {
+        console.warn("⚠️ [Polling] Error de xarxa temporal (servidor reiniciant?)...");
+    } else {
+        console.error("Error comprovant estat:", e);
+    }
   }
 };
 
+// Funció visual per als passos
+const getStepState = (step) => {
+    const s = backendStatus.value;
+    if (step === 1) { // Pas 1: Cua
+        if (s === 'A LA CUA') return 'active';
+        if (['LLEGINT...', 'GENERANT...', 'COMPLETAT'].includes(s)) return 'completed';
+        return 'active'; // Per defecte actiu si no sabem l'estat (inici)
+    }
+    if (step === 2) { // Pas 2: Lectura
+        if (s === 'LLEGINT...') return 'active';
+        if (['GENERANT...', 'COMPLETAT'].includes(s)) return 'completed';
+        if (s === 'A LA CUA') return 'pending';
+        return 'pending';
+    }
+    if (step === 3) { // Pas 3: Escriptura
+        if (s === 'GENERANT...') return 'active';
+        if (s === 'COMPLETAT') return 'completed';
+        return 'pending';
+    }
+    return 'pending';
+};
+
 const regenerarResumenIA = async () => {
-  if (!rawText.value) return;
+  if (!rawText.value) {
+      console.error("❌ No es pot regenerar: Falta el text del document (rawText buit).");
+      // Intentem analitzar de nou d'emergència?
+      // O mostrem error user-friendly
+      errorAI.value = "No s'ha pogut llegir el text original del document. Prova a recarregar la pàgina.";
+      return;
+  }
   
   // Rotació de model: Sempre provem el següent de la llista
   modelIndex.value++;
@@ -368,6 +490,17 @@ const regenerarResumenIA = async () => {
     loadingAI.value = false;
   } finally {
     // No posem loadingAI = false aquí perquè volem que segueixi carregant mentre fa polling
+  }
+};
+
+const retryAndQueue = async () => {
+  // 1. Intentem baixar el text si no el tenim
+  if (!rawText.value) await analyzeDocument();
+  
+  // 2. Si ja el tenim (o l'hem baixat ara mateix), posem a la cua directament
+  if (rawText.value) {
+      console.log("🔄 Manual Retry: Envia a la cua automàticament...");
+      await regenerarResumenIA();
   }
 };
 

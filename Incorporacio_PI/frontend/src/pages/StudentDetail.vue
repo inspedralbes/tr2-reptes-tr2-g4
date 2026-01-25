@@ -309,6 +309,26 @@ const parsedGlobalSummary = computed(() => {
     { title: 'Estat Actual', key: 'ESTAT ACTUAL', color: 'purple-darken-2', icon: 'mdi-calendar-check-outline' }
   ];
 
+  // 1. INTENT DE PARSEJAR COM A JSON
+  try {
+    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    if (jsonStr.startsWith('{')) {
+      const data = JSON.parse(jsonStr);
+      
+      patterns.forEach(p => {
+        if (data[p.key]) {
+          const content = Array.isArray(data[p.key]) ? data[p.key].join('\n') : data[p.key];
+          sections.push({ ...p, content: content });
+        }
+      });
+      
+      if (sections.length > 0) return sections;
+    }
+  } catch (e) {
+    console.warn("Global Summary JSON parse failed, falling back to text.", e);
+  }
+
+  // 2. FALLBACK A TEXT
   const lines = text.split('\n');
   let currentItem = null;
   

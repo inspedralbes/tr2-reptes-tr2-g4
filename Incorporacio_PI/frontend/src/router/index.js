@@ -10,6 +10,7 @@ import DashboardMenu from '@/pages/DashboardMenu.vue' // <--- NUEVO MENÚ
 import StudentList from '@/components/StudentList.vue'
 import AddStudent from '@/pages/AddStudent.vue';
 import StudentDetail from '@/pages/StudentDetail.vue'
+import SummaryPage from '@/pages/SummaryPage.vue' // Import estàtic per evitar problemes de chunking en Docker
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -26,24 +27,24 @@ const router = createRouter({
     },
     // 1. RUTA DASHBOARD -> Ahora es el MENÚ DE BOTONES
     {
-      path: '/dashboard', 
+      path: '/dashboard',
       name: 'dashboard',
       component: DashboardMenu,
-      meta: { requiresAuth: true } 
+      meta: { requiresAuth: true }
     },
     // 2. NUEVA RUTA -> Para el listado de alumnos
     {
-      path: '/alumnos', 
+      path: '/alumnos',
       name: 'StudentList',
       component: StudentList,
-      meta: { requiresAuth: true } 
+      meta: { requiresAuth: true }
     },
     // 3. RUTA FUTURA -> Insertar alumno (Aún no creada, dará error 404 o blanco si clickas)
     {
       path: '/nuevo-alumno',
       name: 'AddStudent',
       // Como no tienes la página, puedes poner temporalmente un componente vacío o el Dashboard
-      component: AddStudent, 
+      component: AddStudent,
       meta: { requiresAuth: true }
     },
     {
@@ -63,7 +64,7 @@ const router = createRouter({
     {
       path: '/resum/:filename',
       name: 'SummaryPage',
-      component: () => import('@/pages/SummaryPage.vue'),
+      component: SummaryPage,
       meta: { requiresAuth: true }
     },
     {

@@ -70,8 +70,8 @@
           <v-divider class="my-3"></v-divider>
         </v-col>
 
-        <!-- 2. Dificultats -->
-        <v-col cols="12" v-if="analysis.dificultats?.length">
+        <!-- 2. Dificultats (Diagnòstic) -->
+        <v-col cols="12" v-if="analysis.dificultats?.length && role !== 'docent'">
           <div class="d-flex align-center mb-2">
             <v-icon color="orange-darken-2" class="mr-2">mdi-alert-circle-outline</v-icon>
             <h3 class="text-subtitle-1 font-weight-bold text-orange-darken-2">Diagnòstic</h3>
