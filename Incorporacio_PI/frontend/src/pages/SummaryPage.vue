@@ -48,12 +48,12 @@
 
           <!-- Pas 2: Lectura -->
           <div class="d-flex flex-column align-center" style="width: 30%">
-            <v-avatar :color="getStepState(2) === 'completed' ? 'green-lighten-5' : (getStepState(2) === 'active' ? 'blue-lighten-5' : 'grey-lighten-4')" size="40" class="mb-2">
-                <v-icon :color="getStepState(2) === 'completed' ? 'success' : (getStepState(2) === 'active' ? 'primary' : 'grey-lighten-1')" size="20">
-                {{ getStepState(2) === 'completed' ? 'mdi-check' : 'mdi-book-search' }}
+            <v-avatar :color="(getStepState(2) === 'completed' || getStepState(2) === 'active') ? 'green-lighten-5' : 'grey-lighten-4'" size="40" class="mb-2">
+                <v-icon :color="(getStepState(2) === 'completed' || getStepState(2) === 'active') ? 'success' : 'grey-lighten-1'" size="20">
+                {{ getStepState(2) === 'completed' ? 'mdi-check' : 'mdi-file-eye-outline' }}
                 </v-icon>
             </v-avatar>
-            <div class="text-caption font-weight-bold text-center lh-1" :class="{'text-primary': getStepState(2) === 'active', 'text-grey': getStepState(2) === 'pending'}">Llegint</div>
+            <div class="text-caption font-weight-bold text-center lh-1" :class="{'text-success': getStepState(2) === 'active', 'text-grey': getStepState(2) === 'pending'}">Analitzant<br>document</div>
           </div>
 
           <!-- Connector 2-3 -->
@@ -74,14 +74,15 @@
         <div class="mb-6">
           <div class="d-flex justify-space-between align-end mb-2">
             <span class="text-subtitle-2 font-weight-bold text-primary">{{ backendStatus === 'LLEGINT...' ? 'LECTURA ANALÍTICA' : 'GENERANT RESUM' }}</span>
-            <!-- Porcentaje visible -->
-            <span class="text-caption font-weight-bold text-primary">{{ Math.ceil(progress) }}%</span>
+            <!-- Porcentaje visible SOLO si no estamos leyendo (generando) -->
+            <span v-if="backendStatus !== 'LLEGINT...'" class="text-caption font-weight-bold text-primary">{{ Math.ceil(progress) }}%</span>
           </div>
           
           <v-progress-linear 
             color="primary" 
             height="12" 
             :model-value="progress"
+            :indeterminate="backendStatus === 'LLEGINT...'"
             rounded="pill"
             striped 
           ></v-progress-linear>
@@ -231,47 +232,28 @@ const parsedAnalysis = computed(() => {
     let isHeader = false;
     let headerContent = "";
     
+    // 2. PARSING STRICTE BASAT EN TEXT (Markdown Headers)
+    // Busquem línies que comencin per # o ## o ###
     if (trimmed.startsWith('#')) {
-      isHeader = true;
-      headerContent = trimmed.replace(/^#+\s*/, '');
-    } else if (/^\d+\.\s+[A-ZÀ-Ú\s]{3,30}$/.test(trimmed)) {
-       // Cas "1. PERFIL DE L'ALUMNE" (sense ##)
-       isHeader = true;
-       headerContent = trimmed.replace(/^\d+\.\s+/, '');
+       // Netejem el hash i espais
+       const headerContent = trimmed.replace(/^#+\s*/, '').toUpperCase();
+       
+       // Busquem quina secció és
+       const foundKey = Object.keys(sectionMap).find(k => headerContent.includes(k));
+       
+       if (foundKey) {
+          currentKey = sectionMap[foundKey];
+          return; // IMPORTANT: No afegim la línia del títol al text visible (Evita duplicats)
+       }
     }
 
-    if (isHeader) {
-      const title = headerContent.toUpperCase();
-      
-      // Busquem si coincideix amb algun dels nostres
-      const foundKey = Object.keys(sectionMap).find(k => title.includes(k));
-      
-      if (foundKey) {
-        currentKey = sectionMap[foundKey];
-        
-        // NOU: Si hi ha text després del títol a la mateixa línia, l'aprofitem
-        // Ex: "## PERFIL: Aquest alumne..." -> Volem "Aquest alumne..."
-        // Eliminem el títol trobat (ex: PERFIL) i els dos punts/números si hi són
-        // Usem regex flexible per netejar tot el que sigui el títol i prefixos
-        let contentAfterHeader = headerContent;
-        // 1. Treiem el títol clau (ex: PERFIL)
-        const regexKey = new RegExp(foundKey, 'i');
-        contentAfterHeader = contentAfterHeader.replace(regexKey, '');
-        // 2. Treiem caràcters sobrants al principi (ex: "1. ", ": ", "- ")
-        contentAfterHeader = contentAfterHeader.replace(/^[\d\.\s:-\|\*]+/, '').trim();
-        
-        if (contentAfterHeader.length > 2) {
-             trimmed = contentAfterHeader; // Convertim la línia en només el contingut
-             // I continuem avall per afegir-la
-        } else {
-             return; // Si no hi ha res més, saltem la línia
-        }
-      }
-    }
-
-    // Afegim la línia a la secció actual
+    // Afegim la línia a la secció actual (Si no és buida)
     if (trimmed.length > 0 && !trimmed.startsWith('```')) {
-      result[currentKey].push(trimmed);
+      // Ignorem títols "al·lucinats" que no tinguin # però semblin títols
+      const isHallucinatedTitle = Object.keys(sectionMap).some(k => trimmed.toUpperCase() === k || trimmed.toUpperCase() === k + ':');
+      if (!isHallucinatedTitle) {
+          result[currentKey].push(trimmed);
+      }
     }
   });
 
@@ -281,7 +263,7 @@ const parsedAnalysis = computed(() => {
 const analyzeDocument = async () => {
   if (!filename) return;
   loading.value = true;
-  currentStatus.value = "Descarregant contingut del document...";
+  currentStatus.value = "Analitzant contingut...";
 
   // Intentem 3 vegades per si el servidor just està arrencant
   let attempts = 0;
@@ -363,22 +345,34 @@ const checkStatus = async () => {
       // FIX: Prioritzem la cerca dins de l'array 'files', que és on el worker i la nova API escriuen
       console.log(`🔍 [Debug] Buscant fitxer: '${filename}' en array de ${student.files ? student.files.length : 0} elements.`);
       
+      let fileData = null;
       if (student.files) {
         // Normalització per evitar errors d'espais o encoding
         const file = student.files.find(f => f.filename === filename || decodeURIComponent(f.filename) === decodeURIComponent(filename));
         if (file) {
             console.log("   ✅ Fitxer trobat a l'array:", file.filename);
-            iaData = file.ia_data;
+            fileData = file.ia_data;
         } else {
             console.warn("   ⚠️ Fitxer NO trobat a l'array. Noms disponibles:", student.files.map(f => f.filename));
         }
       }
       
       // Fallback: Si no el trobem a l'array, mirem si és el fitxer legacy (top-level)
-      // Però NOMÉS si no tenim iaData ja
-      if (!iaData && student.filename === filename) {
+      if (!fileData && student.filename === filename) {
         console.log("   ℹ️ Usant dades legacy (Top Level)");
-        iaData = student.ia_data;
+        fileData = student.ia_data;
+      }
+
+      // SELECCIÓ PER ROL (MULTI-RESUM)
+      if (fileData) {
+         // Si existeix la clau del rol específic (nova versió)
+         if (fileData[currentRole.value]) {
+             iaData = fileData[currentRole.value];
+         } 
+         // Si no, mirem si és la versió antiga (objecte directe) i coincideix el rol (o assumim docent)
+         else if (fileData.estado && (!fileData.role || fileData.role === currentRole.value || currentRole.value === 'docent')) {
+             iaData = fileData;
+         }
       }
     }
 
@@ -386,7 +380,7 @@ const checkStatus = async () => {
       const estado = iaData.estado;
       backendStatus.value = estado;
       
-      console.log(`🔍 [Frontend] Estat per ${filename}:`, estado);
+      console.log(`🔍 [Frontend] Estat per ${filename} (${currentRole.value}):`, estado);
 
       // 1. SI JA ESTÀ COMPLETAT -> FI
       if (estado === 'COMPLETAT' && iaData.resumen) {
@@ -412,6 +406,13 @@ const checkStatus = async () => {
             regenerarResumenIA();
         }
       }
+    } else {
+        // Si no hi ha dades per aquest rol, potser cal regenerar?
+        // Deixem que l'usuari ho faci manual o ho forcem si està buit?
+        // Millor no forçar automàticament per no gastar tokens, mostrem estat buit.
+        console.log(`ℹ️ No hi ha resum per al rol: ${currentRole.value}`);
+        loadingAI.value = false;
+        resumenIA.value = '';
     }
 
   } catch (e) {
@@ -436,12 +437,15 @@ const startSSE = () => {
                 return;
             }
             
+            // FILTRE DE ROL: Ignorem events d'altres rols
+            if (data.role && data.role !== currentRole.value) return;
+
             // Actualitzem UI en temps real
             progress.value = data.progress;
             
             if (data.status === 'LLEGINT...') {
                 backendStatus.value = 'LLEGINT...';
-                currentStatus.value = `Analitzant estructura... ${Math.ceil(data.progress)}%`;
+                currentStatus.value = `Analitzant document...`; // Sense % perquè és fals
             } else if (data.status === 'GENERANT...') {
                 backendStatus.value = 'GENERANT...';
                 currentStatus.value = `Redactant... ${Math.ceil(data.progress)}%`;
@@ -505,7 +509,7 @@ const regenerarResumenIA = async () => {
   resumenIA.value = ''; // Netegem el resum anterior
   errorAI.value = null; // Netegem errors anteriors
   progress.value = 0;
-  currentStatus.value = 'Enviant document a la cua de processament...';
+  currentStatus.value = 'Iniciant anàlisi...';
   
   try {
     const response = await fetch('/api/generate-summary', {

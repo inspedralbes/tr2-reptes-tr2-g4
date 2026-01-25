@@ -13,7 +13,7 @@ const { extractTextFromPDF } = require('./fileReader'); // Corregit: Coincideix 
 // --- HELPER: NETEJA DE TEXT BÀSICA (Mogut aquí per velocitat) ---
 const cleanText = (text) => {
     if (!text) return "";
-    return text.replace(/[\r\v\f]/g, '\n').replace(/[ \t]+/g, ' ').trim().substring(0, 15000);
+    return text.replace(/[\r\v\f]/g, '\n').replace(/[ \t]+/g, ' ').trim();
 };
 const { generateSummaryLocal, checkConnection, parseSummaryToJSON } = require('./aiService'); // Importem el servei d'IA Local i el test
 
@@ -159,6 +159,7 @@ async function connectRabbit() {
             let filename = '';
             let studentHash = '';
             let text = '';
+            let arrayFilters = []; // Moved to outer scope to be available in catch
 
             try {
                 // Movem el parsing DINS del try per si el missatge és invàlid
@@ -174,7 +175,7 @@ async function connectRabbit() {
                 console.log(`🐰 [Worker] Processant resum (${role || 'docent'}) per: ${currentProcessingId}`);
 
                 const db = getDB();
-                let arrayFilters = []; // Global scope in try
+                // let arrayFilters = []; // Removed (now global)
 
                 // Determinem on guardar el resultat segons si és global o per fitxer
                 let query = {};
@@ -195,11 +196,12 @@ async function connectRabbit() {
 
                     if (isFileInArray) {
                         query = { _id: student._id };
-                        updateFieldPrefix = "files.$[elem].ia_data";
+                        // NOU: Guardem per rol (ia_data.docent, ia_data.orientador)
+                        updateFieldPrefix = `files.$[elem].ia_data.${role || 'docent'}`;
                     } else {
                         // Només si NO està a l'array (cas legacy o fitxer principal únic)
                         query = { _id: student._id };
-                        updateFieldPrefix = "ia_data";
+                        updateFieldPrefix = `ia_data.${role || 'docent'}`;
                     }
                 }
 
@@ -210,14 +212,21 @@ async function connectRabbit() {
                 initUpdate[`${updateFieldPrefix}.estado`] = "LLEGINT...";
                 initUpdate[`${updateFieldPrefix}.resumen`] = "";
                 initUpdate[`${updateFieldPrefix}.progress`] = 1;
-                if (role !== 'global') initUpdate[`${updateFieldPrefix}.role`] = role || 'docent';
 
-                console.log(`📡 [Worker] Notificant a la DB inici de lectura per: ${currentProcessingId}`);
+                console.log(`📡 [Worker] Notificant a la DB inici de lectura per: ${currentProcessingId} (Rol: ${role})`);
                 await db.collection('students').updateOne(query, { $set: initUpdate }, { arrayFilters });
 
                 // 2. Preparem text i cridem a la IA
                 const cleanedText = cleanText(text);
                 console.log(`🤖 [Worker] IA llegint document per: ${currentProcessingId}`);
+
+                // NOU: Forcem actualització SSE immediata perquè la UI canviï a "Llegint" ja
+                broadcastProgress(filename, {
+                    status: "LLEGINT...",
+                    progress: 1,
+                    resumen: null,
+                    role: role // NOU: enviem el rol
+                });
 
                 let lastUpdate = 0;
                 let summary = "";
@@ -244,7 +253,8 @@ async function connectRabbit() {
                         broadcastProgress(filename, {
                             status: statusText,
                             progress: visualProgress,
-                            resumen: isReading ? null : partialText
+                            resumen: isReading ? null : partialText,
+                            role: role // NOU: enviem el rol
                         });
 
                         // DB Writes: Menos frecuentes (1s o 5%) para no saturar
@@ -876,11 +886,12 @@ connectDB().then(async () => {
         await db.collection('students').insertMany(docs);
     }
 
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
         console.log(`🚀 Server Mongo + Logic Company running on http://localhost:${PORT}`);
         connectRabbit(); // Iniciem RabbitMQ en arrencar
         checkConnection(); // NOU: Testeig de connexió amb la IA a l'inici
     });
+
 }).catch(console.error);
 
 // --- 5. LÒGICA DE LOGS (Tasques #28 i #29) ---

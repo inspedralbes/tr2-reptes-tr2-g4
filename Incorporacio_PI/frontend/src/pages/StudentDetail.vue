@@ -95,7 +95,10 @@
           <div v-if="student.global_summary">
               <div v-if="['LLEGINT...', 'GENERANT...', 'A LA CUA'].includes(student.global_summary.estado)" class="text-center">
                   <v-progress-linear indeterminate color="purple" class="mb-2" height="6"></v-progress-linear>
-                  <span class="text-caption font-weight-bold text-purple">{{ globalStatusText || student.global_summary.estado }} ({{ Math.ceil(student.global_summary.progress || 0) }}%)</span>
+                  <span class="text-caption font-weight-bold text-purple">
+                    {{ globalStatusText || student.global_summary.estado }}
+                    <span v-if="student.global_summary.estado !== 'LLEGINT...'">({{ Math.ceil(student.global_summary.progress || 0) }}%)</span>
+                  </span>
               </div>
               <div v-else-if="student.global_summary.estado === 'COMPLETAT'">
                   <!-- Renderitzat per seccions amb colors -->

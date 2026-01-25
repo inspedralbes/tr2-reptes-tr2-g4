@@ -83,12 +83,12 @@ async function generateSummaryLocal(text, role, onProgress) {
   // Per defecte 4096 tokens si no està definit
   const contextSize = parseInt(process.env.AI_CONTEXT_SIZE) || 4096;
 
-  // Regla de 3 aproximada: 1 token ~= 3-4 chars. Reservem 25% per la resposta.
-  // 4096 -> ~12k chars
-  // 8192 -> ~25k chars
-  const safeChars = Math.floor(contextSize * 2.8);
+  // Regla de 3 aproximada: 1 token ~= 3-4 chars. Reservem 50% per la resposta i prompt system.
+  // 4096 -> ~12k chars total. 
+  // Reduïm límit de document per deixar espai al nou prompt llarg.
+  const safeChars = Math.floor(contextSize * 1.5);
 
-  const limit = role === 'global' ? safeChars : Math.floor(safeChars * 0.8);
+  const limit = role === 'global' ? safeChars : Math.floor(safeChars * 0.9); // Augmentem límit al 90%
   const MAX_CHARS = limit;
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
@@ -96,88 +96,85 @@ async function generateSummaryLocal(text, role, onProgress) {
 
   // --- SELECCIÓ DE PROMPT SEGONS ROL ---
   let systemPrompt = "";
-  let structureExample = "";
+  let structureExample = ""; // JA NO ES FA SERVIR (Integrat al prompt)
 
   if (role === 'global') {
-    systemPrompt = "Ets un expert en educació especial. Genera un resum cronològic de l'historial de l'alumne en FORMAT TEXT (Markdown).";
-    structureExample = `
-ESTRUCTURA (Fes servir aquests títols exactes):
-## EVOLUCIÓ
-(Text cronològic...)
-
-## PUNTS CLAU RECURRENTS
-(Llista de punts...)
-
-## ADAPTACIONS CONSTANTS
-(Llista...)
-
-## ESTAT ACTUAL
-(Resum final...)`;
+    systemPrompt = `Ets un assistent expert en educació.
+      OBJECTIU: Generar un resum global i cronològic de l'evolució de l'alumne basant-se en tots els seus Plans Individualitzats (PI).
+      
+      ESTRUCTURA OBLIGATÒRIA (Usa exactament aquests encapçalaments tancats amb '#'):
+      ## EVOLUCIÓ
+      (Descripció detallada del progrés. IMPORTANT: No inventis el curs actual. Si el document no ho diu clarament, digues "Curs no especificat".)
+      ## PUNTS CLAU RECURRENTS
+      (Explicació completa dels diagnòstics o dificultats que es repeteixen.)
+      ## ADAPTACIONS CONSTANTS
+      (Mesures mantingudes en el temps, explicades detalladament.)
+      ## ESTAT ACTUAL
+      (Situació segons l'ÚLTIM document per data o context. Sigues precís i extens amb el curs i les necessitats actuals.)
+      
+      FORMAT: Text net sense títol principal.`;
 
   } else if (role === 'orientador') {
-    systemPrompt = `Ets un expert orientador psicopedagògic.
-    TASCA: Redactar un informe tècnic basat en el document proporcionat.
-    FORMAT: Markdown pur (NO JSON, NO CODI).`;
-
-    structureExample = `
-    USA AQUESTA ESTRUCTURA:
-    # PERFIL
-    ...
-    # DIAGNÒSTIC
-    ...
-    # JUSTIFICACIÓ
-    ...
-    # ORIENTACIÓ A L'AULA
-    ...
-    # ASSIGNATURES
-    ...
-    # CRITERIS D'AVALUACIÓ
-    ...`;
+    // PROMPT PER A ORIENTADORS
+    systemPrompt = `Ets un assistent expert per a orientadors educatius.
+      OBJECTIU: Extreure informació clau per a l'orientació i seguiment de l'alumne.
+      IMPORTANT: NO posis títol principal al document (com "Resum..."). Comença directament amb la primera secció.
+      
+      ESTRUCTURA OBLIGATÒRIA (Usa exactament aquests encapçalaments tancats amb '#'):
+      ## PERFIL
+      (Descripció detallada de l'alumne. Extensió lliure, no et limitis a un paràgraf si cal més.)
+      ## DIAGNÒSTIC
+      (Diagnòstic complet i observacions detallades.)
+      ## JUSTIFICACIÓ
+      (Explicació detallada del motiu del PI basat en el diagnòstic.)
+      ## ORIENTACIÓ A L'AULA
+      (Pautes d'actuació i cohesió social detallades.)
+      ## ADAPTACIONS
+      (Llista completa i detallada de les adaptacions curriculars.)
+      ## CRITERIS D'AVALUACIÓ
+      (Explicació dels criteris d'avaluació.)
+ 
+      FORMAT GENERAL: "Idea clau. [[Detall extens: text original...]]"`;
 
   } else {
-    // DOCENT (Default)
-    systemPrompt = `Ets un psicopedagog expert.
-    TASCA: Explicar el contingut del PI a un mestre de forma clara i directa.
-    FORMAT: Text normal estructurat amb títols (NO USIS JSON NI CLAU-VALOR).`;
-
-    structureExample = `
-    USA AQUESTA ESTRUCTURA:
-    # PERFIL
-    (Explica qui és l'alumne, curs i situació en un paràgraf text normal)
-    
-    # ORIENTACIÓ A L'AULA
-    - Pauta 1
-    - Pauta 2
-    
-    # ASSIGNATURES
-    (Llista les matèries i què cal adaptar en cadascuna)
-    
-    # CRITERIS D'AVALUACIÓ
-    (Com s'ha d'avaluar)`;
+    // DOCENT (Default) - DIAGNÒSTIC INTEGRAT A PERFIL
+    systemPrompt = `Ets un assistent expert per a docents.
+      OBJECTIU: Facilitar informació pràctica per a l'aula.
+      IMPORTANT: NO posis títol principal. Comença directament amb la primera secció.
+      
+      ESTRUCTURA OBLIGATÒRIA (Usa exactament aquests encapçalaments tancats amb '#'):
+      ## PERFIL
+      (Descriu detalladament l'alumne i inclou el seu DIAGNÒSTIC aquí mateix. Extensió lliure.)
+      ## ORIENTACIÓ A L'AULA
+      (Pautes d'actuació docent explicades amb detall.)
+      ## ASSIGNATURES
+      (Llista detallada d'adaptacions per matèria.)
+      ## CRITERIS D'AVALUACIÓ
+      (Com avaluar. Explicació detallada.)
+ 
+      FORMAT GENERAL: "Idea clau. [[Detall extens: text original...]]"`;
   }
 
   const messages = [
     {
       role: "system",
       content: `${systemPrompt}
+      
+      INSTRUCCIONS CRÍTIQUES DE FORMAT I CONTINGUT:
+      1. TÍTOLS OBLIGATORIS: Genera SEMPRE les 5 seccions exactes llistades amunt.
+      2. CONTINGUT COMPLET: Has d'incloure TOTA la informació rellevant que trobis al document per a cada secció.
+      3. ESTIL LLISTA: Fes servir guions (-) o asteriscs (*) per a cada punt, excepte en Perfil/Diagnòstic/Justificació on vull paràgrafs.
+      4. NO COPIÏS LLISTES DE FORMULARI: Si veus opcions com "1r ESO, 2n ESO...", tria només la marcada o vigent.
+      5. DETALLS: Extreu la frase literal clau del PDF dins dels claudàtors [[Detall: ...]].
+      6. ANONIMITZACIÓ: NO incloguis MAI el nom de l'alumne. Substitueix-lo per "L'alumne/a".
+      7. NETEJA FINAL: El document acaba sovint amb signatures. Ignora-les.
+      8. ANTI-AL·LUCINACIÓ: Si no trobes informació sobre un punt, digues "No s'especifica".
 
-        IMPORTANT:
-        - NO JSON. NO XML.
-        - Escriu tot seguit (paràgrafs i llistes).
-        - Utilitza ## TÍTOL GRAN per separar.
-        - NO inventis dades personals.
-        `
+      IMPORTANT: **NO** GENERIS JSON. Retorna només TEXT MARKDOWN.`
     },
     {
       role: "user",
-      content: `DOCUMENT:\n"${truncatedText}"\n\nTASCA: Escriu un resum informatiu per al mestre sobre aquest alumne.
-      
-      Utilitza exactament aquests apartats:
-      ## PERFIL DE L'ALUMNE
-      ## PUNTS FORTS I FEBLES
-      ## ORIENTACIONS A L'AULA
-      ## ADAPTACIONS CURRICULARS
-      ## CRITERIS D'AVALUACIÓ`
+      content: `DOCUMENT:\n"${truncatedText}"\n\nTASCA: Genera el resum seguint les instruccions.`
     }
   ];
 
@@ -199,9 +196,14 @@ ESTRUCTURA (Fes servir aquests títols exactes):
     let lastUpdateTs = Date.now();
 
     const pollReading = setInterval(async () => {
+      let calculatedSlotProgress = 0; // Initialize variable to avoid ReferenceError
       try {
-        console.log("🔍 [aiService] Polling /slots..."); // Reduïm soroll a request de l'usuari
-        const res = await fetch("http://pi_llm:8080/slots");
+        // console.log("🔍 [aiService] Polling /slots..."); // SILENCIAT PER PETICIÓ USUARI
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms timeout
+
+        const res = await fetch("http://pi_llm:8080/slots", { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (res.ok) {
           const slots = await res.json();
           // console.log("🔍 [LLM RAW SLOTS]:", JSON.stringify(slots));
@@ -220,7 +222,7 @@ ESTRUCTURA (Fes servir aquests títols exactes):
             if (isGenerating) {
               // Si ja genera, assumim lectura 100% i PAREM el polling per no matxacar l'estat
               // console.log("🧠 [LLM] Detecció de GENERACIÓ iniciada. Aturant polling de lectura.");
-              if (onProgress) onProgress(null, 100, true);
+              if (onProgress) onProgress(null, 0, false); // Fix: isReading=false per canviar estat a GENERANT
               clearInterval(pollReading);
               return;
             }
@@ -243,7 +245,7 @@ ESTRUCTURA (Fes servir aquests títols exactes):
               calculatedSlotProgress = Math.floor(raw * 100);
             }
           } else {
-            console.log("🔍 Cap slot processant actualment.");
+            // console.log("🔍 Cap slot processant actualment."); // SILENCIAT
           }
 
           if (calculatedSlotProgress > lastKnownProgress) {
@@ -255,9 +257,11 @@ ESTRUCTURA (Fes servir aquests títols exactes):
           console.warn(`⚠️ [aiService] /slots returned ${res.status}`);
         }
       } catch (e) {
+        // Ignorem errors de timeout puntuals (HeadersTimeoutError) que són normals amb càrrega alta
+        if (e.message && e.message.includes('HeadersTimeout')) return;
         console.error("❌ [aiService] Polling error:", e.cause || e.message);
       }
-    }, 500); // Polling cada 0.5s per màxima fluïdesa
+    }, 2000); // Polling cada 2s per reduir càrrega al servidor
 
     // RETRY LOGIC (3 intents)
     let tries = 0;
@@ -331,7 +335,101 @@ ESTRUCTURA (Fes servir aquests títols exactes):
       }
     }
 
-    console.log(`🤖 [IA Local] Generació finalitzada amb èxit. Longitud: ${fullText.length} caràcters.`);
+    console.log(`🤖 [IA Local] Generació finalitzada. Longitud: ${fullText.length}. Validant format...`);
+
+    // --- SAFETY NET: CONVERSIÓ JSON -> MARKDOWN ---
+    // Detectem si hi ha un bloc JSON, encara que estigui envoltat de text
+    const jsonMatch = fullText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        console.warn("⚠️ [aiService] La IA ha retornat JSON. Intentant recuperar text...");
+        const jsonStr = jsonMatch[0];
+        const json = JSON.parse(jsonStr);
+        let md = "";
+
+        // Funció recursiva per extreure text de qualsevol estructura (objectes, arrays, strings JSON)
+        const extractText = (val) => {
+          if (!val) return "";
+
+          // Si és array, processem cada element
+          if (Array.isArray(val)) {
+            return val.map(extractText).join("\n");
+          }
+
+          // Si és string
+          if (typeof val === 'string') {
+            val = val.trim();
+            // Si el string sembla un altre JSON (cas del "parameters"), intentem parsejar-lo
+            if ((val.startsWith('{') || val.startsWith('[')) && val.length > 2) {
+              try {
+                const innerC = JSON.parse(val);
+                return extractText(innerC);
+              } catch (e) {
+                // Si no és JSON vàlid, és text normal.
+                // Netejem cometes o claus residuals si n'hi ha moltes
+                if (val.includes('":"')) return val; // Sembla JSON trencat
+                return val.replace(/^["'{}\[\]]+|["'{}\[\]]+$/g, '');
+              }
+            }
+            return val;
+          }
+
+          // Si és objecte
+          if (typeof val === 'object') {
+            // Ignorem claus tècniques
+            let res = "";
+            for (const [k, v] of Object.entries(val)) {
+              if (['name', 'parameters', 'type'].includes(k)) {
+                res += extractText(v) + "\n";
+              } else {
+                // Tractem la clau com a possible subtítol si el valor és llarg
+                const content = extractText(v);
+                if (content.length > 20) res += `\n**${k.toUpperCase()}**: ${content}`;
+                else res += `${content} `;
+              }
+            }
+            return res;
+          }
+
+          return String(val);
+        };
+
+        // Map de camps principals
+        const map = {
+          'perfil': "## PERFIL DE L'ALUMNE",
+          'perfil_alumne': "## PERFIL DE L'ALUMNE",
+          'dificultats': "## PUNTS FORTS I FEBLES",
+          'diagnostic': "## PUNTS FORTS I FEBLES",
+          'orientacio': "## ORIENTACIONS A L'AULA",
+          'recomanacions': "## ORIENTACIONS A L'AULA",
+          'adaptacions': "## ADAPTACIONS CURRICULARS",
+          'materies': "## ADAPTACIONS CURRICULARS",
+          'avaluacio': "## CRITERIS D'AVALUACIÓ"
+        };
+
+        // Recorrem les claus del JSON i muntem el markdown
+        for (const [key, val] of Object.entries(json)) {
+          let header = map[key.toLowerCase()];
+          if (!header && key.length > 2) header = `## ${key.toUpperCase()}`;
+
+          const content = extractText(val).trim();
+
+          if (content.length > 5) {
+            if (header) md += `\n\n${header}\n`;
+            // Convertim en llista si té salts de línia
+            md += content.split('\n').map(line => line.trim()).filter(l => l).map(l => `- ${l}`).join('\n') + "\n";
+          }
+        }
+
+        if (md.length > 20) {
+          fullText = md;
+          console.log("✅ [aiService] JSON complex convertit a Markdown net.");
+        }
+      } catch (e) {
+        console.error("❌ [aiService] Error safety net JSON:", e);
+      }
+    }
+
     return fullText;
   } catch (error) {
     console.error("❌ Error IA Local:", error);
