@@ -75,8 +75,9 @@ services:
     #           count: 1
     #           capabilities: [gpu]
     
-    # Comanda optimitzada per a estabilitat
-    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c 8192 --host 0.0.0.0 --port 8080 --threads 3 --batch-size 256 --n-predict 1024 --cont-batching
+    # Comanda dynamic per adaptar-se al hardware (Llegeix del .env)
+    # NOTA: He tret '-fa' per seguretat en CPUs antigues.
+    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c ${AI_CONTEXT_SIZE:-4096} -ctk q8_0 -ctv q8_0 --host 0.0.0.0 --port 8080 --threads ${AI_THREADS:-2} --batch-size 256 --n-predict 1024 --cont-batching
     
     # Relaxem el healthcheck per evitar que Docker el mati si està pensant molt fort
     healthcheck:

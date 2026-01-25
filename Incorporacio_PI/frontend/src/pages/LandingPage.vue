@@ -29,7 +29,7 @@
             @click="handleNavigation"
             :loading="loading"
           >
-            {{ hasToken ? 'Ir a mi Panel de Control' : 'Acceder a la Plataforma' }}
+            Acceder a la Plataforma
           </v-btn>
         </v-card>
 
@@ -56,11 +56,8 @@ onMounted(() => {
 
 const handleNavigation = () => {
   loading.value = true;
-  if (hasToken.value) {
-    router.push('/dashboard');
-  } else {
-    router.push('/login');
-  }
+  // Accés directe sense login
+  router.push('/dashboard');
   loading.value = false;
 };
 </script>

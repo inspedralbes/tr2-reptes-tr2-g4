@@ -15,7 +15,7 @@ const cleanText = (text) => {
     if (!text) return "";
     return text.replace(/[\r\v\f]/g, '\n').replace(/[ \t]+/g, ' ').trim().substring(0, 15000);
 };
-const { generateSummaryLocal, checkConnection, chatWithDocument } = require('./aiService'); // Importem el servei d'IA Local i el test
+const { generateSummaryLocal, checkConnection, parseSummaryToJSON } = require('./aiService'); // Importem el servei d'IA Local i el test
 
 const app = express();
 const PORT = 3001;
@@ -57,73 +57,72 @@ function extractTextFromODT(buffer) {
 const RABBIT_URL = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
 const QUEUE_NAME = 'summary_jobs';
 let channel = null;
+const localQueue = []; // Cua local de missatges RabbitMQ (global)
 
-// VARIABLES GLOBALS PER A LA CUA (Per poder consultar l'estat des de l'API)
-let localQueue = [];
+// --- SSE: REGISTRO DE CLIENTES ---
+// Mapa para guardar conexiones SSE: { "filename.pdf": [res1, res2...] }
+const sseClients = {};
+
+// FUNCIÓN HELPER PARA BROADCAST (ENVIAR DATOS A FRONEND)
+const broadcastProgress = (filename, data) => {
+    if (!sseClients[filename]) return;
+
+    // Formato SSE: "data: {JSON}\n\n"
+    const payload = `data: ${JSON.stringify(data)}\n\n`;
+
+    sseClients[filename].forEach(res => {
+        try {
+            res.write(payload);
+        } catch (e) {
+            console.error("❌ Error enviando SSE:", e.message);
+        }
+    });
+};
+
+// --- RUTA SSE (Endpoint) ---
+app.get('/api/progress/:filename', (req, res) => {
+    const { filename } = req.params;
+
+    // Cabeceras obligatorias para SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Registramos al cliente
+    if (!sseClients[filename]) sseClients[filename] = [];
+    sseClients[filename].push(res);
+
+    console.log(`🔌 SSE: Cliente conectado para ${filename}`);
+
+    // Mensaje inicial para confirmar conexión
+    res.write(`data: ${JSON.stringify({ status: "CONNECTED", progress: 0 })}\n\n`);
+
+    // Limpieza si el cliente cierra la conexión
+    req.on('close', () => {
+        if (sseClients[filename]) {
+            sseClients[filename] = sseClients[filename].filter(c => c !== res);
+            if (sseClients[filename].length === 0) delete sseClients[filename];
+        }
+        console.log(`🔌 SSE: Cliente desconectado (${filename})`);
+    });
+});
 let isProcessing = false;
 let currentProcessingId = null;
 let lastActivity = Date.now(); // Tracker d'inactivitat per a processos en segon pla
 
 const trackActivity = () => {
     lastActivity = Date.now();
-    console.log("⏱️ Activitat detectada. Reset del comptador de 30 min.");
+    // console.log("⏱️ Activitat detectada. Reset del comptador de 30 min."); // Silenciem logs
 };
 
-// --- BACKGROUND SYNC PROCESS ---
-// Aquest procés mira si fa 30 mins que no hi ha activitat i envia els resums pendents
+// --- BACKGROUND SYNC PROCESS (DESACTIVAT PER PETICIÓ DE L'USUARI) ---
+// S'ha eliminat la lògica de comprovació cada 30 minuts per evitar conflictes
+// i càrrega innecessària en equips amb pocs recursos.
+/*
 const IDLE_TIME = 30 * 60 * 1000; // 30 minuts
-
-async function checkIdleAndSync() {
-    const now = Date.now();
-    if (now - lastActivity < IDLE_TIME) {
-        // console.log(`⏱️ Background Sync a l'espera (Inactivitat: ${Math.floor((now - lastActivity)/1000)}s)`);
-        return;
-    }
-
-    if (localQueue.length > 5) return; // No afegim més feina si la cua ja està plena
-
-    // DESACTIVADO TEMPORALMENTE PARA EVITAR CONFLICTOS CON LA GENERACIÓN MANUAL
-    // Al parecer, estaba enviando trabajos dobles que cancelaban a los manuales.
-    // console.log("🚀 [Background Sync] Buscant documents per processar en temps d'inactivitat...");
-    return;
-    try {
-        const db = getDB();
-        // Busquem alumnes que tinguin document però no tinguin resum completat
-        const students = await db.collection('students').find({
-            has_file: true,
-            $or: [
-                { "ia_data.estado": { $exists: false } },
-                { "ia_data.estado": null },
-                { "ia_data.estado": "INTERROMPUT" },
-                { "ia_data.estado": "ERROR" }
-            ]
-        }).limit(3).toArray();
-
-        for (const s of students) {
-            const filename = s.filename;
-            if (!filename) continue;
-
-            const filePath = path.join(__dirname, 'uploads', filename);
-            if (fs.existsSync(filePath)) {
-                console.log(`📡 [Background Sync] Engeguant generació per: ${filename}`);
-                // Extraiem text i enviem a RabbitMQ
-                const dataBuffer = fs.readFileSync(filePath);
-                let text = "";
-                if (filename.endsWith('.odt')) text = extractTextFromODT(dataBuffer);
-                else if (filename.endsWith('.docx')) {
-                    const res = await mammoth.extractRawText({ buffer: dataBuffer });
-                    text = res.value;
-                } else text = await extractTextFromPDF(dataBuffer);
-
-                const jobData = { text, filename, role: 'docent', isAuto: true };
-                channel.sendToQueue(QUEUE_NAME, Buffer.from(JSON.stringify(jobData)), { persistent: true });
-            }
-        }
-    } catch (e) { console.error("❌ [Background Sync] Error:", e); }
-}
-
-// Executem la revisió cada 10 minuts
+async function checkIdleAndSync() { ... }
 setInterval(checkIdleAndSync, 10 * 60 * 1000);
+*/
 
 async function connectRabbit() {
     try {
@@ -227,34 +226,34 @@ async function connectRabbit() {
                     summary = await generateSummaryLocal(cleanedText, role, async (partialText, progress, isReading) => {
 
                         const now = Date.now();
-                        // Actualitzem si:
-                        // 1. Ha passat 0.5 segons (més ràpid)
-                        // 2. O el progrés ha canviat un 2% (més sensible)
-                        // 3. O és l'inici (0%) o final (100%) d'una fase
 
-                        if (now - lastUpdate > 500 || progress % 2 === 0 || progress === 100) {
+                        // CALCULAMOS ESTADO Y PROGRESO VISUAL (Para SSE y DB)
+                        let statusText = "LLEGINT...";
+                        let visualProgress = 0;
+                        let progressUpdate = {}; // Para la DB
+
+                        if (isReading) {
+                            statusText = "LLEGINT...";
+                            visualProgress = Math.floor(progress); // Progrés REAL (0-100%)
+                        } else {
+                            statusText = "GENERANT...";
+                            visualProgress = Math.floor(progress); // Progrés REAL (0-100%)
+                        }
+
+                        // BROADCAST SSE (EN TIEMPO REAL - CADA 0.5s o CADA TOKEN) 🚀
+                        broadcastProgress(filename, {
+                            status: statusText,
+                            progress: visualProgress,
+                            resumen: isReading ? null : partialText
+                        });
+
+                        // DB Writes: Menos frecuentes (1s o 5%) para no saturar
+                        if (now - lastUpdate > 1000 || progress % 5 === 0 || progress === 100) {
                             lastUpdate = now;
-
-                            let progressUpdate = {};
-                            let statusText = "LLEGINT..."; // Default
-                            let visualProgress = 0;
-
-                            if (isReading) {
-                                // FASE LECTURA REIAL (Ocupa el 80% del total)
-                                statusText = "LLEGINT...";
-                                visualProgress = Math.floor(progress * 0.8);
-                                console.log(`📖 [Worker] Reading Progress: ${progress}% (UI: ${visualProgress}%)`);
-                            } else {
-                                // FASE ESCRIPTURA (Ocupa del 80% al 99%)
-                                statusText = "GENERANT...";
-                                // progreso viene de writeProgress (0-99). Lo mapeamos a un rango de 80 a 99.
-                                visualProgress = 80 + Math.floor((progress / 100) * 19);
-                                progressUpdate[`${updateFieldPrefix}.resumen`] = partialText;
-                                console.log(`✍️ [Worker] Writing Progress: ${progress}% (UI: ${visualProgress}%)`);
-                            }
 
                             progressUpdate[`${updateFieldPrefix}.estado`] = statusText;
                             progressUpdate[`${updateFieldPrefix}.progress`] = visualProgress;
+                            if (!isReading) progressUpdate[`${updateFieldPrefix}.resumen`] = partialText;
 
                             try {
                                 const dbUpdate = getDB();
@@ -270,13 +269,25 @@ async function connectRabbit() {
                 }
 
                 // 3. Guardem resultat
+                console.log(`📝 [Worker] Resum RAW rebut (Len: ${summary.length}):`, summary.substring(0, 200) + "...");
+
+                // NOU: Guardem el text RAW directament (Mode Text Simple)
+                // El frontend ja sap parsejar Markdown si no és JSON.
+
                 let finalUpdate = {};
                 finalUpdate[`${updateFieldPrefix}.estado`] = "COMPLETAT";
-                finalUpdate[`${updateFieldPrefix}.resumen`] = summary;
+                finalUpdate[`${updateFieldPrefix}.resumen`] = summary; // Guardem text tal qual
                 finalUpdate[`${updateFieldPrefix}.fecha`] = new Date();
                 if (role !== 'global') finalUpdate[`${updateFieldPrefix}.filename`] = filename; // Guardem el fitxer origen
 
                 await db.collection('students').updateOne(query, { $set: finalUpdate }, { arrayFilters });
+
+                // BROADCAST FINAL SSE 🏁
+                broadcastProgress(filename, {
+                    status: "COMPLETAT",
+                    progress: 100,
+                    resumen: summary // Enviar text RAW
+                });
 
                 console.log(`✅ [Worker] Resum completat.`);
                 // channel.ack(msg); // ELIMINAT: Ja hem fet l'ack al principi

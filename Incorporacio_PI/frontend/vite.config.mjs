@@ -76,5 +76,13 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://pi_backend:3001', // Connect to Docker container
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
+    },
   },
 })

@@ -74,7 +74,8 @@
         <div class="mb-6">
           <div class="d-flex justify-space-between align-end mb-2">
             <span class="text-subtitle-2 font-weight-bold text-primary">{{ backendStatus === 'LLEGINT...' ? 'LECTURA ANALÍTICA' : 'GENERANT RESUM' }}</span>
-            <!-- Porcentaje oculto por petición del usuario -->
+            <!-- Porcentaje visible -->
+            <span class="text-caption font-weight-bold text-primary">{{ Math.ceil(progress) }}%</span>
           </div>
           
           <v-progress-linear 
@@ -205,41 +206,74 @@ const parsedAnalysis = computed(() => {
     console.warn("⚠️ El text no és un JSON vàlid. Provant mode text manual...", e);
   }
 
-  // 2. PARSING LEGACY BASAT EN TEXT (Fallback)
-  const markers = [
-    { key: 'perfil', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:PERFIL HUMÀ I DIFICULTATS|PERFIL DE L'ALUMNE|PERFIL)/i },
-    { key: 'dificultats', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:DIAGNÒSTIC|DIFICULTATS|NECESSITATS)/i },
-    { key: 'justificacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:JUSTIFICACIÓ DEL PI|JUSTIFICACIÓ)/i },
-    { key: 'recomanacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ORIENTACIÓ A L'AULA|ORIENTACIONS|RECOMANACIONS|PAUTES)/i },
-    { key: 'adaptacions', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:ADAPTACIONS PER ASSIGNATURES|ASSIGNATURES|MATÈRIES|ADAPTACIONS|SUPORTS)/i },
-    { key: 'avaluacio', regex: /(?:^|[\.\n])\s*(?:[\*#]*\s*\d?\.?\s*)?(?:CRITERIS DE QUALIFICACIÓ|CRITERIS D'AVALUACIÓ|AVALUACIÓ|QUALIFICACIÓ)/i }
-  ];
+  // 2. PARSING BASAT EN TEXT (Markdown Headers)
+  // Normalitzem salts de línia
+  const lines = text.split('\n');
+  let currentKey = 'perfil'; // Per defecte tot va a perfil si no hi ha res més
+  
+  // Maps de títols a claus
+  const sectionMap = {
+    'PERFIL': 'perfil',
+    'DIAGNÒSTIC': 'dificultats',
+    'JUSTIFICACIÓ': 'justificacio',
+    'ORIENTACIÓ': 'recomanacions', // Orientador/Docent
+    'ORIENTACIÓ A L\'AULA': 'recomanacions',
+    'ADAPTACIONS': 'adaptacions', // Orientador
+    'ASSIGNATURES': 'adaptacions', // Docent
+    'CRITERIS': 'avaluacio',
+    'CRITERIS D\'AVALUACIÓ': 'avaluacio'
+  };
 
-  const positions = markers.map(m => {
-      const match = text.match(m.regex);
-      return match ? { key: m.key, index: match.index, labelLength: match[0].length } : null;
-  }).filter(p => p !== null).sort((a, b) => a.index - b.index);
-
-  // FALLBACK: Si no trobem cap títol però tenim text, ho posem tot a 'Perfil' per a que es vegi
-  if (positions.length === 0 && text.trim().length > 0) {
-      console.warn("⚠️ No s'han detectat seccions. Mostrant text en brut.");
-      return { ...result, perfil: text.split('\n').filter(l => l.trim().length > 0) };
-  }
-
-  for (let i = 0; i < positions.length; i++) {
-    const current = positions[i];
-    const next = positions[i + 1];
-    const start = current.index + current.labelLength;
-    const end = next ? next.index : text.length;
-    const sectionText = text.substring(start, end).trim();
+  lines.forEach(line => {
+    let trimmed = line.trim();
+    // Detectem header markdown style: "## TÍTOL" o "### TÍTOL"
+    // També acceptem "1. TÍTOL" si està en majúscules i és curt
+    let isHeader = false;
+    let headerContent = "";
     
-    // Neteja extra per a llistes
-    const processedText = sectionText
-      .replace(/([a-z0-9à-ú])\.([A-Z\*])/g, '$1.\n$2')
-      .replace(/([a-z0-9à-ú])\.\s+([A-Z\*])/g, '$1.\n$2');
+    if (trimmed.startsWith('#')) {
+      isHeader = true;
+      headerContent = trimmed.replace(/^#+\s*/, '');
+    } else if (/^\d+\.\s+[A-ZÀ-Ú\s]{3,30}$/.test(trimmed)) {
+       // Cas "1. PERFIL DE L'ALUMNE" (sense ##)
+       isHeader = true;
+       headerContent = trimmed.replace(/^\d+\.\s+/, '');
+    }
 
-    result[current.key] = processedText.split('\n').filter(l => l.trim().length > 0);
-  }
+    if (isHeader) {
+      const title = headerContent.toUpperCase();
+      
+      // Busquem si coincideix amb algun dels nostres
+      const foundKey = Object.keys(sectionMap).find(k => title.includes(k));
+      
+      if (foundKey) {
+        currentKey = sectionMap[foundKey];
+        
+        // NOU: Si hi ha text després del títol a la mateixa línia, l'aprofitem
+        // Ex: "## PERFIL: Aquest alumne..." -> Volem "Aquest alumne..."
+        // Eliminem el títol trobat (ex: PERFIL) i els dos punts/números si hi són
+        // Usem regex flexible per netejar tot el que sigui el títol i prefixos
+        let contentAfterHeader = headerContent;
+        // 1. Treiem el títol clau (ex: PERFIL)
+        const regexKey = new RegExp(foundKey, 'i');
+        contentAfterHeader = contentAfterHeader.replace(regexKey, '');
+        // 2. Treiem caràcters sobrants al principi (ex: "1. ", ": ", "- ")
+        contentAfterHeader = contentAfterHeader.replace(/^[\d\.\s:-\|\*]+/, '').trim();
+        
+        if (contentAfterHeader.length > 2) {
+             trimmed = contentAfterHeader; // Convertim la línia en només el contingut
+             // I continuem avall per afegir-la
+        } else {
+             return; // Si no hi ha res més, saltem la línia
+        }
+      }
+    }
+
+    // Afegim la línia a la secció actual
+    if (trimmed.length > 0 && !trimmed.startsWith('```')) {
+      result[currentKey].push(trimmed);
+    }
+  });
 
   return result;
 });
@@ -256,7 +290,7 @@ const analyzeDocument = async () => {
   while (attempts < 3 && !success) {
       try {
         attempts++;
-        const response = await fetch(`http://localhost:3001/api/analyze/${encodeURIComponent(filename)}`);
+        const response = await fetch(`/api/analyze/${encodeURIComponent(filename)}`);
         
         if (response.ok) {
           const data = await response.json();
@@ -307,7 +341,7 @@ onUnmounted(() => {
 
 const checkStatus = async () => {
   try {
-    const response = await fetch('http://localhost:3001/api/students');
+    const response = await fetch('/api/students');
     if (!response.ok) {
         console.warn(`⚠️ [API] El servidor ha retornat un error ${response.status}. Reintentant en el següent cicle...`);
         return; 
@@ -360,71 +394,77 @@ const checkStatus = async () => {
         resumenIA.value = iaData.resumen;
         loadingAI.value = false;
         currentStatus.value = "Completat";
-        if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
         return;
       } 
       
-      // 2. SI ESTÀ EN PROCÉS -> ACTUALITZAR BARRA
+      // 2. SI ESTÀ EN PROCÉS -> ACTIVAR SSE
       if (['GENERANT...', 'A LA CUA', 'LLEGINT...'].includes(estado)) {
         loadingAI.value = true;
-        const dbProgress = iaData.progress || 0;
-        progress.value = estado === 'A LA CUA' ? 0 : dbProgress;
-        
-        if (estado === 'LLEGINT...') {
-             // FIX: Forcem "Analitzant..." si IA està processant rawProgress > 0
-             currentStatus.value = `Analitzant estructura i contingut... ${Math.ceil(progress.value)}%`;
-        } else if (estado === 'GENERANT...') {
-             currentStatus.value = `Redactant el resum final... ${Math.ceil(progress.value)}%`;
-             if (iaData.resumen) resumenIA.value = iaData.resumen;
-        } else {
-             currentStatus.value = "Esperant torn a la cua...";
-        }
-        return; // Continuem esperant
+        // Iniciar SSE si no existe
+        if (!processSSE) startSSE();
+        return; 
       }
 
       // 3. SI ELIMINAT, ERROR, INTERROMPUT O BUIT
       else if ((estado === 'INTERROMPUT' || estado === 'ERROR')) {
-        
-        // NOU: Detecció de CRASH durant l'execució
-        // Si estàvem carregant (loadingAI=true) i de cop passem a ERROR/INTERROMPUT, és un error NOU.
-        // No l'hem d'ignorar. L'hem de gestionar (autoregenerar).
-        
-        if (loadingAI.value) {
-             console.warn("⚠️ Crash detectat durant la generació! (LLEGINT -> INTERROMPUT)");
-             loadingAI.value = false; // Reset per permetre nova regeneració
-             
-             // Opcional: Afegir petit delay per no saturar en bucle si falla molt ràpid
-             setTimeout(() => {
-                 regenerarResumenIA();
-             }, 1000);
-             return;
-        }
-
-        // Si NO estem carregant manualment, vol dir que hem entrat a la pàgina i estava trencat.
         if (!loadingAI.value) {
             console.log(`⚠️ Estat guardat invàlid (${estado}). Regenerant automàticament...`);
             regenerarResumenIA();
-        } else {
-            // Aquest cas teòricament ja no es dona amb l'if de dalt, 
-            // però per seguretat (si loadingAI encara està true per una altra raó)
-            console.log("⏳ Esperant canvi d'estat...");
         }
       }
     }
 
-    // SEMPRE activem el polling si estem en mode loading, fins que tinguem un estat final
-    // MODIFICAT: Més ràpid encara (0.5s) per caçar el progrés de la IA en temps real
-    if (loadingAI.value && !pollingInterval) {
-      pollingInterval = setInterval(checkStatus, 500);
-    }
-
   } catch (e) {
-    if (e.message === 'Failed to fetch') {
-        console.warn("⚠️ [Polling] Error de xarxa temporal (servidor reiniciant?)...");
-    } else {
-        console.error("Error comprovant estat:", e);
-    }
+    console.error("Error comprovant estat:", e);
   }
+};
+
+// --- SSE (Server-Sent Events) ---
+let processSSE = null;
+
+const startSSE = () => {
+    if (processSSE) return; // Ja connectat
+    
+    console.log("🔌 Connectant SSE per:", filename);
+    processSSE = new EventSource(`/api/progress/${filename}`);
+    
+    processSSE.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.status === 'CONNECTED') {
+                console.log("✅ SSE Connectat!");
+                return;
+            }
+            
+            // Actualitzem UI en temps real
+            progress.value = data.progress;
+            
+            if (data.status === 'LLEGINT...') {
+                backendStatus.value = 'LLEGINT...';
+                currentStatus.value = `Analitzant estructura... ${Math.ceil(data.progress)}%`;
+            } else if (data.status === 'GENERANT...') {
+                backendStatus.value = 'GENERANT...';
+                currentStatus.value = `Redactant... ${Math.ceil(data.progress)}%`;
+                if (data.resumen) resumenIA.value = data.resumen;
+            } else if (data.status === 'COMPLETAT') {
+                backendStatus.value = 'COMPLETAT';
+                currentStatus.value = "Completat!";
+                resumenIA.value = data.resumen;
+                loadingAI.value = false;
+                processSSE.close();
+                processSSE = null;
+            }
+        } catch (e) {
+            console.error("Error SSE:", e);
+        }
+    };
+    
+    processSSE.onerror = (err) => {
+        console.warn("⚠️ SSE Error (reconnectant...)", err);
+        processSSE.close();
+        processSSE = null;
+        setTimeout(startSSE, 2000);
+    };
 };
 
 // Funció visual per als passos
@@ -468,7 +508,7 @@ const regenerarResumenIA = async () => {
   currentStatus.value = 'Enviant document a la cua de processament...';
   
   try {
-    const response = await fetch('http://localhost:3001/api/generate-summary', {
+    const response = await fetch('/api/generate-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 

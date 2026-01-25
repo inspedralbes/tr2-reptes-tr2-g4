@@ -67,27 +67,15 @@ const router = createRouter({
       component: SummaryPage,
       meta: { requiresAuth: true }
     },
-    {
-      path: '/chat/:filename',
-      name: 'ChatPage',
-      component: () => import('@/pages/ChatPage.vue'),
-      meta: { requiresAuth: true }
-    }
+
   ]
 })
 
 // GUARDIA DE SEGURIDAD (Igual que antes)
+// GUARDIA DE SEGURIDAD (DESACTIVADA)
 router.beforeEach((to, from, next) => {
-  const necesitaAuth = to.matched.some(record => record.meta.requiresAuth)
-  const isAuthenticated = localStorage.getItem('token')
-
-  if (necesitaAuth && !isAuthenticated) {
-    next('/login')
-  } else if ((to.path === '/login' || to.path === '/') && isAuthenticated) {
-    next('/dashboard')
-  } else {
-    next()
-  }
+  // Pasamos siempre, sin comprobar token
+  next();
 })
 
 export default router

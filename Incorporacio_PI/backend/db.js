@@ -13,13 +13,18 @@ let database = null;
 */
 
 async function connectDB() {
+    if (!uri) {
+        console.error('\n❌ ERROR CRÍTICO: Maveu definit MONGODB_URI al fitxer .env?');
+        console.error('📝 Copia el fitxer .env.example a .env i posa la teva connexió de MongoDB Atlas.\n');
+        process.exit(1);
+    }
     try {
         await client.connect();
-        console.log(' Connectat a MongoDB Atlas');
+        console.log('✅ Connectat a MongoDB Atlas');
         database = client.db('projecte');
         return database;
     } catch (error) {
-        console.error(' Error connectant a MongoDB:', error);
+        console.error('❌ Error connectant a MongoDB:', error);
         throw error;
     }
 }
@@ -47,7 +52,7 @@ async function closeDB() {
 }
 
 module.exports = {
-connectDB,
-getDB,
-closeDB
+    connectDB,
+    getDB,
+    closeDB
 };

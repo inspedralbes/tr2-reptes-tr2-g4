@@ -1,6 +1,9 @@
 # Fem servir Alpine Linux (molt més lleuger i ràpid de descarregar)
 FROM alpine:latest
 
+# Build argument to force cache invalidation (updates date manually if needed)
+ARG BUILD_DATE=2025-01-25
+
 # 1. Instal·lem eines de compilació i curl per al healthcheck
 RUN apk add --no-cache build-base git cmake linux-headers curl-dev curl
 

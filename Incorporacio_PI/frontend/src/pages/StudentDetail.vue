@@ -155,11 +155,7 @@
               @click="openRoleDialog(file)">
             </v-btn>
 
-            <!-- Botó Xat (NOU) -->
-            <v-btn v-if="['PDF', 'DOCX', 'ODT'].includes(getFileExtension(file.filename))"
-              icon="mdi-chat-question-outline" variant="text" color="deep-purple" title="Xat amb el Document"
-              @click="goToChat(file)">
-            </v-btn>
+
 
             <v-btn :href="`http://localhost:3001/uploads/${file.filename}`" target="_blank" icon="mdi-open-in-new"
               variant="text" color="primary" title="Obrir document">
@@ -361,12 +357,7 @@ const goToSummary = (file, role = 'docent') => {
   });
 };
 
-const goToChat = (file) => {
-  router.push({ 
-    name: 'ChatPage', 
-    params: { filename: file.filename }
-  });
-};
+
 
 const downloadFile = async (filename, originalName) => {
   try {

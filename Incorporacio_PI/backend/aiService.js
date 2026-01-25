@@ -79,8 +79,16 @@ async function generateSummaryLocal(text, role, onProgress) {
     attempts++;
   }
 
-  // Retallem el text per no saturar el context del model
-  const limit = role === 'global' ? 25000 : 14000;
+  // Càlcul dinàmic segons la potència configurada al backend/.env
+  // Per defecte 4096 tokens si no està definit
+  const contextSize = parseInt(process.env.AI_CONTEXT_SIZE) || 4096;
+
+  // Regla de 3 aproximada: 1 token ~= 3-4 chars. Reservem 25% per la resposta.
+  // 4096 -> ~12k chars
+  // 8192 -> ~25k chars
+  const safeChars = Math.floor(contextSize * 2.8);
+
+  const limit = role === 'global' ? safeChars : Math.floor(safeChars * 0.8);
   const MAX_CHARS = limit;
   const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
 
@@ -91,75 +99,93 @@ async function generateSummaryLocal(text, role, onProgress) {
   let structureExample = "";
 
   if (role === 'global') {
-    systemPrompt = "Ets un expert en educació especial. Genera un resum cronològic de l'historial de l'alumne en format JSON.";
+    systemPrompt = "Ets un expert en educació especial. Genera un resum cronològic de l'historial de l'alumne en FORMAT TEXT (Markdown).";
     structureExample = `
-EXEMPLE DE FORMAT JSON (Segueix-lo EXACTAMENT):
-{
-  "EVOLUCIÓ": ["L'alumne ha mostrat una millora...", "2020: Canvi d'etapa..."],
-  "PUNTS CLAU RECURRENTS": ["Dificultat en atenció sostinguda", "Bona predisposició verbal"],
-  "ADAPTACIONS CONSTANTS": ["Ús d'ordinador", "Temps extra a exàmens"],
-  "ESTAT ACTUAL": ["Cursa 3r d'ESO", "Manté suports de la USEE"]
-}`;
+ESTRUCTURA (Fes servir aquests títols exactes):
+## EVOLUCIÓ
+(Text cronològic...)
+
+## PUNTS CLAU RECURRENTS
+(Llista de punts...)
+
+## ADAPTACIONS CONSTANTS
+(Llista...)
+
+## ESTAT ACTUAL
+(Resum final...)`;
 
   } else if (role === 'orientador') {
-    systemPrompt = `Ets un expert orientador psicopedagògic analitzant un Pla Individualitzat (PI).
-    LA TEVA MISSIÓ: Extreure informació tècnica i legal detallada per a l'expediente de l'alumne.
-    
-    ESTRUCTURA OBLIGATÒRIA DEL JSON:
-    1. "PERFIL": Resum de la situació actual, dades demogràfiques i historial rellevant.
-    2. "DIAGNÒSTIC": Llistat exhaustiu de diagnòstics oficials i dificultats d'aprenentatge.
-    3. "JUSTIFICACIÓ": Motius legals i pedagògics que emparen la creació del PI.
-    4. "ORIENTACIÓ": Pautes de coordinació amb la família i suports externs.
-    5. "ADAPTACIONS": Resum de les adaptacions metodològiques generals.
-    6. "CRITERIS": Marc normatiu per a l'avaluació.`;
+    systemPrompt = `Ets un expert orientador psicopedagògic.
+    TASCA: Redactar un informe tècnic basat en el document proporcionat.
+    FORMAT: Markdown pur (NO JSON, NO CODI).`;
 
     structureExample = `
-    {
-      "PERFIL": ["L'alumne presenta una trajectòria de dificultats des de primària..."],
-      "DIAGNÒSTIC": ["TDAH combinat", "Trastorn de l'aprenentatge no verbal"],
-      "JUSTIFICACIÓ": ["Dictamen de l'EAP conforme a la Resolució ENS/1544/2013"],
-      "ORIENTACIÓ": ["Seguiment mensual amb el CSMIJ", "Plataforma de comunicació diària amb pares"],
-      "ADAPTACIONS": ["Adaptació curricular no significativa en continguts"],
-      "CRITERIS": ["Avaluació per objectius mínims personalitzats"]
-    }`;
+    USA AQUESTA ESTRUCTURA:
+    # PERFIL
+    ...
+    # DIAGNÒSTIC
+    ...
+    # JUSTIFICACIÓ
+    ...
+    # ORIENTACIÓ A L'AULA
+    ...
+    # ASSIGNATURES
+    ...
+    # CRITERIS D'AVALUACIÓ
+    ...`;
 
   } else {
-    // DOCENT (Default) - ENFOCAMENT A L'AULA
-    systemPrompt = `Ets un psicopedagog expert ajudant a un MESTRE a entendre un PI.
-    LA TEVA MISSIÓ: Donar consells pràctics i directes per aplicar demà mateix a l'aula.
-    
-    ESTRUCTURA OBLIGATÒRIA DEL JSON:
-    1. "PERFIL": TEXT SEGUIT (narratiu) de 4-5 línies explicant qui és l'alumne de forma humana.
-    2. "ORIENTACIÓ": Llistat DETALLAT de pautes per a l'aula (on asseure'l, com parlar-li, etc.).
-    3. "ADAPTACIONS": Llistat per assignatura de què s'ha de canviar exactamente.
-    4. "CRITERIS": Com puntuar els seus exàmens i treballs de forma justa.`;
+    // DOCENT (Default)
+    systemPrompt = `Ets un psicopedagog expert.
+    TASCA: Explicar el contingut del PI a un mestre de forma clara i directa.
+    FORMAT: Text normal estructurat amb títols (NO USIS JSON NI CLAU-VALOR).`;
 
     structureExample = `
-    {
-      "PERFIL": ["El Joan és un alumne molt creatiu però que es bloqueja amb la lectura..."],
-      "ORIENTACIÓ": ["Asseure a primera fila", "Instruccions curtes i visuals"],
-      "ADAPTACIONS": ["Mates: Menys exercicis", "Anglès: Exàmens orals"],
-      "CRITERIS": ["Temps extra +30%", "No penalitzar faltes d'ortografia"]
-    }`;
+    USA AQUESTA ESTRUCTURA:
+    # PERFIL
+    (Explica qui és l'alumne, curs i situació en un paràgraf text normal)
+    
+    # ORIENTACIÓ A L'AULA
+    - Pauta 1
+    - Pauta 2
+    
+    # ASSIGNATURES
+    (Llista les matèries i què cal adaptar en cadascuna)
+    
+    # CRITERIS D'AVALUACIÓ
+    (Com s'ha d'avaluar)`;
   }
 
   const messages = [
     {
       role: "system",
       content: `${systemPrompt}
-      
-      InSTRUCCIONS TÈCNIQUES:
-      ✅ Retorna NOMÉS un objecte JSON vàlid.
-      ✅ El "PERFIL" ha de ser un array amb UN SOL string llarg (text narratiu pur). NO facis llistes, NO separis per paràgrafs.
-      ✅ "ORIENTACIÓ" ha de ser molt complet.
-      
-      ${structureExample}`
+
+        IMPORTANT:
+        - NO JSON. NO XML.
+        - Escriu tot seguit (paràgrafs i llistes).
+        - Utilitza ## TÍTOL GRAN per separar.
+        - NO inventis dades personals.
+        `
     },
     {
       role: "user",
-      content: `Analitza aquest document PI i extreu-ne el JSON:\n\n"${truncatedText}"`
+      content: `DOCUMENT:\n"${truncatedText}"\n\nTASCA: Escriu un resum informatiu per al mestre sobre aquest alumne.
+      
+      Utilitza exactament aquests apartats:
+      ## PERFIL DE L'ALUMNE
+      ## PUNTS FORTS I FEBLES
+      ## ORIENTACIONS A L'AULA
+      ## ADAPTACIONS CURRICULARS
+      ## CRITERIS D'AVALUACIÓ`
     }
   ];
+
+  // DEBUG: Veure exactament què estem enviant
+  console.log("📨 [aiService] PROMPT ENVIAT:", JSON.stringify(messages, null, 2));
+
+  // DEBUG: Veure exactament què estem enviant
+  console.log("📨 [aiService] PROMPT ENVIAT:", JSON.stringify(messages, null, 2));
 
   try {
     console.log(`🤖 [aiService] Enviant petició a IA Local (http://pi_llm:8080/v1)...`);
@@ -174,42 +200,62 @@ EXEMPLE DE FORMAT JSON (Segueix-lo EXACTAMENT):
 
     const pollReading = setInterval(async () => {
       try {
-        console.log("🔍 [aiService] Polling /slots...");
+        console.log("🔍 [aiService] Polling /slots..."); // Reduïm soroll a request de l'usuari
         const res = await fetch("http://pi_llm:8080/slots");
         if (res.ok) {
           const slots = await res.json();
-          // DEBUG TOTAL: Veure què retorna la IA
-          console.log("🔍 [LLM RAW SLOTS]:", JSON.stringify(slots));
+          // console.log("🔍 [LLM RAW SLOTS]:", JSON.stringify(slots));
 
           // Busquem el slot que realment està treballant
-          const activeSlot = slots.find(s => s.is_processing === true || s.prompt_processing_progress > 0);
+          const activeSlot = slots.find(s => s.is_processing === true);
 
-          let calculatedSlotProgress = 0;
           if (activeSlot) {
-            let raw = activeSlot.prompt_processing_progress || 0;
+            // DETECTAR SI JA ESTEM GENERANT (Writing)
+            // Si tenim tokens descodificats, ja no estem llegint (Prompt Processing)
+            let isGenerating = false;
+            if (activeSlot.next_token && activeSlot.next_token.length > 0) {
+              if (activeSlot.next_token[0].n_decoded > 0) isGenerating = true;
+            }
 
-            // Si no tenim prompt_processing_progress però is_processing és true, 
-            // intentem calcular-lo a la vella usança
-            if (raw === 0 && activeSlot.n_prompt > 0) {
+            if (isGenerating) {
+              // Si ja genera, assumim lectura 100% i PAREM el polling per no matxacar l'estat
+              // console.log("🧠 [LLM] Detecció de GENERACIÓ iniciada. Aturant polling de lectura.");
+              if (onProgress) onProgress(null, 100, true);
+              clearInterval(pollReading);
+              return;
+            }
+
+            let raw = 0;
+            // Opció A: El camp directe (versions modern de llama.cpp)
+            if (typeof activeSlot.prompt_processing_progress === 'number') {
+              raw = activeSlot.prompt_processing_progress;
+            }
+            // Opció B: Càlcul manual (versions antigues o sense el camp)
+            else if (activeSlot.n_prompt > 0) {
+              // n_past creix mentre llegeix
               raw = activeSlot.n_past / activeSlot.n_prompt;
             }
 
-            console.log(`🧠 Slot Actiu trobat: ID=${activeSlot.id}, Progress=${(raw * 100).toFixed(2)}%`);
-            calculatedSlotProgress = Math.floor(raw * 100);
+            // console.log(`🧠 Slot Actiu trobat: ID=${activeSlot.id}, Progress=${(raw * 100).toFixed(2)}% (Raw: ${raw}, n_past: ${activeSlot.n_past}, n_prompt: ${activeSlot.n_prompt})`);
+            // Evitem enviar 0% constantment si no tenim dades
+            if (raw > 0) {
+              // console.log(`🧠 Slot Actiu trobat: Progress=${(raw * 100).toFixed(2)}%`);
+              calculatedSlotProgress = Math.floor(raw * 100);
+            }
           } else {
             console.log("🔍 Cap slot processant actualment.");
           }
 
           if (calculatedSlotProgress > lastKnownProgress) {
             lastKnownProgress = calculatedSlotProgress;
-            console.log(`🧠 [LLM] Slot processing: ${lastKnownProgress}% (Real)`);
+            // console.log(`🧠 [LLM] Slot processing: ${lastKnownProgress}% (Real)`);
             if (onProgress) onProgress(null, lastKnownProgress, true);
           }
         } else {
           console.warn(`⚠️ [aiService] /slots returned ${res.status}`);
         }
       } catch (e) {
-        console.error("❌ [aiService] Polling error:", e.message);
+        console.error("❌ [aiService] Polling error:", e.cause || e.message);
       }
     }, 500); // Polling cada 0.5s per màxima fluïdesa
 
@@ -224,12 +270,12 @@ EXEMPLE DE FORMAT JSON (Segueix-lo EXACTAMENT):
         completion = await openai.chat.completions.create({
           model: "default-model",
           messages: messages,
-          temperature: 0.1,
-          max_tokens: 2048, // Augmentat per evitar JSON tallats
+          temperature: 0.7, // Més creativitat per evitar repeticions
+          max_tokens: 3000,
           stream: true,
-          top_p: 0.9,
-          presence_penalty: 0,
-          frequency_penalty: 0
+          top_p: 0.95,
+          presence_penalty: 0.1, // Lleugera penalització per no repetir
+          frequency_penalty: 0.1
         });
         break; // Èxit, sortim del bucle
       } catch (openaiErr) {
@@ -294,46 +340,63 @@ EXEMPLE DE FORMAT JSON (Segueix-lo EXACTAMENT):
 }
 
 /**
- * Xat ràpid amb el document.
- * @param {string} text - Text del document
- * @param {string} question - Pregunta de l'usuari
+ * Converteix el text Markdown generat per la IA en un objecte JSON estructurat.
+ * Aquesta lògica és idèntica a la que hi havia al Frontend (SummaryPage.vue).
+ * @param {string} text - El text complet generat per la IA
  */
-async function chatWithDocument(text, question) {
-  // OPTIMITZACIÓ EXTREMA: 1200 chars per velocitat màxima al xat
-  const MAX_CHARS = 1200;
-  const truncatedText = text.length > MAX_CHARS ? text.substring(0, MAX_CHARS) + "..." : text;
+function parseSummaryToJSON(text) {
+  const result = {
+    perfil: [],
+    dificultats: [],
+    justificacio: [],
+    adaptacions: [],
+    avaluacio: [],
+    recomanacions: []
+  };
 
-  const messages = [
-    {
-      role: "system",
-      content: `Ets un motor de cerca semàntic.
-            TASCA: Interpretar què vol l'usuari i trobar la frase LITERAL del text que ho respon, encara que no faci servir les mateixes paraules.
-            
-            EXEMPLES:
-            - "comportament" -> Busca frases sobre "conducta", "actitud", "normes".
-            - "què té?" -> Busca "diagnòstic", "trastorn", "dificultats".
-            
-            RESPOSTA: Retorna NOMÉS el fragment de text exacte del document. Si no ho trobes, digues NO_TROBAT.`
-    },
-    {
-      role: "user",
-      content: `DOCUMENT:\n"${truncatedText}"\n\nPREGUNTA: "${question}"\n\nRESPOSTA LITERAL DEL DOCUMENT:`
+  if (!text) return result;
+
+  // Normalitzem salts de línia
+  const lines = text.split('\n');
+  let currentKey = 'perfil'; // Per defecte tot va a perfil si no hi ha res més
+
+  // Maps de títols a claus
+  const sectionMap = {
+    'PERFIL': 'perfil',
+    'DIAGNÒSTIC': 'dificultats',
+    'JUSTIFICACIÓ': 'justificacio',
+    'ORIENTACIÓ': 'recomanacions', // Orientador/Docent
+    'ORIENTACIÓ A L\'AULA': 'recomanacions',
+    'ADAPTACIONS': 'adaptacions', // Orientador
+    'ASSIGNATURES': 'adaptacions', // Docent
+    'CRITERIS': 'avaluacio',
+    'CRITERIS D\'AVALUACIÓ': 'avaluacio'
+  };
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    // Detectem header markdown style: "## TÍTOL" o "### TÍTOL"
+    if (trimmed.startsWith('#')) {
+      const title = trimmed.replace(/^#+\s*/, '').toUpperCase();
+      // Busquem si coincideix amb algun dels nostres
+      const foundKey = Object.keys(sectionMap).find(k => title.includes(k));
+      if (foundKey) {
+        currentKey = sectionMap[foundKey];
+        return; // Saltem la línia del títol
+      }
     }
-  ];
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "default-model",
-      messages: messages,
-      temperature: 0.0, // Determinista (sempre la mateixa resposta)
-      max_tokens: 60, // Molt curt (només volem la frase)
-      stream: false
-    });
-    return completion.choices[0].message.content;
-  } catch (error) {
-    console.error("❌ Error Chat IA:", error);
-    throw new Error("Error connectant amb la IA.");
-  }
+    // Afegim la línia a la secció actual
+    if (trimmed.length > 0 && !trimmed.startsWith('```')) {
+      result[currentKey].push(trimmed);
+    }
+  });
+
+  return result;
 }
 
-module.exports = { generateSummaryLocal, checkConnection, chatWithDocument };
+module.exports = {
+  checkConnection,
+  generateSummaryLocal,
+  parseSummaryToJSON
+};

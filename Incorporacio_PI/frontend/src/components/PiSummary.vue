@@ -325,7 +325,8 @@ const cleanList = (list) => {
       // 3. Si la línia és només "xxx" o símbols, la ignorem
       if (clean.match(/^[x\s,\.\-]+$/i)) return null;
       
-      // 4. FILTRE DE SEGURETAT: Eliminem línies amb dades administratives si la IA s'ha equivocat
+      // 4. FILTRE DE SEGURETAT: (Relaxat)
+      /*
       const lower = clean.toLowerCase();
       if (lower.startsWith('nom i cognoms') || 
           lower.startsWith('director') || 
@@ -335,15 +336,19 @@ const cleanList = (list) => {
           lower.includes('dades dels professionals')) {
         return null;
       }
+      */
+      
       // 5. Eliminem la línia separadora de taules Markdown (|---|)
       if (clean.match(/^\|[\s-]+\|[\s-]+\|$/)) {
         return null;
       }
       
-      // 6. FILTRE DE REDUNDÀNCIA: Eliminem frases introductòries que repeteixen el títol
+      // 6. FILTRE DE REDUNDÀNCIA: (Relaxat)
+      /*
       if (clean.match(/^(les habilitats|les adaptacions|que es proposen|habilitats acadèmiques afectades|altres dificultats).{0,20}:?$/i)) {
         return null;
       }
+      */
       if (clean.match(/^(són|es proposen|consisteixen en):?$/i)) {
         return null;
       }
