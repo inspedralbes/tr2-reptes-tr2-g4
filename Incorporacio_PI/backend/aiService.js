@@ -112,7 +112,8 @@ async function generateSummaryLocal(text, role, onProgress) {
       ## ESTAT ACTUAL
       (Situació segons l'ÚLTIM document per data o context. Sigues precís i extens amb el curs i les necessitats actuals.)
       
-      FORMAT: Text net sense títol principal.`;
+      FORMAT: Text net sense títol principal.
+      FINAL: Quan acabis, escriu exclusivament "[FI]" al final del text.`;
 
   } else if (role === 'orientador') {
     // PROMPT PER A ORIENTADORS
@@ -134,7 +135,8 @@ async function generateSummaryLocal(text, role, onProgress) {
       ## CRITERIS D'AVALUACIÓ
       (Explicació dels criteris d'avaluació.)
  
-      FORMAT GENERAL: "Idea clau. [[Detall extens: text original...]]"`;
+      FORMAT GENERAL: "Idea clau. [[Detall extens: text original...]]"
+      FINAL: Quan acabis, escriu exclusivament "[FI]" al final del text.`;
 
   } else {
     // DOCENT (Default) - DIAGNÒSTIC INTEGRAT A PERFIL
@@ -152,7 +154,8 @@ async function generateSummaryLocal(text, role, onProgress) {
       ## CRITERIS D'AVALUACIÓ
       (Com avaluar. Explicació detallada.)
  
-      FORMAT GENERAL: "Idea clau. [[Detall extens: text original...]]"`;
+      FORMAT GENERAL: "Idea clau. [[Detall extens: text original...]]"
+      FINAL: Quan acabis, escriu exclusivament "[FI]" al final del text.`;
   }
 
   const messages = [
@@ -279,7 +282,8 @@ async function generateSummaryLocal(text, role, onProgress) {
           stream: true,
           top_p: 0.95,
           presence_penalty: 0.1, // Lleugera penalització per no repetir
-          frequency_penalty: 0.1
+          frequency_penalty: 0.1,
+          stop: ["[FI]"] // STOP TOKEN per tallar en sec
         });
         break; // Èxit, sortim del bucle
       } catch (openaiErr) {
