@@ -69,12 +69,10 @@ const lastReadTimestamp = ref(0);
 const isAuthenticated = ref(false);
 let socket = null;
 
-// --- CAMBIO 1: Detección automática de entorno (DEV vs PROD) ---
-// Si estamos en Producción, usamos '' (ruta relativa) para pasar por Nginx.
-// Si estamos en Desarrollo, forzamos localhost:3001.
+// --- 1. CONFIGURACIÓN SERVIDOR (BASE DE MAIN) ---
+// Detecta si es PROD (Nginx) o DEV (Localhost)
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
-// Helper para detectar login
 const checkAuth = () => !!localStorage.getItem('token');
 
 const loadLastRead = () => {
@@ -82,11 +80,13 @@ const loadLastRead = () => {
   lastReadTimestamp.value = stored ? parseInt(stored) : Date.now();
 };
 
+// --- 2. FILTRADO (BASE DE PROVA) ---
 const shouldShowLog = (log) => {
   const myCenterCode = localStorage.getItem('userCenterCode'); 
   const myEmail = localStorage.getItem('userEmail');
 
-  const isTypeRelevant = log.accio.includes('Nou Alumne') || log.accio.includes('Trasllat');
+  // AÑADIDO: 'AI:' para que salgan las notificaciones de la IA
+  const isTypeRelevant = log.accio.includes('Nou Alumne') || log.accio.includes('Trasllat') || log.accio.includes('AI:');
   if (!isTypeRelevant) return false;
 
   if (!myCenterCode) return true;
@@ -96,12 +96,12 @@ const shouldShowLog = (log) => {
   return false;
 };
 
-// --- CARGA INICIAL (Historial) ---
+// --- CARGA INICIAL ---
 const fetchLogs = async () => {
   if (!isAuthenticated.value) return; 
 
   try {
-    // Usamos la API_URL inteligente
+    // Usamos la API_URL inteligente de Main
     const res = await fetch(`${API_URL}/api/logs`);
     if (res.ok) {
       const data = await res.json();
@@ -116,12 +116,11 @@ const fetchLogs = async () => {
   }
 };
 
-// --- CAMBIO 2: Configuración WebSocket optimizada para Nginx ---
+// --- 3. SOCKETS (BASE DE MAIN) ---
 const initWebSocket = () => {
   console.log('🔌 Connectant al Socket...');
 
-  // Si API_URL es '' (Prod), pasamos undefined para que socket.io detecte el dominio actual.
-  // path: '/socket.io' asegura que Nginx intercepte la llamada correctamente.
+  // Configuración robusta para Nginx
   socket = io(API_URL || undefined, {
     path: '/socket.io',
     transports: ['websocket', 'polling'] 
@@ -172,15 +171,21 @@ const formatTime = (isoString) => {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
+// --- 4. AYUDAS VISUALES (BASE DE PROVA) ---
+
 const getActionIcon = (action) => {
   if (action.includes('Nou')) return 'mdi-account-plus';
   if (action.includes('Trasllat')) return 'mdi-transfer';
+  // AÑADIDO: Icono de robot
+  if (action.includes('AI:')) return 'mdi-robot-outline';
   return 'mdi-information-variant';
 };
 
 const cleanActionTitle = (action) => {
     if (action.includes('Trasllat')) return 'Trasllat d\'Alumne';
     if (action.includes('Nou Alumne')) return 'Alta d\'Expedient';
+    // AÑADIDO: Título bonito para IA
+    if (action.includes('AI:')) return 'Anàlisi IA Completada';
     return action;
 };
 
@@ -189,6 +194,10 @@ const getDetailText = (log) => {
     const parts = log.accio.split(' a ');
     const dest = parts.length > 1 ? parts[1] : 'Nou Centre';
     return `enviat a: ${dest}`;
+  }
+  // AÑADIDO: Texto de detalle para IA
+  if (log.accio.includes('AI:')) {
+    return log.accio; 
   }
   return `ha registrat RALC: ${log.ralc_alumne}`;
 };
@@ -233,4 +242,4 @@ onUnmounted(() => {
 .item-hover:hover {
   background-color: #f9f9f9;
 }
-</style>
+</style>s
