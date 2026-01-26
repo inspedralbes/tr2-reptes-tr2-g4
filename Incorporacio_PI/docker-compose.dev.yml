@@ -1,12 +1,11 @@
 version: '3.8'
 
 services:
-  # --- SERVICIO BACKEND ---
   backend:
     build:
-      context: ./backend         # Carpeta del contexto
-      dockerfile: Dockerfile.dev # Archivo específico
-    container_name: pi_backend
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: pi_backend_dev
     ports:
       - "3001:3001"
     env_file:
@@ -15,15 +14,16 @@ services:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
       - /app/node_modules
+    depends_on:
+      - rabbitmq
 
-  # --- SERVICIO FRONTEND ---
   frontend:
     build:
-      context: ./frontend        # Carpeta del contexto
-      dockerfile: Dockerfile.dev # Archivo específico
-    container_name: pi_frontend
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: pi_frontend_dev
     ports:
-      - "3000:3000"
+      - "3000:3000" # CORREGIDO: Coincide con tu vite.config
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -32,4 +32,9 @@ services:
     depends_on:
       - backend
 
-# No necesitamos servicio de Mongo porque usas Atlas (Nube)
+  rabbitmq:
+    image: rabbitmq:3-alpine
+    container_name: rabbitmq_dev
+    ports:
+      - "5672:5672"
+      - "15672:15672"
