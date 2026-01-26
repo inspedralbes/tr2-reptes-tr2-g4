@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # --- BACKEND ---
   backend:
     build:
       context: ./backend
@@ -16,20 +15,18 @@ services:
       - ./backend/uploads:/app/uploads
       - /app/node_modules
     environment:
-      # En Docker, llamamos al servicio por su nombre: "ollama"
       - OLLAMA_HOST=http://ollama:11434
     depends_on:
       - rabbitmq
       - ollama
-
-  # --- FRONTEND ---
+      
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: pi_frontend_dev
     ports:
-      - "3000:3000" # Coincide con tu vite.config (server.port)
+      - "3000:3000" 
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -38,7 +35,6 @@ services:
     depends_on:
       - backend
 
-  # --- RABBITMQ (Cola) ---
   rabbitmq:
     image: rabbitmq:3-alpine
     container_name: rabbitmq_dev
@@ -46,12 +42,11 @@ services:
       - "5672:5672"
       - "15672:15672"
 
-  # --- OLLAMA (IA) ---
   ollama:
     image: ollama/ollama:latest
     container_name: ollama_dev
     ports:
-      - "11434:11434" # Exponemos el puerto para que puedas probar la API si quieres
+      - "11434:11434" 
     volumes:
       - ollama_storage_dev:/root/.ollama
 

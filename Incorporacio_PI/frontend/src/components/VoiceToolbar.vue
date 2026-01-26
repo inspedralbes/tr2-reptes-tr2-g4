@@ -165,18 +165,18 @@ watch(transcript, (newText) => {
 
   else if (command.includes('mode fosc') || command.includes('nit')) {
     theme.global.name.value = 'dark';
-    feedbackMessage.value = "Mode fosc activat 🌙";
+    feedbackMessage.value = "Mode fosc activat";
     feedbackColor.value = "success";
     closeSuccess();
   }
   else if (command.includes('mode clar') || command.includes('dia')) {
     theme.global.name.value = 'light';
-    feedbackMessage.value = "Mode clar activat ☀️";
+    feedbackMessage.value = "Mode clar activat";
     feedbackColor.value = "success";
     closeSuccess();
   }
   else if (command.includes('saluda') || command.includes('hola')) {
-    feedbackMessage.value = "Hola! Benvingut 👋";
+    feedbackMessage.value = "Hola! Benvingut";
     feedbackColor.value = "success";
     closeSuccess();
   }
@@ -185,7 +185,7 @@ watch(transcript, (newText) => {
     feedbackColor.value = "info";
   }
   else {
-    feedbackMessage.value = "No t'he acabat d'entendre 😕";
+    feedbackMessage.value = "No t'he acabat d'entendre";
     feedbackColor.value = "warning";
   }
 });

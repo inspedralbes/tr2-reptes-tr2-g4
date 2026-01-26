@@ -120,7 +120,7 @@
                         </div>
 
                         <span v-if="isSecurityEvent(log.accio)" class="text-caption text-red font-weight-bold">
-                            ⚠️ {{ log.ralc_alumne }}
+                            {{ log.ralc_alumne }}
                         </span>
 
                         <span v-else-if="log.ralc_alumne && log.ralc_alumne !== 'N/A'">
@@ -176,7 +176,6 @@ const filteredLogs = computed(() => {
         if (filter === 'alumnes') return action.includes('nou') || action.includes('crear') || action.includes('alumne');
         if (filter === 'trasllat') return action.includes('trasllat') || action.includes('transfer');
         if (filter === 'pujada') return action.includes('pujada') || action.includes('upload');
-        // AÑADIDO DE PROVA: Filtro IA
         if (filter === 'ia') return action.includes('ai:') || action.includes('ia:') || action.includes('resum');
         return true;
     });
@@ -194,8 +193,6 @@ const formatDate = (date) => {
   });
 };
 
-// --- HELPERS ---
-
 const isTransfer = (text) => {
     return (text || '').toLowerCase().includes('trasllat') || (text || '').toLowerCase().includes('transfer');
 };
@@ -208,7 +205,6 @@ const cleanActionText = (text) => {
     if(!text) return '';
     if(isTransfer(text)) return 'Trasllat de Centre';
     if(text.includes('Bloqueig')) return 'Bloqueig Preventiu';
-    // AÑADIDO DE PROVA: Texto IA
     if(text.includes('AI:') || text.includes('IA:')) return 'Resum IA Generat';
     return text;
 };
@@ -221,11 +217,9 @@ const extractDestination = (text) => {
     return 'Canvi de centre';
 };
 
-// --- COLORES & ESTILS ---
-
 const getUserColor = (user) => {
     if (!user) return 'grey-lighten-2';
-    if (user.includes('IP')) return 'blue-grey-darken-3'; // Color fosc per IPs
+    if (user.includes('IP')) return 'blue-grey-darken-3'; 
     return 'grey-lighten-1';
 };
 
@@ -242,7 +236,6 @@ const getActionColor = (accio) => {
   if (a.includes('nou alumne')) return 'blue-lighten-4 text-blue-darken-4';
   if (a.includes('trasllat')) return 'orange-lighten-4 text-orange-darken-4';
   if (a.includes('elimin')) return 'red-lighten-4 text-red-darken-4';
-  // AÑADIDO DE PROVA: Color IA
   if (a.includes('ia:') || a.includes('ai:')) return 'purple-lighten-4 text-purple-darken-4';
   
   return 'grey-lighten-4 text-grey-darken-2';
@@ -258,7 +251,6 @@ const getActionIcon = (accio) => {
     if (a.includes('nou alumne')) return 'mdi-account-plus';
     if (a.includes('trasllat')) return 'mdi-transfer'; 
     if (a.includes('elimin')) return 'mdi-trash-can';
-    // AÑADIDO DE PROVA: Icono IA
     if (a.includes('ia:') || a.includes('ai:')) return 'mdi-robot-outline';
     
     return 'mdi-information';

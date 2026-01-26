@@ -161,7 +161,6 @@ const errorMessage = ref('');
 
 const centrosList = ref([]); 
 
-// 1. DEFINIMOS LA URL BASE CORRECTA
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 const student = reactive({
@@ -171,7 +170,6 @@ const student = reactive({
   start_date: ''
 });
 
-// Reglas de validación
 const nameRules = [v => !!v || "El nom és obligatori"];
 const idRules = [v => !!v || "L'ID (RALC) és obligatori"];
 const centerRules = [v => !!v || 'Has de seleccionar un centre'];
@@ -181,7 +179,6 @@ onMounted(async () => {
   student.start_date = new Date().toISOString().split('T')[0];
 
   try {
-    // 2. CORREGIDO: Usamos API_URL
     const response = await fetch(`${API_URL}/api/centros`);
     if (response.ok) {
       centrosList.value = await response.json();
@@ -202,7 +199,6 @@ const submitForm = async () => {
   errorMessage.value = '';
 
   try {
-    // 3. CORREGIDO: Usamos API_URL
     const response = await fetch(`${API_URL}/api/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -226,7 +222,6 @@ const submitForm = async () => {
 </script>
 
 <style scoped>
-/* ESTILS GENCAT */
 .gencat-font {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }

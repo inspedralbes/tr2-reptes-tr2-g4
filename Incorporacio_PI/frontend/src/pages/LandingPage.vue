@@ -122,13 +122,11 @@ const hasToken = ref(false);
 const loading = ref(false);
 
 onMounted(() => {
-  // Comprovem si l'usuari ja té sessió iniciada
   hasToken.value = !!localStorage.getItem('token');
 });
 
 const handleNavigation = () => {
   loading.value = true;
-  // Simulem una micro-càrrega per feedback visual
   setTimeout(() => {
     if (hasToken.value) {
       router.push('/dashboard');
@@ -141,8 +139,6 @@ const handleNavigation = () => {
 </script>
 
 <style scoped>
-/* ESTILS GENCAT */
-
 .gencat-top-bar {
   position: absolute;
   top: 0;
@@ -172,13 +168,10 @@ const handleNavigation = () => {
   letter-spacing: 1.5px !important;
 }
 
-/* TRUC CSS: Convertim el logo blanc SVG a Negre/Gris Fosc */
 .logo-dark {
   filter: invert(1) brightness(0.2); 
-  /* Això fa que el logo_generalitat_blanc.svg es vegi gris fosc gairebé negre */
 }
 
-/* Footer links */
 .hover-link:hover {
   text-decoration: underline !important;
   color: #000 !important;

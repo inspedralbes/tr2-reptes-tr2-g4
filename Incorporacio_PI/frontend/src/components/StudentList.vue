@@ -215,7 +215,6 @@ const searchName = ref('');
 const searchRalc = ref('');
 const schoolsList = ref([]);
 
-// Filtro Estado PI
 const filterStatus = ref('all');
 const statusOptions = [
   { title: 'Tots els estats', value: 'all' },
@@ -223,14 +222,12 @@ const statusOptions = [
   { title: 'Pendent de PI', value: 'without_pi' }
 ];
 
-// --- ORDENACIÓ DE MAIN (SIMPLE) ---
 const sortOrder = ref('default'); 
 const sortOptions = [
   { title: 'Per defecte (Sense ordre)', value: 'default' },
   { title: 'Alfabètic (A-Z)', value: 'alpha_asc' }
 ];
 
-// Configuración de Producción
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const currentUserCenter = localStorage.getItem('userCenterCode');
 
@@ -241,28 +238,23 @@ const getSchoolName = (code) => {
 };
 
 const filteredStudents = computed(() => {
-  // 1. Filtrado
   const nameInput = (searchName.value || '').trim().toLowerCase();
   const ralcInput = (searchRalc.value || '').trim().toLowerCase();
   const isTextSearching = nameInput.length > 0 || ralcInput.length > 0;
 
   let filtered = studentStore.students.filter(student => {
-    // A. Nombre
     const matchesName = !nameInput || 
                 (student.original_name || '').toLowerCase().includes(nameInput) ||
                 student.visual_identity.iniciales.toLowerCase().includes(nameInput);
 
-    // B. RALC
     const matchesRalc = !ralcInput || 
                 (student.original_id || '').includes(ralcInput) ||
                 student.visual_identity.ralc_suffix.toLowerCase().includes(ralcInput);
     
-    // C. Estado PI
     let matchesStatus = true;
     if (filterStatus.value === 'with_pi') matchesStatus = student.has_file === true;
     else if (filterStatus.value === 'without_pi') matchesStatus = !student.has_file;
 
-    // D. Ámbito (Centro vs Global)
     let matchesScope = true;
     if (!isTextSearching && currentUserCenter) {
       matchesScope = String(student.codi_centre) === String(currentUserCenter);
@@ -271,7 +263,6 @@ const filteredStudents = computed(() => {
     return matchesScope && matchesName && matchesRalc && matchesStatus;
   });
 
-  // 2. Ordenación (Sorting) - Lógica de MAIN (Simple)
   if (sortOrder.value === 'alpha_asc') {
     return filtered.sort((a, b) => {
       const nameA = a.visual_identity?.iniciales || '';
@@ -280,7 +271,6 @@ const filteredStudents = computed(() => {
     });
   }
 
-  // Si es 'default', devolvemos la lista tal cual
   return filtered;
 });
 
@@ -300,7 +290,6 @@ const handleUpload = async (files, hashId) => {
   const file = Array.isArray(files) ? files[0] : files;
 
   if (file) {
-    // CAMBIO APLICADO: Filtro ampliado de Prova
     const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'application/vnd.oasis.opendocument.text'];
     
     if (!allowedTypes.includes(file.type)) {
@@ -323,7 +312,6 @@ watch(() => studentStore.error, (newVal) => {
 </script>
 
 <style scoped>
-/* ESTILS CORPORATIUS GENCAT */
 .gencat-font {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }

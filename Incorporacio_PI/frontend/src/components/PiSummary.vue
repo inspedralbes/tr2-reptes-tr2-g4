@@ -12,8 +12,6 @@
 
       <v-row v-else>
         <v-col cols="12">
-            
-            <!-- SECCIONS DINÀMIQUES -->
             <div v-for="(category, catName) in analysis" :key="catName">
                 <div v-for="(section, idx) in category" :key="idx" class="mb-6">
                     <div class="d-flex align-center mb-2 border-bottom-subtle pb-1">
@@ -60,6 +58,6 @@ const getIconForSection = (title) => {
 
 const cleanContent = (text) => {
     if (!text) return '';
-    return text.replace(/\*/g, '•'); // Replace markdown stars with bullets
+    return text.replace(/\*/g, '•'); 
 };
 </script>

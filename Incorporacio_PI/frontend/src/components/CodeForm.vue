@@ -76,15 +76,13 @@ const submit = () => {
   letter-spacing: 0.5px;
 }
 
-/* CORRECCIÓ: Ataquem directament l'input intern de Vuetify */
 .centered-input :deep(input) {
   text-align: center;
-  font-size: 1.5rem;      /* Números grans */
-  letter-spacing: 0.5em;  /* Separats */
+  font-size: 1.5rem;      
+  letter-spacing: 0.5em;  
   font-family: monospace, sans-serif;
 }
 
-/* Ajustar el color de la vora */
 :deep(.v-field__outline__start),
 :deep(.v-field__outline__end),
 :deep(.v-field__outline__notch) {

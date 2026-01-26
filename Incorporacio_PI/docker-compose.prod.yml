@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # --- 1. FRONTEND (Nginx) ---
   frontend:
     build:
       context: ./frontend
@@ -9,16 +8,13 @@ services:
     container_name: pi_frontend_prod
     restart: always
     ports:
-      # Nginx escucha en 80 y 443 (estándar web), ignora el 3000 de Vite
       - "80:80"
       - "443:443"
     depends_on:
       - backend
     volumes:
-      # Mapeamos los certificados SSL del servidor real al contenedor
       - /etc/letsencrypt:/etc/letsencrypt:ro
 
-  # --- 2. BACKEND (Node.js) ---
   backend:
     build:
       context: ./backend
@@ -29,31 +25,24 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      # El backend buscará a Ollama por su nombre de servicio docker
       - OLLAMA_HOST=http://ollama:11434 
     volumes:
-      # Persistencia de archivos subidos
       - ./backend_uploads_prod:/app/uploads
     depends_on:
       - rabbitmq
       - ollama
 
-  # --- 3. COLA DE MENSAJES (RabbitMQ) ---
   rabbitmq:
     image: rabbitmq:3-alpine
     container_name: rabbitmq
     restart: always
-    # En producción no exponemos puertos, la comunicación es interna
 
-  # --- 4. INTELIGENCIA ARTIFICIAL (Ollama) ---
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
     restart: always
     volumes:
-      # Guardamos el modelo descargado para no bajarlo cada vez
       - ollama_storage:/root/.ollama
 
-# Volúmenes persistentes
 volumes:
   ollama_storage:

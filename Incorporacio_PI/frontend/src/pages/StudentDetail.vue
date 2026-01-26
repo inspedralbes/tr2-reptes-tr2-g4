@@ -451,11 +451,10 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStudentStore } from '@/stores/studentStore';
 
-// --- LOGIC SECTION ---
 const route = useRoute();
 const router = useRouter();
 const studentStore = useStudentStore();
-let globalSSE = null; // Variable para controlar SSE global
+let globalSSE = null;
 
 const schoolsList = ref([]);
 const showTransferDialog = ref(false);
@@ -464,14 +463,11 @@ const selectedNewSchool = ref(null);
 const transferStartDate = ref('');
 const transferEndDate = ref('');
 
-// NUEVAS VARIABLES DE ESTADO (De prova)
 const showRoleDialog = ref(false);
 const selectedFileForSummary = ref(null);
 const loadingGlobal = ref(false);
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
-
-// --- COMPUTED PROPERTIES ---
 
 const student = computed(() => studentStore.students.find(s => s.hash_id === route.params.hash_id));
 
@@ -492,8 +488,6 @@ const latestFile = computed(() => {
   if (!normalizedFiles.value.length) return null;
   return [...normalizedFiles.value].sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate))[0];
 });
-
-// --- HELPER FUNCTIONS ---
 
 const getSchoolName = (code) => {
   if (!code) return '';
@@ -538,11 +532,9 @@ const getFilesByHistory = (historyItem) => {
   });
 };
 
-// --- ACTIONS & NAVIGATION ---
 
 const goToList = () => router.push('/alumnes');
 
-// LOGICA DE TRANSFERENCIA
 const openTransferDialog = () => {
   selectedNewSchool.value = student.value.codi_centre;
   transferStartDate.value = new Date().toISOString().split('T')[0];
@@ -586,7 +578,6 @@ const executeTransfer = async () => {
   } catch (e) { console.error(e); alert("Error de connexió"); }
 };
 
-// LOGICA DE ARCHIVOS
 const handleUpload = async (files) => {
   const file = Array.isArray(files) ? files[0] : files;
   if (file) {
@@ -619,8 +610,6 @@ const deleteFile = async (filename) => {
   else alert("No s'ha pogut esborrar");
 };
 
-// --- LOGICA IA (NUEVA DE PROVA) ---
-
 const openRoleDialog = (file) => {
   selectedFileForSummary.value = file;
   showRoleDialog.value = true;
@@ -633,7 +622,6 @@ const selectRole = (role) => {
   }
 };
 
-// Modificado para aceptar rol
 const goToSummary = (file, role = 'docent') => {
   router.push({
     name: 'SummaryPage',
@@ -666,15 +654,13 @@ const startGlobalSSE = () => {
   if (globalSSE) return;
   const hash = route.params.hash_id;
 
-  // Usamos API_URL para conectar al SSE
   globalSSE = new EventSource(`${API_URL}/api/progress/${hash}`);
   globalSSE.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
       if (data.status === 'CONNECTED') return;
-      if (data.role !== 'global') return; // Ignorar otros eventos
+      if (data.role !== 'global') return;
 
-      // Actualizar store localmente
       const sIdx = studentStore.students.findIndex(s => s.hash_id === hash);
       if (sIdx !== -1) {
         const s = studentStore.students[sIdx];
@@ -692,9 +678,6 @@ const startGlobalSSE = () => {
   };
 };
 
-
-// --- LIFECYCLE ---
-
 onMounted(async () => {
   if (studentStore.students.length === 0) await studentStore.fetchStudents();
   try {
@@ -702,7 +685,6 @@ onMounted(async () => {
     if (res.ok) schoolsList.value = await res.json();
   } catch (e) { console.error("Error centres:", e); }
 
-  // Checkear si hay resumen global pendiente (De prova)
   if (student.value && student.value.global_summary) {
     const st = student.value.global_summary.estado;
     if (st === 'A LA CUA' || st === 'LLEGINT...' || st === 'GENERANT...') {
@@ -717,11 +699,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* --- Corporate Colors --- */
 .text-gencat-red { color: #C00021 !important; }
 .bg-gencat-background { background-color: #F5F5F7 !important; }
 
-/* --- General Card Styling --- */
 .gencat-card {
   border: 1px solid #E0E0E0 !important;
   background-color: white;
@@ -732,7 +712,6 @@ onUnmounted(() => {
 .border-green-subtle { border-color: #A5D6A7 !important; }
 .border-bottom-subtle { border-bottom: 1px solid #E0E0E0 !important; }
 
-/* --- Data Boxes --- */
 .data-box {
   background-color: #FAFAFA;
   border: 1px solid #EEEEEE;
@@ -744,7 +723,6 @@ onUnmounted(() => {
   border-left: 3px solid #C00021;
 }
 
-/* --- Timeline Styling --- */
 .history-container { max-height: 500px; overflow-y: auto; }
 .history-container::-webkit-scrollbar, .v-list::-webkit-scrollbar { width: 4px; }
 .history-container::-webkit-scrollbar-track, .v-list::-webkit-scrollbar-track { background: transparent; }
@@ -778,7 +756,6 @@ onUnmounted(() => {
 }
 .status-badge.active { background-color: #D0021B; color: white; }
 
-/* --- File Manager --- */
 .sticky-top-20 { position: sticky; top: 20px; z-index: 1; }
 .upload-zone :deep(.v-field) {
   border: 1px dashed #BDBDBD !important;
@@ -789,13 +766,11 @@ onUnmounted(() => {
 .file-item { transition: background-color 0.1s; cursor: pointer; }
 .file-item:hover { background-color: #FAFAFA; }
 
-/* --- Typography Helpers --- */
 .hover-underline:hover { text-decoration: underline; }
 .font-secondary { font-family: 'Georgia', serif; }
 .hover-shadow:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); }
 .text-no-wrap { white-space: nowrap !important; }
 
-/* --- Animations for AI (New from Prova) --- */
 .robot-pulse { animation: pulse-primary 3s infinite; }
 .robot-pulse-fast { animation: pulse-primary 1s infinite; }
 @keyframes pulse-primary {
@@ -807,7 +782,6 @@ onUnmounted(() => {
 .cursor-blink { animation: blink 1s step-end infinite; color: #D0021B; font-weight: bold; }
 @keyframes blink { 50% { opacity: 0; } }
 
-/* Global Font Override */
 :deep(.v-application) {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif !important;
 }

@@ -99,17 +99,14 @@ import { useRoute } from 'vue-router';
 import PiSummary from '@/components/PiSummary.vue';
 
 const route = useRoute();
-const filename = route.params.filename; // Puede ser un nombre de archivo o un hash de alumno
+const filename = route.params.filename; 
 const currentRole = computed(() => route.query.role || 'docent');
 
-// displayName: Nombre bonito para mostrar al usuario (viene por ?query)
 const displayName = computed(() => route.query.originalName || (filename.length > 20 ? 'Document' : filename));
-const isGlobal = computed(() => !filename.includes('.')); // Si no tiene extensión, asumimos que es hash de alumno (Global)
+const isGlobal = computed(() => !filename.includes('.'));
 
-// API URL para producción
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
-// Estados
 const loading = ref(true);
 const loadingAI = ref(false);
 const resumenIA = ref('');
@@ -119,8 +116,6 @@ const errorMessage = ref('');
 
 let processSSE = null;
 
-// --- 1. LOGICA DE PARSEO (Importada de prova) ---
-// Convierte el texto Markdown de la IA en secciones estructuradas para PiSummary
 const parsedAnalysis = computed(() => {
   let text = resumenIA.value || '';
   const result = { perfil: [], dificultats: [], justificacio: [], adaptacions: [], avaluacio: [], recomanacions: [] };
@@ -132,7 +127,6 @@ const parsedAnalysis = computed(() => {
     const title = lines[0].trim().toUpperCase();
     const content = lines.slice(1).map(l => l.trim()).filter(l => l.length > 2);
     
-    // Mapeo flexible de títulos
     if (title.includes('PERFIL') || title.includes('EVOLUCIÓ') || title.includes('EVOLUCIO') || title.includes('DADES')) {
         result.perfil.push({ title: title, content: content.join('\n') });
     }
@@ -158,7 +152,6 @@ const parsedAnalysis = computed(() => {
   return result;
 });
 
-// --- 2. GESTIÓN DE ESTADOS VISUALES ---
 const statusColor = computed(() => {
     if (backendStatus.value === 'A LA CUA') return 'grey';
     if (backendStatus.value === 'LLEGINT...') return 'blue';
@@ -185,27 +178,20 @@ const statusMessage = computed(() => {
     return { title: 'INICIANT PROCÉS', description: 'Connectant amb el servidor d\'Intel·ligència Artificial...' };
 });
 
-// --- 3. LÓGICA DE NEGOCIO ---
-
-// Comprobar si ya existe el resumen guardado
 const checkStatusAndStart = async () => {
   loading.value = true;
   try {
     const res = await fetch(`${API_URL}/api/students`);
     const students = await res.json();
     
-    // Buscamos el alumno que tiene este fichero o que coincide con el hash
     const student = students.find(s => s.hash_id === filename || s.files?.some(f => f.filename === filename));
     
     if (student) {
       let fileData = null;
       if (student.hash_id === filename) {
-        // Es un resumen global
         fileData = student.global_summary;
       } else {
-        // Es un archivo específico
         const file = student.files.find(f => f.filename === filename);
-        // Buscamos datos específicos del rol
         fileData = file?.ia_data?.[currentRole.value] || file?.ia_data;
       }
 
@@ -213,24 +199,19 @@ const checkStatusAndStart = async () => {
         resumenIA.value = fileData.resumen;
         loading.value = false;
       } else {
-        // Si no está completo, iniciamos la generación
         await regenerarResumenIA();
       }
     } else {
-        // Fallback si no encontramos al estudiante (ej. archivo directo)
         await regenerarResumenIA();
     }
   } catch (e) { 
     console.error(e);
-    // Si falla la comprobación inicial, intentamos generar igual
     await regenerarResumenIA();
   }
 };
 
-// Iniciar Streaming SSE
 const startSSE = () => {
   if (processSSE) return;
-  // Conectamos al endpoint de progreso
   processSSE = new EventSource(`${API_URL}/api/progress/${filename}`);
   
   processSSE.onmessage = (e) => {
@@ -238,14 +219,12 @@ const startSSE = () => {
         const data = JSON.parse(e.data);
         if (data.status === 'CONNECTED') return;
         
-        // Filtramos eventos que no sean para nuestro rol actual o globales
         if (data.role && data.role !== currentRole.value && data.role !== 'global') return;
         
         loadingAI.value = true;
-        loading.value = false; // Ya no cargamos la página, estamos "procesando"
+        loading.value = false; 
         
-        // Mapear estados del backend
-        backendStatus.value = data.status; // LLEGINT..., GENERANT...
+        backendStatus.value = data.status; 
         
         if (data.status === 'COMPLETAT') {
           resumenIA.value = data.resumen;
@@ -265,7 +244,6 @@ const startSSE = () => {
   };
   
   processSSE.onerror = () => {
-      // Si se cierra la conexión, a veces es normal, pero si no hemos terminado es error
       if (loadingAI.value) {
           console.log("SSE Connection closed");
           processSSE.close();
@@ -274,7 +252,6 @@ const startSSE = () => {
   };
 };
 
-// Solicitar generación al backend
 const regenerarResumenIA = async () => {
     loadingAI.value = true;
     resumenIA.value = '';
@@ -284,7 +261,6 @@ const regenerarResumenIA = async () => {
         const userEmail = localStorage.getItem('userEmail') || 'usuari';
         
         if (isGlobal.value) {
-            // Generación de resumen global (alumno)
             await fetch(`${API_URL}/api/generate-global-summary`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -292,8 +268,6 @@ const regenerarResumenIA = async () => {
             });
             backendStatus.value = 'A LA CUA';
         } else {
-            // Generación de resumen de fichero
-            // 1. Obtener texto del archivo (si ya existe análisis previo básico)
             const res = await fetch(`${API_URL}/api/analyze/${encodeURIComponent(filename)}`);
             let textCompleto = "";
             
@@ -302,7 +276,6 @@ const regenerarResumenIA = async () => {
                 textCompleto = data.text_completo;
             }
             
-            // 2. Enviar a generar resumen IA con rol
             const genRes = await fetch(`${API_URL}/api/generate-summary`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -318,7 +291,6 @@ const regenerarResumenIA = async () => {
             backendStatus.value = 'A LA CUA';
         }
         
-        // Iniciamos escucha de eventos
         startSSE();
         
     } catch (e) { 
@@ -340,7 +312,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Estilos GenCat Base */
 .gencat-font {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }
@@ -356,7 +327,6 @@ onUnmounted(() => {
     border-color: rgba(0,0,0,0.1) !important;
 }
 
-/* Animaciones IA (Importadas de Prova) */
 .robot-pulse { animation: pulse-primary 3s infinite; }
 .robot-pulse-fast { animation: pulse-primary 1s infinite; }
 .robot-scan { animation: scan-move 2s infinite ease-in-out; }

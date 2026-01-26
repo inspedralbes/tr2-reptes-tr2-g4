@@ -1,15 +1,10 @@
-// src/stores/studentStore.js
 import { defineStore } from 'pinia';
 
-// 1. CORREGIDO: Lógica inteligente para Nginx/HTTPS
-// En Producción (PROD) BASE_URL será '' (vacío), así fetch irá a /api/...
-// En Desarrollo, usará localhost:3001
 const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 const API_URL = `${BASE_URL}/api`;
 
 export const useStudentStore = defineStore('student', {
-  // 1. STATE
   state: () => ({
     students: [],
     logs: [],
@@ -17,12 +12,9 @@ export const useStudentStore = defineStore('student', {
     error: null,
   }),
 
-  // 2. ACTIONS
   actions: { 
     
-    // Acción A: Fetch Students
     async fetchStudents() {
-        // Ahora API_URL es inteligente
         const response = await fetch(`${API_URL}/students?_t=${Date.now()}`); 
         
         if (!response.ok) {
@@ -34,7 +26,6 @@ export const useStudentStore = defineStore('student', {
         this.students = data;
     }, 
 
-    // Acción B: Fetch Logs
     async fetchLogs() {
         try {
             const response = await fetch(`${API_URL}/logs`);
@@ -44,7 +35,6 @@ export const useStudentStore = defineStore('student', {
         }
     },
 
-    // Acción C: Upload
     async uploadStudentPI(file, studentHash) {
       this.loading = true;
       try {
@@ -74,7 +64,6 @@ export const useStudentStore = defineStore('student', {
       }
     },
 
-    // --- DELETE FILE ---
     async deleteFile(studentHash, filename) {
       this.loading = true;
       try {

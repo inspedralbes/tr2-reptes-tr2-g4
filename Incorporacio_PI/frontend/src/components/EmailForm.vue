@@ -87,11 +87,8 @@ const centros = ref([]);
 const loadingCentros = ref(false);
 const selectedItem = ref(null);
 
-// 1. DEFINIMOS LA URL BASE CORRECTA (CORREGIDO)
-// Si estamos en Producción, dejamos la cadena vacía '' para que use el dominio actual (HTTPS)
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
-// Clave del sitio (Frontend)
 const siteKey = "6LcLBUgsAAAAAO5gfUHPVfkHogRC-gaLtrDb7YrH";
 
 const recaptchaToken = ref(null);
@@ -108,7 +105,6 @@ const rules = [
 onMounted(async () => {
   loadingCentros.value = true;
   try {
-    // Ahora API_URL será '' en prod, por lo que la petición irá a /api/centros (seguro)
     const response = await fetch(`${API_URL}/api/centros`);
     
     if (response.ok) {
@@ -163,10 +159,9 @@ const submit = async () => {
 </script>
 
 <style scoped>
-/* Estils específics per afinar l'aparença */
 
 .gencat-btn {
-  border-radius: 4px !important; /* Vores lleugerament arrodonides, estil institucional */
+  border-radius: 4px !important; 
   letter-spacing: 0.5px;
 }
 
@@ -174,7 +169,6 @@ const submit = async () => {
   border: 1px solid #ffcdd2;
 }
 
-/* Forçar estils d'input si Vuetify carrega altres per defecte */
 :deep(.v-field__outline__start),
 :deep(.v-field__outline__end),
 :deep(.v-field__outline__notch) {

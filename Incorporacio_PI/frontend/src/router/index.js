@@ -1,12 +1,8 @@
-/**
- * router/index.js
- */
 import { createRouter, createWebHistory } from 'vue-router'
 
-// Importaciones
 import LandingPage from '@/pages/LandingPage.vue'
 import LoginView from '@/pages/LoginView.vue'
-import DashboardMenu from '@/pages/DashboardMenu.vue' // <--- NUEVO MENÚ
+import DashboardMenu from '@/pages/DashboardMenu.vue'
 import StudentList from '@/components/StudentList.vue'
 import AddStudent from '@/pages/AddStudent.vue';
 import StudentDetail from '@/pages/StudentDetail.vue'
@@ -27,25 +23,21 @@ const router = createRouter({
       name: 'login',
       component: LoginView
     },
-    // 1. RUTA DASHBOARD -> Ahora es el MENÚ DE BOTONES
     {
       path: '/dashboard', 
       name: 'dashboard',
       component: DashboardMenu,
       meta: { requiresAuth: true } 
     },
-    // 2. NUEVA RUTA -> Para el listado de alumnos
     {
       path: '/alumnes', 
       name: 'StudentList',
       component: StudentList,
       meta: { requiresAuth: true } 
     },
-    // 3. RUTA FUTURA -> Insertar alumno (Aún no creada, dará error 404 o blanco si clickas)
     {
       path: '/nou-alumne',
       name: 'AddStudent',
-      // Como no tienes la página, puedes poner temporalmente un componente vacío o el Dashboard
       component: AddStudent, 
       meta: { requiresAuth: true }
     },
@@ -55,14 +47,12 @@ const router = createRouter({
       component: StudentDetail,
       meta: { requiresAuth: true }
     },
-    // 4. RUTA LOGS -> Per veure l'historial d'accions
     {
       path: '/logs',
       name: 'Logs',
-      component: Logs, // Crearem aquest fitxer ara
+      component: Logs, 
       meta: { requiresAuth: true }
     },
-    // 5. RUTA RESUM IA -> Nova pàgina dedicada
     {
       path: '/resum/:filename',
       name: 'SummaryPage',
@@ -72,7 +62,6 @@ const router = createRouter({
   ]
 })
 
-// GUARDIA DE SEGURIDAD (Igual que antes)
 router.beforeEach((to, from, next) => {
   document.title = 'Plataforma PI';
   const necesitaAuth = to.matched.some(record => record.meta.requiresAuth)

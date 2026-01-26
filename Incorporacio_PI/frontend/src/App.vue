@@ -76,20 +76,13 @@ import VoiceToolbar from '@/components/VoiceToolbar.vue';
 const router = useRouter();
 const route = useRoute(); 
 
-// --- LÓGICA DE VISIBILIDAD ---
-
-// 1. ¿Debemos mostrar la barra negra? 
-// SÍ, a menos que estemos en el Login.
 const showAppBar = computed(() => {
   return route.name !== 'login';
 });
 
-// 2. ¿Debemos mostrar los botones (Micro, Salir, Notificaciones)?
-// SÍ, pero SOLO si NO estamos en Login Y TAMPOCO en la Landing.
-// *IMPORTANTE*: Asegúrate de que en tu router el nombre de la landing sea 'landing' o 'home'.
 const showNavButtons = computed(() => {
   const isLogin = route.name === 'login';
-  const isLanding = route.name === 'landing' || route.path === '/'; // Detecta la landing por nombre o ruta raíz
+  const isLanding = route.name === 'landing' || route.path === '/';
   
   return !isLogin && !isLanding;
 });
@@ -102,7 +95,6 @@ const logout = () => {
 };
 
 const goDashboard = () => {
-  // Solo permitimos ir al dashboard si tenemos los botones activos (usuario logueado)
   if (showNavButtons.value) {
     router.push('/dashboard');
   }
