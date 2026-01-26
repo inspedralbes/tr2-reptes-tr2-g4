@@ -38,13 +38,12 @@ setBroadcastFn(broadcastProgress);
 
 // --- LISTA DE DOMINIOS PERMITIDOS (CORS PRODUCCIÓN) ---
 const allowedOrigins = [
-    "http://localhost:5173", 
-    "http://127.0.0.1:5173",
-    "http://localhost:4173",
-    "http://incorporacio-pi.dam.inspedralbes.cat", 
-    "https://incorporacio-pi.dam.inspedralbes.cat"
+    "http://localhost:3000",          // <--- ¡IMPORTANTE! Tu entorno Dev actual
+    "http://localhost:5173",          // Vite por defecto (por si acaso)
+    "http://127.0.0.1:3000",          // Alternativa local
+    "http://incorporacio-pi.dam.inspedralbes.cat", // Producción HTTP
+    "https://incorporacio-pi.dam.inspedralbes.cat" // Producción HTTPS
 ];
-
 // --- MIDDLEWARES ---
 app.use(cors({
     origin: allowedOrigins,
