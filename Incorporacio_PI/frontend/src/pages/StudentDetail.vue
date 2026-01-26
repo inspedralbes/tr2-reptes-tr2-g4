@@ -233,10 +233,10 @@
             <v-card-text class="pa-4">
               <div class="upload-zone mb-6">
                 <v-file-input 
-                  label="Adjuntar nou PI (PDF)" 
+                  label="Adjuntar nou PI (PDF, DOCX, ODT)" 
                   variant="plain" 
                   density="compact" 
-                  accept=".pdf"
+                  accept=".pdf,.docx,.doc,.odt"
                   prepend-icon="" 
                   prepend-inner-icon="mdi-cloud-upload-outline" 
                   hide-details="auto" 
@@ -254,11 +254,12 @@
                 <div class="text-caption font-weight-bold text-grey-darken-2 mb-2 px-1">Llistat complet</div>
                 <v-list lines="two" class="pa-0">
                   <v-list-item v-for="(file, index) in normalizedFiles" :key="index" class="file-item border-subtle mb-2 rounded-sm pa-2 pr-1">
-                    <template v-slot:prepend>
-                       <div class="file-icon-box bg-red-lighten-5 text-gencat-red rounded-sm d-flex align-center justify-center mr-3">
-                          <span class="font-weight-bold text-caption">PDF</span>
-                       </div>
-                    </template>
+                     <template v-slot:prepend>
+                        <div class="file-icon-box rounded-sm d-flex align-center justify-center mr-3"
+                             :class="getFileExtension(file.filename) === 'PDF' ? 'bg-red-lighten-5 text-gencat-red' : 'bg-blue-lighten-5 text-blue-darken-3'">
+                           <span class="font-weight-bold text-caption">{{ getFileExtension(file.filename) }}</span>
+                        </div>
+                     </template>
 
                     <v-list-item-title class="font-weight-bold text-body-2 text-grey-darken-3 text-truncate" :title="file.originalName">
                       {{ file.originalName || file.filename }}
@@ -270,24 +271,23 @@
                     <template v-slot:append>
                        <div class="d-flex align-center">
                           <v-btn 
-                            :href="`http://localhost:3001/uploads/${file.filename}`" 
-                            target="_blank"
                             icon="mdi-open-in-new" 
                             variant="text" 
                             density="comfortable" 
                             size="small" 
                             color="blue-darken-3" 
-                            title="Obrir en nova pestanya"
+                            title="Obrir"
+                            @click="window.open(`http://localhost:3001/uploads/${file.filename}`, '_blank')"
                           ></v-btn>
 
-                          <v-btn v-if="getFileExtension(file.filename) === 'PDF'" 
+                          <v-btn v-if="['PDF', 'DOCX', 'ODT'].includes(getFileExtension(file.filename))" 
                             icon="mdi-robot-outline" 
                             variant="text" 
                             density="comfortable" 
                             size="small" 
                             color="purple-darken-2" 
                             title="Resum IA"
-                            @click="goToSummary(file)"
+                            @click="openRoleDialog(file)"
                           ></v-btn>
 
                           <v-btn 
@@ -316,63 +316,113 @@
               </div>
             </v-card-text>
           </v-card>
+
+          <!-- GLOBAL SUMMARY IA -->
+          <v-card class="gencat-card mt-6 border-red-light" elevation="0" rounded="lg">
+            <v-card-title class="pa-4 bg-red-lighten-5 border-bottom-subtle">
+              <div class="text-subtitle-1 font-weight-black text-red-darken-4 d-flex align-center gencat-font" style="letter-spacing: 0.5px;">
+                <v-icon icon="mdi-auto-fix" class="mr-2"></v-icon>
+                RESUM EVOLUTIU IA
+              </div>
+            </v-card-title>
+            <v-card-text class="pa-4">
+              <p class="text-body-2 text-grey-darken-1 mb-4" style="line-height: 1.5;">
+                Analitza l'historial complet de l'alumne per trobar patrons i evolució.
+              </p>
+              
+              <div v-if="student.global_summary?.estado === 'COMPLETAT'" class="bg-white border pa-4 rounded-sm">
+                <div class="d-flex align-center mb-3">
+                    <v-chip color="red-darken-4" size="x-small" variant="flat" class="mr-2 font-weight-bold">IA ACTUALITZAT</v-chip>
+                </div>
+                <div class="text-body-2 text-grey-darken-3 font-italic mb-4 line-clamp-3" style="white-space: pre-line;">
+                   {{ student.global_summary.resumen }}
+                </div>
+                <v-btn block color="#D0021B" variant="flat" class="text-none font-weight-bold text-white" @click="goToSummary({ filename: student.hash_id }, 'global')">
+                    Veure Resum de Trajectòria
+                </v-btn>
+                <v-btn block variant="text" color="grey-darken-3" class="text-none font-weight-bold mt-2" @click="generateGlobalSummary" :loading="loadingGlobal">
+                    <v-icon start icon="mdi-refresh"></v-icon>
+                    Tornar a generar
+                </v-btn>
+              </div>
+
+              <div v-else-if="student.global_summary?.estado && student.global_summary?.estado !== 'PENDENT' && student.global_summary?.estado !== 'COMPLETAT'" 
+                   class="text-center py-6 bg-grey-lighten-5 rounded-sm border-dashed">
+                
+                <div class="d-flex align-center justify-center mb-3">
+                    <v-icon :icon="student.global_summary.estado === 'LLEGINT...' ? 'mdi-scanning-helper' : 'mdi-robot-outline'" 
+                            :class="student.global_summary.estado === 'GENERANT...' ? 'robot-pulse-fast' : 'robot-pulse'"
+                            :color="student.global_summary.estado === 'LLEGINT...' ? 'blue' : 'purple'"
+                            size="28" class="mr-2"></v-icon>
+                    <span class="text-overline font-weight-black" :class="student.global_summary.estado === 'LLEGINT...' ? 'text-blue' : 'text-purple'">
+                      {{ student.global_summary.estado }}
+                    </span>
+                </div>
+
+                <div v-if="student.global_summary.resumen && student.global_summary.resumen.length > 5" 
+                     class="text-left bg-white pa-3 text-caption text-grey-darken-3 font-mono border rounded-sm mx-4 mb-3"
+                     style="max-height: 200px; overflow-y: auto; white-space: pre-line; scroll-behavior: smooth;">
+                    {{ student.global_summary.resumen }}<span class="cursor-blink">|</span>
+                </div>
+                <div v-else class="text-caption text-grey-darken-1 px-4 mb-3">
+                  {{ student.global_summary.estado === 'A LA CUA' ? 'Esperant torn al servidor...' : 'Analitzant historial acadèmic...' }}
+                </div>
+                
+                <v-progress-linear color="purple" indeterminate height="2" class="mt-2 mx-auto" style="max-width: 80%"></v-progress-linear>
+              </div>
+
+              <v-btn v-else 
+                block 
+                color="grey-darken-3" 
+                variant="outlined" 
+                class="text-none font-weight-bold py-6" 
+                prepend-icon="mdi-robot-outline" 
+                :disabled="normalizedFiles.length === 0 || loadingGlobal" 
+                :loading="loadingGlobal"
+                @click="generateGlobalSummary"
+              >
+                Generar Resum d'Historial
+              </v-btn>
+            </v-card-text>
+          </v-card>
         </div>
       </v-col>
     </v-row>
 
-    <v-dialog v-model="showTransferDialog" max-width="500px">
-      <v-card class="gencat-card" rounded="sm">
-        <v-card-title class="bg-grey-lighten-4 pa-4 border-bottom-subtle text-body-1 font-weight-bold text-grey-darken-3">
-          Canvi de Centre / Historial
+    <!-- ROLES DIALOG -->
+    <v-dialog v-model="showRoleDialog" max-width="450px">
+      <v-card class="gencat-card" rounded="lg">
+        <v-card-title class="bg-red-lighten-5 pa-4 border-bottom-subtle text-body-1 font-weight-bold text-red-darken-4">
+          Configuració del Resum IA
         </v-card-title>
         <v-card-text class="pa-6">
-          <p class="text-body-2 text-grey-darken-1 mb-4">Selecciona el nou centre i defineix el període d'assignació.</p>
-          <v-autocomplete 
-            v-model="selectedNewSchool" 
-            :items="schoolsList" 
-            item-title="denominacio_completa"
-            item-value="codi_centre" 
-            label="Buscar centre educatiu" 
-            variant="outlined" 
-            density="compact"
-            color="#D0021B"
-            hide-details="auto"
-            class="mb-4"
-          ></v-autocomplete>
-          <v-row dense>
-            <v-col cols="12" sm="6">
-                <v-text-field v-model="transferStartDate" label="Data d'inici" type="date" variant="outlined" density="compact" color="#D0021B"></v-text-field>
-            </v-col>
-            <v-col cols="12" sm="6">
-                <v-text-field v-model="transferEndDate" label="Data de fi (Opcional)" type="date" variant="outlined" density="compact" color="#D0021B"></v-text-field>
-            </v-col>
-          </v-row>
+          <v-btn block variant="outlined" color="#D0021B" class="mb-3 text-none py-7" @click="selectRole('docent')">
+            <v-icon start icon="mdi-account-school" class="mr-2"></v-icon>
+            PERFIL DOCENT
+          </v-btn>
+          <v-btn block variant="outlined" color="grey-darken-3" class="text-none py-7" @click="selectRole('orientador')">
+            <v-icon start icon="mdi-account-tie" class="mr-2"></v-icon>
+            PERFIL ORIENTADOR
+          </v-btn>
         </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions class="pa-4 bg-grey-lighten-5">
-          <v-spacer></v-spacer>
-          <v-btn color="grey-darken-3" variant="text" class="text-none font-weight-medium" @click="showTransferDialog = false">Cancel·lar</v-btn>
-          <v-btn color="#D0021B" class="text-white text-none font-weight-bold px-4" flat rounded="sm" :disabled="!selectedNewSchool || !transferStartDate" @click="openConfirmDialog">Guardar Canvi</v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showConfirmDialog" max-width="400px">
-      <v-card class="gencat-card text-center pa-6" rounded="sm">
-        <div class="mb-4 d-flex justify-center">
-            <div class="pa-3 bg-red-lighten-5 rounded-circle">
-                <v-icon icon="mdi-alert-outline" size="32" color="#D0021B"></v-icon>
-            </div>
-        </div>
-        <h3 class="text-h6 font-weight-bold text-grey-darken-3 mb-2">Confirmar Trasllat</h3>
-        <p class="text-body-2 text-grey-darken-1 mb-6">
-            Estàs a punt d'assignar l'alumne a:<br>
-            <strong class="text-grey-darken-4">{{ getSchoolName(selectedNewSchool) }}</strong>
-        </p>
-        <div class="d-flex flex-column gap-2">
-          <v-btn color="#D0021B" class="text-white text-none font-weight-bold w-100" flat rounded="sm" size="large" @click="executeTransfer">Confirmar canvi</v-btn>
-          <v-btn color="grey-darken-1" variant="text" class="text-none w-100" @click="showConfirmDialog = false">Cancel·lar</v-btn>
-        </div>
+    <!-- TRANSFER DIALOG -->
+    <v-dialog v-model="showTransferDialog" max-width="500px">
+      <v-card class="gencat-card" rounded="sm">
+        <v-card-title class="bg-grey-lighten-4 pa-4 border-bottom-subtle text-body-1 font-weight-bold">
+          Canvi de Centre
+        </v-card-title>
+        <v-card-text class="pa-6">
+          <v-autocomplete v-model="selectedNewSchool" :items="schoolsList" item-title="denominacio_completa" item-value="codi_centre" label="Nou centre" variant="outlined" density="compact" class="mb-4"></v-autocomplete>
+          <v-text-field v-model="transferStartDate" label="Data d'inici" type="date" variant="outlined" density="compact"></v-text-field>
+        </v-card-text>
+        <v-card-actions class="pa-4 bg-grey-lighten-5">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showTransferDialog = false">Cancel·lar</v-btn>
+          <v-btn color="#D0021B" class="text-white" flat @click="executeTransfer">Guardar</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -380,14 +430,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStudentStore } from '@/stores/studentStore';
 
-// --- LOGIC SECTION ---
 const route = useRoute();
 const router = useRouter();
 const studentStore = useStudentStore();
+let globalSSE = null;
 
 const schoolsList = ref([]);
 const showTransferDialog = ref(false);
@@ -395,86 +445,22 @@ const showConfirmDialog = ref(false);
 const selectedNewSchool = ref(null);
 const transferStartDate = ref('');
 const transferEndDate = ref('');
-
-const currentCenterFiles = computed(() => getFilesForCurrentCenter());
-
-const getFilesForCurrentCenter = () => {
-  if (!student.value || !normalizedFiles.value.length) return [];
-  const currentCode = student.value.codi_centre;
-  const startDateStr = student.value.date_start || student.value.start_date;
-  if (!startDateStr) return normalizedFiles.value.filter(f => f.codi_centre === currentCode);
-  const startMs = new Date(startDateStr).setHours(0, 0, 0, 0);
-  return normalizedFiles.value.filter(file => {
-    if (file.codi_centre && file.codi_centre !== currentCode) return false;
-    if (!file.uploadDate) return false;
-    const uploadMs = new Date(file.uploadDate).getTime();
-    if (file.codi_centre === currentCode) return true;
-    return uploadMs >= startMs;
-  });
-};
-
-const getFilesByHistory = (historyItem) => {
-  if (!normalizedFiles.value.length) return [];
-  const currentFilenames = currentCenterFiles.value.map(f => f.filename);
-  const histCode = historyItem.codi_centre;
-  const startStr = historyItem.date_start || historyItem.start_date;
-  const endStr = historyItem.date_end || historyItem.end_date;
-  if (!startStr) return [];
-  const startMs = new Date(startStr).setHours(0, 0, 0, 0);
-  const endMs = endStr ? new Date(endStr).setHours(23, 59, 59, 999) : new Date().getTime();
-  return normalizedFiles.value.filter(file => {
-    if (currentFilenames.includes(file.filename)) return false;
-    if (file.codi_centre) return file.codi_centre === histCode;
-    if (!file.uploadDate) return false;
-    const uploadMs = new Date(file.uploadDate).getTime();
-    return uploadMs >= startMs && uploadMs <= endMs;
-  });
-};
-
-const goToList = () => router.push('/alumnos');
+ 
+const showRoleDialog = ref(false);
+const selectedFileForSummary = ref(null);
+const loadingGlobal = ref(false);
 
 const student = computed(() => studentStore.students.find(s => s.hash_id === route.params.hash_id));
-
-const getSchoolName = (code) => {
-  if (!code) return '';
-  const found = schoolsList.value.find(s => s.codi_centre === code);
-  return found ? found.denominacio_completa : `Codi: ${code}`;
-};
-
-const currentSchoolName = computed(() => {
-  if (!student.value || !student.value.codi_centre) return 'Sense assignació';
-  return getSchoolName(student.value.codi_centre);
-});
-
-const getFileExtension = (filename) => filename.split('.').pop().toUpperCase();
-
-const formatDate = (d) => d ? new Date(d).toLocaleDateString('ca-ES') : '-';
-
-const latestFile = computed(() => {
-  if (!normalizedFiles.value.length) return null;
-  return [...normalizedFiles.value].sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate))[0];
-});
-
-const isLatest = (filename) => latestFile.value && latestFile.value.filename === filename;
-
-const normalizedFiles = computed(() => {
-  const s = student.value;
-  if (!s) return [];
-  return Array.isArray(s.files) ? s.files : [];
-});
+const normalizedFiles = computed(() => (student.value && Array.isArray(student.value.files)) ? student.value.files : []);
 
 const openTransferDialog = () => {
   selectedNewSchool.value = student.value.codi_centre;
   transferStartDate.value = new Date().toISOString().split('T')[0];
-  transferEndDate.value = '';
   showTransferDialog.value = true;
 };
 
-const openConfirmDialog = () => showConfirmDialog.value = true;
-
 const executeTransfer = async () => {
-  if (!selectedNewSchool.value) return;
-  const currentUserEmail = localStorage.getItem('userEmail') || 'Usuari';
+  const userEmail = localStorage.getItem('userEmail') || 'usuari';
   try {
     const response = await fetch(`http://localhost:3001/api/students/${student.value.hash_id}/transfer`, {
       method: 'PUT',
@@ -482,171 +468,153 @@ const executeTransfer = async () => {
       body: JSON.stringify({
         new_center_id: selectedNewSchool.value,
         start_date: transferStartDate.value,
-        end_date: transferEndDate.value || null,
-        userEmail: currentUserEmail
+        userEmail: userEmail
       })
     });
     if (response.ok) {
       await studentStore.fetchStudents();
-      showConfirmDialog.value = false;
       showTransferDialog.value = false;
-    } else {
-      const errorData = await response.json();
-      alert(`Error: ${errorData.error || 'Fallada en el trasllat'}`);
-      showConfirmDialog.value = false;
     }
-  } catch (e) { console.error(e); alert("Error de connexió"); }
+  } catch (e) { console.error(e); }
+};
+
+const openRoleDialog = (file) => {
+  selectedFileForSummary.value = file;
+  showRoleDialog.value = true;
+};
+
+const selectRole = (role) => {
+  showRoleDialog.value = false;
+  if (selectedFileForSummary.value) {
+    goToSummary(selectedFileForSummary.value, role);
+  }
+};
+
+const goToSummary = (file, role = 'docent') => {
+  router.push({ 
+    name: 'SummaryPage', 
+    params: { filename: file.filename },
+    query: { role: role }
+  });
+};
+
+const generateGlobalSummary = async () => {
+    loadingGlobal.value = true;
+    try {
+        const response = await fetch('http://localhost:3001/api/generate-global-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ studentHash: route.params.hash_id, userEmail: localStorage.getItem('userEmail') || 'usuari' })
+        });
+        
+        if (response.ok) {
+             await studentStore.fetchStudents();
+             startGlobalSSE();
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        loadingGlobal.value = false;
+    }
+};
+
+const startGlobalSSE = () => {
+    if (globalSSE) return;
+    const hash = route.params.hash_id;
+    
+    globalSSE = new EventSource(`http://localhost:3001/api/progress/${hash}`);
+    globalSSE.onmessage = (e) => {
+        try {
+            const data = JSON.parse(e.data);
+            if (data.status === 'CONNECTED') return;
+            if (data.role !== 'global') return; // Ignore file summaries here
+
+            // Update local student store directly to reflect progress
+            const sIdx = studentStore.students.findIndex(s => s.hash_id === hash);
+            if (sIdx !== -1) {
+                const s = studentStore.students[sIdx];
+                if (!s.global_summary) s.global_summary = {};
+                s.global_summary.estado = data.status;
+                s.global_summary.progress = data.progress;
+                if (data.resumen) s.global_summary.resumen = data.resumen;
+                
+                // Trigger reactivity trick if needed, but array mutation usually works in Vue 3
+            }
+
+            if (data.status === 'COMPLETAT' || data.status === 'INTERROMPUT' || data.status === 'ERROR') {
+                globalSSE.close();
+                globalSSE = null;
+            }
+        } catch (err) { console.error(err); }
+    };
 };
 
 const handleUpload = async (files) => {
   const file = Array.isArray(files) ? files[0] : files;
   if (file) {
-    if (file.type !== 'application/pdf') { alert("Només s'accepten fitxers PDF!"); return; }
     const success = await studentStore.uploadStudentPI(file, route.params.hash_id);
     if (success) await studentStore.fetchStudents();
-    else alert("Error al pujar el fitxer");
   }
 };
 
-const goToSummary = (file) => router.push({ name: 'SummaryPage', params: { filename: file.filename } });
-
-const downloadFile = async (filename, originalName) => {
-  try {
-    const response = await fetch(`http://localhost:3001/uploads/${filename}`);
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = originalName || filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  } catch (error) { console.error('Error downloading:', error); }
+const downloadFile = (filename, originalName) => {
+  window.open(`http://localhost:3001/uploads/${filename}`, '_blank');
 };
 
 const deleteFile = async (filename) => {
-  if (!confirm('Estàs segur que vols eliminar aquest fitxer?')) return;
-  const success = await studentStore.deleteFile(route.params.hash_id, filename);
-  if (success) await studentStore.fetchStudents();
-  else alert("No s'ha pogut esborrar");
+  if (confirm('Eliminar?')) {
+    await studentStore.deleteFile(route.params.hash_id, filename);
+  }
 };
 
+const getSchoolName = (code) => {
+  const found = schoolsList.value.find(s => s.codi_centre === code);
+  return found ? found.denominacio_completa : code;
+};
+
+const currentSchoolName = computed(() => student.value?.codi_centre ? getSchoolName(student.value.codi_centre) : 'Sense centre');
+const getFileExtension = (fn) => fn.split('.').pop().toUpperCase();
+const formatDate = (d) => d ? new Date(d).toLocaleDateString('ca-ES') : '-';
+const getFilesForCurrentCenter = () => normalizedFiles.value;
+const getFilesByHistory = () => [];
+const goToList = () => router.push('/alumnos');
+const isLatest = () => false;
+
 onMounted(async () => {
-  if (studentStore.students.length === 0) await studentStore.fetchStudents();
+  await studentStore.fetchStudents();
   try {
     const res = await fetch('http://localhost:3001/api/centros');
     if (res.ok) schoolsList.value = await res.json();
-  } catch (e) { console.error("Error centres:", e); }
+  } catch (e) { }
+
+  // Check if we need to listen for global summary
+  if (student.value && student.value.global_summary) {
+    const st = student.value.global_summary.estado;
+    if (st === 'A LA CUA' || st === 'LLEGINT...' || st === 'GENERANT...') {
+        startGlobalSSE();
+    }
+  }
+});
+
+onUnmounted(() => {
+    if (globalSSE) globalSSE.close();
 });
 </script>
 
 <style scoped>
-/* --- Corporate Colors --- */
 .text-gencat-red { color: #C00021 !important; }
 .bg-gencat-background { background-color: #F5F5F7 !important; }
-
-/* --- General Card Styling --- */
-.gencat-card {
-  border: 1px solid #E0E0E0 !important;
-  background-color: white;
-  transition: all 0.2s ease;
+.gencat-card { border: 1px solid #E0E0E0 !important; }
+.data-box { background-color: #FAFAFA; border: 1px solid #EEEEEE; padding: 12px; }
+.history-container { max-height: 500px; overflow-y: auto; }
+.robot-pulse { animation: pulse-primary 3s infinite; }
+.robot-pulse-fast { animation: pulse-primary 1s infinite; }
+@keyframes pulse-primary {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
 }
-.border-subtle { border-color: #E0E0E0 !important; }
-.border-green-subtle { border-color: #A5D6A7 !important; } 
-.border-bottom-subtle { border-bottom: 1px solid #E0E0E0 !important; }
-
-/* --- Data Boxes --- */
-.data-box {
-  background-color: #FAFAFA;
-  border: 1px solid #EEEEEE;
-  border-radius: 4px;
-}
-.data-box.active {
-  background-color: white;
-  border-color: #E0E0E0;
-  border-left: 3px solid #C00021;
-}
-
-/* --- Timeline Styling --- */
-.history-container {
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-/* Custom Scrollbar */
-.history-container::-webkit-scrollbar, .v-list::-webkit-scrollbar { width: 4px; }
-.history-container::-webkit-scrollbar-track, .v-list::-webkit-scrollbar-track { background: transparent; }
-.history-container::-webkit-scrollbar-thumb, .v-list::-webkit-scrollbar-thumb { background: #D6D6D6; border-radius: 4px; }
-
-.timeline-dot-inner {
-  width: 12px;
-  height: 12px;
-  background-color: #D0021B;
-  border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 0 0 1px #D0021B;
-}
-
-/* Tarjeta del timeline con indicador lateral */
-.gencat-timeline-card {
-  border: 1px solid #EEEEEE;
-  border-radius: 4px;
-  background-color: white;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Indicador lateral izquierdo */
-.status-border-left {
-    border-left-width: 4px !important;
-    border-left-style: solid !important;
-}
-.red-border { border-left-color: #D0021B !important; }
-.green-border { border-left-color: #43A047 !important; } 
-.grey-border { border-left-color: #BDBDBD !important; }
-
-.border-top-dashed { border-top: 1px dashed #E0E0E0; }
-
-.status-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background-color: #E0E0E0;
-  color: #616161;
-}
-.status-badge.active {
-  background-color: #D0021B;
-  color: white;
-}
-
-/* --- File Manager --- */
-.sticky-top-20 { position: sticky; top: 20px; z-index: 1; }
-
-.upload-zone :deep(.v-field) {
-  border: 1px dashed #BDBDBD !important;
-  border-radius: 6px;
-  background-color: #FAFAFA;
-  transition: background 0.2s;
-}
-.upload-zone :deep(.v-field:hover) { background-color: #F5F5F5; }
-
-.file-icon-box { width: 32px; height: 32px; }
-.file-item { transition: background-color 0.1s; cursor: pointer; }
-.file-item:hover { background-color: #FAFAFA; }
-
-/* --- Typography Helpers --- */
-.hover-underline:hover { text-decoration: underline; }
-.font-secondary { font-family: 'Georgia', serif; }
-.hover-shadow:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-.text-no-wrap { white-space: nowrap !important; }
-
-/* --- Dialog Actions --- */
-.gap-2 { gap: 8px; }
-
-/* Global Font Override */
-:deep(.v-application) {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif !important;
-}
+.border-dashed { border: 1px dashed #e0e0e0 !important; }
+.cursor-blink { animation: blink 1s step-end infinite; color: #D0021B; font-weight: bold; }
+@keyframes blink { 50% { opacity: 0; } }
 </style>

@@ -152,10 +152,10 @@
                                     <div class="d-flex align-center gap-4">
                                         <div style="width: 200px" class="d-none d-sm-block">
                                             <v-file-input 
-                                                label="Pujar PI (PDF)" 
+                                                label="Pujar PI (PDF, Word, ODT)" 
                                                 variant="outlined" 
                                                 density="compact"
-                                                accept=".pdf" 
+                                                accept=".pdf,.docx,.doc,.odt" 
                                                 prepend-icon=""
                                                 prepend-inner-icon="mdi-cloud-upload" 
                                                 hide-details
@@ -311,8 +311,9 @@ const handleUpload = async (files, hashId) => {
     const file = Array.isArray(files) ? files[0] : files;
 
     if (file) {
-        if (file.type !== 'application/pdf') {
-            studentStore.error = "Només s'accepten fitxers PDF!";
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'application/vnd.oasis.opendocument.text'];
+        if (!allowedTypes.includes(file.type)) {
+            studentStore.error = "Només s'accepten fitxers PDF, DOCX i ODT!";
             showError.value = true;
             return;
         }

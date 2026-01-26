@@ -59,6 +59,9 @@
                 <v-chip filter value="pujada" variant="outlined" color="green-darken-3" size="small">
                     <v-icon start icon="mdi-cloud-upload" size="small"></v-icon> Pujades
                 </v-chip>
+                <v-chip filter value="ia" variant="outlined" color="purple-darken-3" size="small">
+                    <v-icon start icon="mdi-robot-outline" size="small"></v-icon> IA
+                </v-chip>
             </v-chip-group>
         </div>
 
@@ -175,6 +178,7 @@ const filteredLogs = computed(() => {
         
         if (filter === 'trasllat') return action.includes('trasllat') || action.includes('transfer');
         if (filter === 'pujada') return action.includes('pujada') || action.includes('upload');
+        if (filter === 'ia') return action.includes('ai:') || action.includes('ia:') || action.includes('resum');
         return true;
     });
 });
@@ -203,6 +207,7 @@ const cleanActionText = (text) => {
     if(!text) return '';
     if(isTransfer(text)) return 'Trasllat de Centre';
     if(text.includes('Bloqueig')) return 'Bloqueig Preventiu';
+    if(text.includes('AI:') || text.includes('IA:')) return 'Resum IA Generat';
     return text;
 };
 
@@ -233,6 +238,7 @@ const getActionColor = (accio) => {
   if (a.includes('nou alumne')) return 'blue-lighten-4 text-blue-darken-4';
   if (a.includes('trasllat')) return 'orange-lighten-4 text-orange-darken-4';
   if (a.includes('elimin')) return 'red-lighten-4 text-red-darken-4';
+  if (a.includes('ia:') || a.includes('ai:')) return 'purple-lighten-4 text-purple-darken-4';
   
   return 'grey-lighten-4 text-grey-darken-2';
 };
@@ -247,6 +253,7 @@ const getActionIcon = (accio) => {
     if (a.includes('nou alumne')) return 'mdi-account-plus';
     if (a.includes('trasllat')) return 'mdi-transfer'; 
     if (a.includes('elimin')) return 'mdi-trash-can';
+    if (a.includes('ia:') || a.includes('ai:')) return 'mdi-robot-outline';
     
     return 'mdi-information';
 };

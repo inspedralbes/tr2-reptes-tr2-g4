@@ -82,8 +82,8 @@ const shouldShowLog = (log) => {
   const myCenterCode = localStorage.getItem('userCenterCode'); 
   const myEmail = localStorage.getItem('userEmail');
 
-  // A. Solo Altas y Traslados
-  const isTypeRelevant = log.accio.includes('Nou Alumne') || log.accio.includes('Trasllat');
+  // A. Solo Altas, Traslados y AI
+  const isTypeRelevant = log.accio.includes('Nou Alumne') || log.accio.includes('Trasllat') || log.accio.includes('AI:');
   if (!isTypeRelevant) return false;
 
   // B. Si es admin (no tiene código), ve todo
@@ -177,12 +177,14 @@ const formatTime = (isoString) => {
 const getActionIcon = (action) => {
   if (action.includes('Nou')) return 'mdi-account-plus';
   if (action.includes('Trasllat')) return 'mdi-transfer';
+  if (action.includes('AI:')) return 'mdi-robot-outline';
   return 'mdi-information-variant';
 };
 
 const cleanActionTitle = (action) => {
     if (action.includes('Trasllat')) return 'Trasllat d\'Alumne';
     if (action.includes('Nou Alumne')) return 'Alta d\'Expedient';
+    if (action.includes('AI:')) return 'Anàlisi IA Completada';
     return action;
 };
 
@@ -191,6 +193,9 @@ const getDetailText = (log) => {
     const parts = log.accio.split(' a ');
     const dest = parts.length > 1 ? parts[1] : 'Nou Centre';
     return `enviat a: ${dest}`;
+  }
+  if (log.accio.includes('AI:')) {
+    return log.accio; 
   }
   return `ha registrat RALC: ${log.ralc_alumne}`;
 };

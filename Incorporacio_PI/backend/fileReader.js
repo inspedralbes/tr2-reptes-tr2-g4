@@ -1,28 +1,72 @@
-const pdf = require('pdf-parse-fork'); // Changed from 'pdf-parse'
+const pdf = require('pdf-parse-fork');
+const mammoth = require('mammoth');
+const AdmZip = require('adm-zip');
 
 /**
- * Reads a PDF buffer and returns plain text.
- * @param {Buffer} buffer - The PDF file in memory
+ * Extracts text from a PDF buffer.
  */
 async function extractTextFromPDF(buffer) {
     try {
-        // pdf-parse-fork works exactly like pdf-parse
         const data = await pdf(buffer);
         const fullText = data.text;
-
-        // Debug logs
         if (!fullText || fullText.trim().length < 10) {
             console.log("⚠️ WARNING: PDF seems empty or is a scanned image.");
         } else {
             console.log(`✅ PDF read successfully: ${fullText.length} characters extracted.`);
         }
-
         return fullText;
-
     } catch (error) {
-        console.error("❌ Error in fileReader:", error.message);
-        return ""; // Return empty string instead of crashing
+        console.error("❌ Error in extractTextFromPDF:", error.message);
+        return "";
     }
 }
 
-module.exports = { extractTextFromPDF };
+/**
+ * Extracts text from a DOCX buffer.
+ */
+async function extractTextFromDOCX(buffer) {
+    try {
+        const result = await mammoth.extractRawText({ buffer });
+        console.log(`✅ DOCX read successfully: ${result.value.length} characters extracted.`);
+        return result.value;
+    } catch (error) {
+        console.error("❌ Error in extractTextFromDOCX:", error.message);
+        return "";
+    }
+}
+
+/**
+ * Extracts text from an ODT buffer.
+ */
+async function extractTextFromODT(buffer) {
+    try {
+        const zip = new AdmZip(buffer);
+        const contentXml = zip.readAsText("content.xml");
+        const text = contentXml.replace(/<text:p[^>]*>/g, '\n').replace(/<[^>]+>/g, ' ').trim();
+        console.log(`✅ ODT read successfully: ${text.length} characters extracted.`);
+        return text;
+    } catch (error) {
+        console.error("❌ Error in extractTextFromODT:", error.message);
+        return "";
+    }
+}
+
+/**
+ * Entry point for extracting text from various file formats.
+ */
+async function extractTextFromFile(buffer, filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    switch (ext) {
+        case 'pdf':
+            return await extractTextFromPDF(buffer);
+        case 'docx':
+            return await extractTextFromDOCX(buffer);
+        case 'odt':
+            return await extractTextFromODT(buffer);
+        default:
+            console.warn(`⚠️ Unsupported file extension: .${ext}`);
+            return "";
+    }
+}
+
+module.exports = { extractTextFromFile, extractTextFromPDF, extractTextFromDOCX, extractTextFromODT };

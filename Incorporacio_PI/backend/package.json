@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "amqplib": "^0.10.3",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
@@ -21,8 +22,11 @@
     "mongodb": "^7.0.0",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.12",
+    "openai": "^4.28.0",
     "path": "^0.12.7",
     "pdf-parse-fork": "^1.2.0",
-    "socket.io": "^4.7.4"
+    "socket.io": "^4.7.4",
+    "adm-zip": "^0.5.10",
+    "mammoth": "^1.6.0"
   }
 }

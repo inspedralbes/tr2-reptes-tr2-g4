@@ -1,26 +1,29 @@
-version: '3.8'
-
 services:
-  # --- SERVICIO BACKEND ---
   backend:
     build:
-      context: ./backend         # Carpeta del contexto
-      dockerfile: Dockerfile.dev # Archivo específico
+      context: ./backend
+      dockerfile: Dockerfile.dev
     container_name: pi_backend
     ports:
       - "3001:3001"
     env_file:
-      - .env
+      - ./backend/.env
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
       - /app/node_modules
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      llm:
+        condition: service_healthy
 
-  # --- SERVICIO FRONTEND ---
   frontend:
     build:
-      context: ./frontend        # Carpeta del contexto
-      dockerfile: Dockerfile.dev # Archivo específico
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     container_name: pi_frontend
     ports:
       - "3000:3000"
@@ -32,4 +35,32 @@ services:
     depends_on:
       - backend
 
-# No necesitamos servicio de Mongo porque usas Atlas (Nube)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: pi_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ./backend/rabbitmq_data:/var/lib/rabbitmq
+
+  llm:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.llm
+    container_name: pi_llm
+    volumes:
+      - ./backend/models:/models
+    ports:
+      - "8080:8080"
+    command: -m /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf -c ${AI_CONTEXT_SIZE:-4096} -ctk q8_0 -ctv q8_0 --host 0.0.0.0 --port 8080 --threads ${AI_THREADS:-2} --batch-size 256 --n-predict 1024 --cont-batching
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 60s
+      retries: 10
