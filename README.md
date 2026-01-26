@@ -83,7 +83,7 @@ Aquest projecte està desenvolupat per alumnes de **2n curs del Cicle Formatiu d
 
 ## Equip del Projecte
 - **Kim** – [GitHub](https://github.com/a24kimgalgal)
-- **Paul**
+- **Pau** - [Github](https://github.com/PauGit2134)
 - **Joel**
 - **Enrique** – [GitHub](https://github.com/enriquecayo)
 
