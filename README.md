@@ -1,22 +1,3 @@
-# transversals
-Esquema mínim de carpetes pels projectes transversals
-
-És obligatori seguir aquesta estructura tot i que la podeu ampliar.
-
-## Atenció
-Un cop comenceu heu de canviar aquesta explicació amb la corresponent al vostre projecte (utilitzant markdown)
-
-# Aquest fitxer ha de contenir com a mínim:
- * Nom dels integrants
- * Nom del projecte
- * Petita descripció
- * Adreça del gestor de tasques (taiga, jira, trello...)
- * Adreça del prototip gràfic del projecte (Penpot, figma, moqups...)
- * URL de producció (quan la tingueu)
- * Estat: (explicació d'en quin punt està)
-
----
-
 # Plataforma Intercentre de Traspàs d'Adaptacions Educatives amb IA
 **Projecte Pilot – Institucional (Centre a Centre)**
 
@@ -26,6 +7,11 @@ Aquest projecte consisteix en el desenvolupament d’una **plataforma intercentr
 La solució aborda una problemàtica real del sistema educatiu actual: la manca d’interoperabilitat i continuïtat de la informació pedagògica quan un alumne canvia de centre. Mitjançant l’ús d’**Intel·ligència Artificial**, el sistema permet estandarditzar, resumir i presentar les adaptacions educatives de manera clara i útil per al professorat del centre receptor.
 
 Aquest projecte es desenvolupa com una **aplicació pilot**, amb finalitats acadèmiques, però amb una orientació clara a un possible entorn institucional real.
+
+---
+
+## Deepwiki
+- [Incorporació PI](https://deepwiki.com/inspedralbes/tr2-reptes-tr2-g4)
 
 ---
 
