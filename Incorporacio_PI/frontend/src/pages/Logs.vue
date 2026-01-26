@@ -50,18 +50,17 @@
                 <v-chip filter value="login" variant="outlined" color="teal-darken-3" size="small">
                     <v-icon start icon="mdi-login" size="small"></v-icon> Accessos
                 </v-chip>
-                
-                <!-- AFEGEIX AQUEST -->
                 <v-chip filter value="alumnes" variant="outlined" color="blue-darken-3" size="small">
                     <v-icon start icon="mdi-account-school" size="small"></v-icon> Alumnes
                 </v-chip>
-                <!-- FI DE L'AFEGIT -->
-
                 <v-chip filter value="trasllat" variant="outlined" color="orange-darken-4" size="small">
                     <v-icon start icon="mdi-transfer" size="small"></v-icon> Trasllats
                 </v-chip>
                 <v-chip filter value="pujada" variant="outlined" color="green-darken-3" size="small">
                     <v-icon start icon="mdi-cloud-upload" size="small"></v-icon> Pujades
+                </v-chip>
+                <v-chip filter value="ia" variant="outlined" color="purple-darken-3" size="small">
+                    <v-icon start icon="mdi-robot-outline" size="small"></v-icon> IA
                 </v-chip>
             </v-chip-group>
         </div>
@@ -120,7 +119,6 @@
                              </span>
                         </div>
 
-                        <!-- Si és un bloqueig, mostrem el motiu en vermell -->
                         <span v-if="isSecurityEvent(log.accio)" class="text-caption text-red font-weight-bold">
                             ⚠️ {{ log.ralc_alumne }}
                         </span>
@@ -175,12 +173,11 @@ const filteredLogs = computed(() => {
         
         if (filter === 'seguretat') return action.includes('bloqueig') || action.includes('fallit') || action.includes('seguretat');
         if (filter === 'login') return action.includes('login correcte') || action.includes('accés');
-        
-        // AFEGEIX AQUESTA LÍNIA:
         if (filter === 'alumnes') return action.includes('nou') || action.includes('crear') || action.includes('alumne');
-        
         if (filter === 'trasllat') return action.includes('trasllat') || action.includes('transfer');
         if (filter === 'pujada') return action.includes('pujada') || action.includes('upload');
+        // AÑADIDO DE PROVA: Filtro IA
+        if (filter === 'ia') return action.includes('ai:') || action.includes('ia:') || action.includes('resum');
         return true;
     });
 });
@@ -211,6 +208,8 @@ const cleanActionText = (text) => {
     if(!text) return '';
     if(isTransfer(text)) return 'Trasllat de Centre';
     if(text.includes('Bloqueig')) return 'Bloqueig Preventiu';
+    // AÑADIDO DE PROVA: Texto IA
+    if(text.includes('AI:') || text.includes('IA:')) return 'Resum IA Generat';
     return text;
 };
 
@@ -234,18 +233,17 @@ const getActionColor = (accio) => {
   if (!accio) return 'grey';
   const a = accio.toLowerCase();
   
-  // Seguretat
-  if (a.includes('bloqueig')) return 'red-darken-4 text-white'; // Vermell intens per alertes
+  if (a.includes('bloqueig')) return 'red-darken-4 text-white'; 
   if (a.includes('fallit')) return 'orange-lighten-4 text-orange-darken-4';
   
-  // Èxits
   if (a.includes('login correcte')) return 'teal-lighten-4 text-teal-darken-4';
   
-  // Operatius
   if (a.includes('pujada')) return 'green-lighten-4 text-green-darken-4';
   if (a.includes('nou alumne')) return 'blue-lighten-4 text-blue-darken-4';
   if (a.includes('trasllat')) return 'orange-lighten-4 text-orange-darken-4';
   if (a.includes('elimin')) return 'red-lighten-4 text-red-darken-4';
+  // AÑADIDO DE PROVA: Color IA
+  if (a.includes('ia:') || a.includes('ai:')) return 'purple-lighten-4 text-purple-darken-4';
   
   return 'grey-lighten-4 text-grey-darken-2';
 };
@@ -260,6 +258,8 @@ const getActionIcon = (accio) => {
     if (a.includes('nou alumne')) return 'mdi-account-plus';
     if (a.includes('trasllat')) return 'mdi-transfer'; 
     if (a.includes('elimin')) return 'mdi-trash-can';
+    // AÑADIDO DE PROVA: Icono IA
+    if (a.includes('ia:') || a.includes('ai:')) return 'mdi-robot-outline';
     
     return 'mdi-information';
 };
