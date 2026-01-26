@@ -92,7 +92,6 @@ Explicació de com es puja l'aplicació al servidor de producció (AWS, Vercel, 
 
 ## 6. API Backend
 
-<<<<<<< HEAD
 Llistat d'endpoints disponibles.
 =======
 Llistat d'endpoints disponibles. 
@@ -123,7 +122,6 @@ Llistat d'endpoints disponibles.
 
 ## 7. Aplicació Android / Altres elements
 
-<<<<<<< HEAD
 - Unity
 
 ---
