@@ -1,35 +1,32 @@
 const nodemailer = require("nodemailer");
 
-// --- CONFIGURACIÓN ROBUSTA PARA SALTAR FIREWALLS ---
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,               // Puerto estándar para TLS (suele estar abierto)
-  secure: false,           // 'false' es lo correcto para el puerto 587
+  port: 587,               
+  secure: false,           
   auth: {
     user: process.env.EMAIL_USER, 
     pass: process.env.EMAIL_PASS  
   },
-  // ESTA SECCIÓN ES LA QUE EVITA EL TIMEOUT EN EL INSTITUTO:
+
   tls: {
-    rejectUnauthorized: false, // Ignora si el firewall intercepta el certificado
-    ciphers: 'SSLv3'           // Usa cifrados compatibles antiguos si es necesario
+    rejectUnauthorized: false, 
+    ciphers: 'SSLv3'           
   },
-  connectionTimeout: 10000, // 10 segundos máximo de espera
+  connectionTimeout: 10000,
   greetingTimeout: 10000
 });
 
-// Verificación al arrancar (para ver en el log si conecta)
 transporter.verify(function (error, success) {
   if (error) {
-    console.log("⚠️ ERROR DE CONEXIÓN SMTP:", error.message);
+    console.log("ERROR DE CONEXIÓN SMTP:", error.message);
   } else {
-    console.log("✅ Servidor de Correu (SMTP) connectat i llest.");
+    console.log("Servidor de Correu (SMTP) connectat i llest.");
   }
 });
 
 async function sendVerificationCode(email, code) {
   const mailOptions = {
-    // Remitente con nombre oficial
     from: `"Plataforma PI - Generalitat de Catalunya" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: 'Codi de verificació d\'accés a la Plataforma PI',
@@ -89,12 +86,12 @@ async function sendVerificationCode(email, code) {
   };
 
   try {
-    console.log(`📨 Intentant enviar correu a ${email} ...`);
+    console.log(`Intentant enviar correu a ${email} ...`);
     await transporter.sendMail(mailOptions);
-    console.log('✅ Correu enviat correctament!');
+    console.log('Correu enviat correctament!');
     return true;
   } catch (error) {
-    console.error('❌ Error enviant el correu:', error.message);
+    console.error('Error enviant el correu:', error.message);
     return false;
   }
 }

@@ -17,7 +17,7 @@ async function runSeed() {
     const count = await db.collection('students').countDocuments();
     
     if (count === 0) {
-        console.log("🌱 Seed: Inserint dades inicials...");
+        console.log("Seed: Inserint dades inicials...");
         const docs = dbAlumnosRaw.map(a => ({
             hash_id: generarHash(a.id), 
             visual_identity: {

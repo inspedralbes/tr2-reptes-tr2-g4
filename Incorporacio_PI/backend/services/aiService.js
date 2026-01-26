@@ -1,15 +1,11 @@
 const OpenAI = require("openai");
 
-// Configuracio del client per a IA LOCAL
 const openai = new OpenAI({
     baseURL: process.env.AI_BASE_URL || "http://pi_llm:8080/v1",
     apiKey: "sk-no-key-required",
     timeout: 60 * 60 * 1000,
 });
 
-/**
- * Comprova si el contenidor de la IA esta disponible.
- */
 async function checkConnection(retries = 100) {
     const url = (process.env.AI_BASE_URL || "http://pi_llm:8080/v1").replace('/v1', '/health');
     console.log(`AI: Checking connection (${url})...`);
@@ -30,9 +26,6 @@ async function checkConnection(retries = 100) {
     return false;
 }
 
-/**
- * Genera un resum utilitzant IA LOCAL amb reintents i seguretat.
- */
 async function generateSummaryLocal(text, role, onProgress) {
     const healthUrl = (process.env.AI_BASE_URL || "http://pi_llm:8080/v1").replace('/v1', '/health');
     let ready = false;
@@ -190,8 +183,6 @@ async function generateSummaryLocal(text, role, onProgress) {
             fullText += content;
             chunkCount++;
 
-            // Send progress update ONLY for the percentage/spinner, NOT the text.
-            // Sending 'undefined' as text prevents the frontend/DB from updating the summary content partially.
             if (onProgress && chunkCount % 10 === 0) {
                 await onProgress(undefined, Math.min(Math.floor(chunkCount / 2), 99), false);
             }

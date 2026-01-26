@@ -3,13 +3,9 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { getDB } = require('../db');
-const { UPLOADS_DIR } = require('../config/multer'); // Asegúrate que esta importación sea correcta según tu proyecto
+const { UPLOADS_DIR } = require('../config/multer'); 
 const { generarHash, obtenerIniciales } = require('../utils/helpers');
-const { registrarAcces } = require('../utils/logger'); // <--- IMPRESCINDIBLE
-
-// ==========================================
-// 1. RUTES ESTÀTIQUES I DE CERCA
-// ==========================================
+const { registrarAcces } = require('../utils/logger'); 
 
 router.get('/search/advanced', async (req, res) => {
     const { term, hasFile, minDificultats } = req.query;
@@ -52,11 +48,6 @@ router.get('/search/advanced', async (req, res) => {
     }
 });
 
-// ==========================================
-// 2. RUTES GENERALS
-// ==========================================
-
-// GET: Llistat complet
 router.get('/', async (req, res) => {
     try {
         const db = getDB();
@@ -67,7 +58,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-// POST: Crear alumne
 router.post('/', async (req, res) => {
     const { nombre, id, codi_centre, start_date, userEmail } = req.body; 
 
@@ -100,8 +90,6 @@ router.post('/', async (req, res) => {
 
         await db.collection('students').insertOne(newStudent);
         
-        // --- AQUÍ SE DISPARA LA NOTIFICACIÓN AUTOMÁTICAMENTE ---
-        // Al llamar a registrarAcces, logger.js ejecutará el io.emit
         await registrarAcces(
             userEmail || 'Sistema', 
             `Nou Alumne (${codi_centre || 'Sense Centre'})`, 
@@ -116,11 +104,6 @@ router.post('/', async (req, res) => {
     }
 });
 
-// ==========================================
-// 3. RUTES ESPECÍFIQUES PER ID (:hash)
-// ==========================================
-
-// DELETE: Eliminar fitxer
 router.delete('/:hash/files/:filename', async (req, res) => {
     const { hash, filename } = req.params;
     const { userEmail } = req.body; 
@@ -137,7 +120,6 @@ router.delete('/:hash/files/:filename', async (req, res) => {
 
         await db.collection('students').updateOne({ hash_id: hash, filename: filename }, { $unset: { filename: "" } });
         
-        // Recalcular has_file
         const studentUpdated = await db.collection('students').findOne({ hash_id: hash });
         const hasFiles = (studentUpdated.files && studentUpdated.files.length > 0);
         await db.collection('students').updateOne({ hash_id: hash }, { $set: { has_file: hasFiles } });
@@ -145,8 +127,6 @@ router.delete('/:hash/files/:filename', async (req, res) => {
         const filePath = path.join(UPLOADS_DIR, filename);
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-        // Esto también enviará notificación (Broadcast), pero el frontend la ignorará 
-        // si no tienes un filtro para "Eliminació de document".
         await registrarAcces(userEmail || 'Desconegut', 'Eliminació de document', ralcSuffix);
         
         res.json({ success: true });
@@ -157,7 +137,6 @@ router.delete('/:hash/files/:filename', async (req, res) => {
 });
 
 
-// PUT: Trasllat de centre
 router.put('/:hash/transfer', async (req, res) => {
     const { hash } = req.params;
     const { new_center_id, start_date, end_date, userEmail } = req.body;
@@ -199,15 +178,13 @@ router.put('/:hash/transfer', async (req, res) => {
             }
         );
 
-        // --- AQUÍ SE DISPARA LA NOTIFICACIÓN DE TRASLADO ---
-        // Formato clave: "Trasllat a [CODI]" para que el frontend lo entienda
         await registrarAcces(
             userEmail || 'Desconegut', 
             `Trasllat a ${new_center_id}`, 
             student.visual_identity.ralc_suffix
         );
 
-        console.log(`🔄 Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id}`);
+        console.log(`Trasllat realitzat: ${student.visual_identity.iniciales} -> ${new_center_id}`);
         res.json({ success: true, message: "Centre modificat i historial guardat" });
 
     } catch (error) {

@@ -15,7 +15,6 @@ async function getFileText(filename) {
     return await extractTextFromFile(buffer, filename);
 }
 
-// POST: Generar resum individual
 router.post('/generate-summary', async (req, res) => {
     const { text, filename, role, userEmail } = req.body;
     if (!text || !filename) return res.status(400).json({ error: 'Falta text o filename' });
@@ -23,7 +22,6 @@ router.post('/generate-summary', async (req, res) => {
     const success = sendToQueue({ text, filename, role: role || 'docent', userEmail: userEmail || 'usuari' });
     if (!success) return res.status(500).json({ error: 'RabbitMQ no disponible' });
 
-    // Actualitzar estat a la BD immediatament
     try {
         const db = getDB();
         const roleKey = role || 'docent';
@@ -38,7 +36,6 @@ router.post('/generate-summary', async (req, res) => {
     res.json({ success: true, message: "Afegit a la cua" });
 });
 
-// POST: Generar resum GLOBAL
 router.post('/generate-global-summary', async (req, res) => {
     const { studentHash, userEmail } = req.body;
     if (!studentHash) return res.status(400).json({ error: 'Falta studentHash' });
@@ -55,7 +52,6 @@ router.post('/generate-global-summary', async (req, res) => {
             combinedText += `--- DOCUMENT: ${f.originalName} ---\n${text.substring(0, 1500)}...\n\n`;
         }
 
-        // Actualitzar estat a la BD immediatament
         await db.collection('students').updateOne(
             { hash_id: studentHash },
             { $set: { "global_summary.estado": "A LA CUA", "global_summary.progress": 0 } }

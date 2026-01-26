@@ -10,7 +10,6 @@ let channel = null;
 const localQueue = [];
 let isProcessing = false;
 
-// SSE broadcast helper (to be connected from server.js)
 let broadcastProgress = null;
 function setBroadcastFn(fn) { broadcastProgress = fn; }
 
@@ -51,10 +50,8 @@ async function processNext() {
         let query = role === 'global' ? { hash_id: studentHash } : { "files.filename": filename };
         let updateField = role === 'global' ? "global_summary" : "files.$.ia_data";
 
-        // Per als resums de rol (docent/orientador), afegim el subnivell del rol
         const finalField = role === 'global' ? updateField : `${updateField}.${role}`;
 
-        // Initial state
         await db.collection('students').updateOne(query, {
             $set: { [`${finalField}.estado`]: "LLEGINT...", [`${finalField}.progress`]: 1 }
         });
@@ -65,7 +62,6 @@ async function processNext() {
             const statusText = isReading ? "LLEGINT..." : "GENERANT...";
             if (broadcastProgress) broadcastProgress(filename, { status: statusText, progress, resumen: partial, role });
 
-            // Throttled DB update
             if (progress % 10 === 0) {
                 await db.collection('students').updateOne(query, {
                     $set: { [`${finalField}.estado`]: statusText, [`${finalField}.progress`]: progress, [`${finalField}.resumen`]: partial }
@@ -83,7 +79,6 @@ async function processNext() {
 
         if (broadcastProgress) broadcastProgress(filename, { status: "COMPLETAT", progress: 100, resumen: summary, role });
 
-        // --- REGISTRE I NOTIFICACIÓ ---
         try {
             const studentDoc = await db.collection('students').findOne(query);
             const initials = studentDoc?.visual_identity?.iniciales || "Alumne";

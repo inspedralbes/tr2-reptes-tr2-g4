@@ -34,7 +34,7 @@ router.post('/', upload.single('documento_pi'), async (req, res) => {
         );
 
         await registrarAcces(userEmail || 'sistema', 'Pujada de document PI', ralcSuffix);
-        console.log(`📄 LOG: PDF pujat per ${ralcSuffix}`);
+        console.log(`LOG: PDF pujat per ${ralcSuffix}`);
         res.json({ success: true });
     } catch (error) {
         console.error(error);

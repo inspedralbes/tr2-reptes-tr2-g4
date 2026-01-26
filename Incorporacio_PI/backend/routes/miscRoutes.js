@@ -8,7 +8,6 @@ const { analyzePI } = require('../piAnalyzer');
 const centrosData = require('../centres-educatius.json');
 const { UPLOADS_DIR } = require('../config/multer');
 
-// Logs
 router.get('/logs', async (req, res) => {
     try {
         const db = getDB();
@@ -19,17 +18,15 @@ router.get('/logs', async (req, res) => {
     }
 });
 
-// Centres
 router.get('/centros', (req, res) => res.json(centrosData));
 
-// Analitzar
 router.get('/analyze/:filename', async (req, res) => {
     try {
         const filename = decodeURIComponent(req.params.filename);
         const filePath = path.join(UPLOADS_DIR, filename);
 
         if (!fs.existsSync(filePath)) {
-            console.error(`❌ Fitxer no trobat a disc: ${filePath}`);
+            console.error(`Fitxer no trobat a disc: ${filePath}`);
             return res.status(404).json({ error: 'Fitxer no trobat a disc' });
         }
 
@@ -37,14 +34,13 @@ router.get('/analyze/:filename', async (req, res) => {
         const student = await db.collection('students').findOne({ "files.filename": filename });
 
         if (!student) {
-            console.warn(`⚠️ Alerta: El fitxer ${filename} no està vinculat a cap alumne a la BD.`);
+            console.warn(`Alerta: El fitxer ${filename} no està vinculat a cap alumne a la BD.`);
         }
 
         const dataBuffer = fs.readFileSync(filePath);
         const text = await extractTextFromFile(dataBuffer, filename);
         const analysis = analyzePI(text);
 
-        // Retornem tant l'anàlisi de patrons com el text complet per a la IA
         const responseData = {
             ...analysis,
             text_completo: text
@@ -60,29 +56,23 @@ router.get('/analyze/:filename', async (req, res) => {
         res.json(responseData);
 
     } catch (error) {
-        console.error("❌ Error en /analyze:", error);
+        console.error("Error en /analyze:", error);
         res.status(500).json({ error: 'Error processant el document' });
     }
 });
 
-/**
- * REQUISIT 3: OPERACIONS CRUD COMPLETES
- * deleteMany per neteja de logs antics
- */
 router.delete('/maintenance/logs', async (req, res) => {
     try {
         const db = getDB();
 
-        // Calculem data de fa 30 dies
         const dateLimit = new Date();
         dateLimit.setDate(dateLimit.getDate() - 30);
 
-        // Esborrar logs més vells de 30 dies
         const result = await db.collection('access_logs').deleteMany({
             timestamp: { $lt: dateLimit }
         });
 
-        console.log(`🧹 Manteniment: ${result.deletedCount} logs antics esborrats.`);
+        console.log(`Manteniment: ${result.deletedCount} logs antics esborrats.`);
 
         res.json({
             success: true,
@@ -94,5 +84,4 @@ router.delete('/maintenance/logs', async (req, res) => {
     }
 });
 
-// Assegura't de tenir exportat el router
 module.exports = router;

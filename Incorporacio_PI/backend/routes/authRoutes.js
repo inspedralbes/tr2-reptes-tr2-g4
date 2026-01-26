@@ -1,5 +1,3 @@
-// backend/routes/authRoutes.js
-
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../db');
@@ -10,9 +8,6 @@ const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 require('dotenv').config();
 
-// --- CONFIGURACIÓ DE LIMITADORS (RATE LIMITING) ---
-// Mantenim els limitadors per seguretat (molt important si traiem captcha a Electron)
-
 const loginIpLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 10, 
@@ -21,7 +16,7 @@ const loginIpLimiter = rateLimit({
     legacyHeaders: false,
     handler: async (req, res, next, options) => {
         const ip = req.ip || req.connection.remoteAddress;
-        console.warn(`🚫 IP Bloquejada: ${ip}`);
+        console.warn(`IP Bloquejada: ${ip}`);
         await registrarAcces(`IP: ${ip}`, 'Bloqueig de Seguretat (IP)', 'Massa intents de login');
         res.status(options.statusCode).send(options.message);
     }
@@ -36,22 +31,16 @@ const emailLimiter = rateLimit({
     legacyHeaders: false,
     handler: async (req, res, next, options) => {
         const email = req.body.email || 'Desconegut';
-        console.warn(`🚫 Email Bloquejat: ${email}`);
+        console.warn(`Email Bloquejat: ${email}`);
         await registrarAcces(email, 'Bloqueig de Seguretat (Email)', 'Excés de sol·licituds de codi');
         res.status(options.statusCode).send(options.message);
     }
 });
 
-// --- RUTES ---
-
-// Ruta per ENVIAR el codi (HÍBRIDA: WEB + ELECTRON)
 router.post('/send-code', loginIpLimiter, emailLimiter, async (req, res) => {
-    // 1. AFEGIM 'isDesktop' AL DESTRUCTURING
+
     const { email, recaptchaToken, isDesktop } = req.body;
 
-    // --- LÒGICA CONDICIONAL ---
-    
-    // Si NO és escriptori (!isDesktop), ENTONCES verifiquem Captcha (Mode Web)
     if (!isDesktop) {
         if (!recaptchaToken) return res.status(400).json({ success: false, error: 'Falta Captcha.' });
 
@@ -68,12 +57,9 @@ router.post('/send-code', loginIpLimiter, emailLimiter, async (req, res) => {
             return res.status(500).json({ success: false, error: 'Error intern verificació Captcha.' });
         }
     } else {
-        // Si ÉS escriptori, saltem la verificació però deixem un log
-        console.log(`💻 Login des d'Electron (sense Captcha) per: ${email}`);
+        console.log(`Login des d'Electron (sense Captcha) per: ${email}`);
     }
-    // ---------------------------
 
-    // Enviament del codi (Igual per a tothom)
     try {
         const db = getDB();
         const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -98,7 +84,6 @@ router.post('/send-code', loginIpLimiter, emailLimiter, async (req, res) => {
     }
 });
 
-// Ruta per VERIFICAR el codi (Es queda igual)
 router.post('/verify-code', loginIpLimiter, async (req, res) => {
     const { email, code } = req.body;
     try {
