@@ -77,6 +77,7 @@ Passos per aixecar el projecte en local:
     npm install
     ```
 4.  Configurar variables d'entorn (`.env`).
+   
 5.  Executar (up) o tancar (down) el projecte.
     ```bash
     docker compose -f docker-compose.prod.yml up -d --build
