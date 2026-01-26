@@ -90,10 +90,62 @@ Passos per aixecar el projecte en local:
 
 ## 5. Desplegament a producció
 
-Explicació de com es puja l'aplicació al servidor de producció (AWS, Vercel, VPS propi, etc.):
+Explicació de com actualitzar i desplegar l'aplicació al servidor VPS.
 
-*   Pas 1...
-*   Pas 2...
+### 5.1 Accés al servidor
+Obre una terminal i connecta't via SSH:
+
+```bash
+ssh root@77.42.72.57
+```
+
+> **Nota:** En Windows, si l'anterior no funciona, prova amb la ruta completa:
+> `C:\Windows\System32\OpenSSH\ssh.exe root@77.42.72.57`
+
+Et demanarà la contrasenya d'accés al servidor.
+
+### 5.2 Actualització del codi
+Un cop dins del servidor, navega a la carpeta del projecte i descarrega els últims canvis de la branca `main`:
+
+```bash
+# Anar a la carpeta del projecte
+cd /var/www/tr2-reptes-tr2-g4
+
+# Comprovar carpetes (opcional)
+ls
+
+# Baixar canvis del repositori
+git pull
+```
+
+### 5.3 Aixecar contenidors (Docker)
+Entra a la carpeta específica de la integració (`Incorporacio_PI`), atura els contenidors antics i aixeca la nova versió:
+
+```bash
+cd Incorporacio_PI
+
+# Aturar els contenidors actuals
+docker compose -f docker-compose.prod.yml down
+
+# Reconstruir i aixecar els contenidors en segon pla
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### 5.4 Configuració de Variables d'Entorn
+Assegura't que els fitxers de configuració tenen les variables correctes.
+
+**Exemple de fitxer `.env` (Backend):**
+```properties
+MONGODB_URI=mongodb+srv://dammongog4:<password>@clusterg4.dlau5vb.mongodb.net/Incorporacio_PI?appName=ClusterG4
+EMAIL_USER=dammongog4@gmail.com
+EMAIL_PASS=********
+RECAPTCHA_SECRET_KEY=********
+```
+
+**Exemple de fitxer `.env.production` (Frontend):**
+```properties
+VITE_API_URL=http://incorporacio-pi.dam.inspedralbes.cat:3001
+```
 
 ---
 
