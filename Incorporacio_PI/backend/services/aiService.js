@@ -1,25 +1,28 @@
 const OpenAI = require("openai");
 
+const defaultBase = "http://ollama:11434/v1"; 
 const openai = new OpenAI({
-    baseURL: process.env.AI_BASE_URL || "http://pi_llm:8080/v1",
-    apiKey: "sk-no-key-required",
-    timeout: 60 * 60 * 1000,
+    baseURL: process.env.AI_BASE_URL || defaultBase,
+    apiKey: "sk-no-key-required", 
+    timeout: 60 * 60 * 1000, 
 });
 
 async function checkConnection(retries = 100) {
-    const url = (process.env.AI_BASE_URL || "http://pi_llm:8080/v1").replace('/v1', '/health');
+    const baseUrl = process.env.AI_BASE_URL || defaultBase;
+    const url = baseUrl.replace('/v1', ''); 
+    
     console.log(`AI: Checking connection (${url})...`);
 
     for (let i = 0; i < retries; i++) {
         try {
             const response = await fetch(url);
             if (response.ok) {
-                console.log("AI: Online.");
+                console.log("AI: Online (Ollama detected).");
                 return true;
             }
-            console.warn(`AI: Loading models (Status: ${response.status})...`);
+            console.warn(`AI: Status ${response.status}...`);
         } catch (error) {
-            console.warn(`AI: Attempt ${i + 1}/${retries} failed: ${error.message}`);
+            if (i % 5 === 0) console.warn(`AI: Waiting for Ollama... (${error.message})`);
         }
         if (i < retries - 1) await new Promise(r => setTimeout(r, 3000));
     }
@@ -27,19 +30,7 @@ async function checkConnection(retries = 100) {
 }
 
 async function generateSummaryLocal(text, role, onProgress) {
-    const healthUrl = (process.env.AI_BASE_URL || "http://pi_llm:8080/v1").replace('/v1', '/health');
-    let ready = false;
-    let attempts = 0;
-    while (!ready && attempts < 20) {
-        try {
-            const hRes = await fetch(healthUrl);
-            if (hRes.ok) ready = true;
-            else await new Promise(r => setTimeout(r, 3000));
-        } catch (e) {
-            await new Promise(r => setTimeout(r, 3000));
-        }
-        attempts++;
-    }
+    await checkConnection(5); 
 
     const contextSize = parseInt(process.env.AI_CONTEXT_SIZE) || 4096;
     const safeChars = Math.floor(contextSize * 1.5);
@@ -50,131 +41,76 @@ async function generateSummaryLocal(text, role, onProgress) {
     if (role === 'global') {
         systemPrompt = `Ets un assistent expert en educacio inclusiva.
       OBJECTIU: Analitzar l'EVOLUCIO de l'alumne comparant els seus diferents Plans Individualitzats (PI) ordenats cronologicament.
-
       ESTRUCTURA OBLIGATORIA DEL RESUM:
-      
       ## CRONOLOGIA I EVOLUCIO
       (Crea una llista per anys o cursos, ex: "Curs 2021-22", explicant que es detectava i que es feia.)
-      
       ## ANALISI COMPARATIVA
       (Explica quines dificultats han persistit i quines han millorat. Comenta si les adaptacions han augmentat o disminuit.)
-      
       ## ESTAT ACTUAL (CURS VIGENT)
       (Resum de la situacio a dia d'avui segons l'ultim document.)
-
       INSTRUCCIONS CLAU:
       - Cita explicitament els cursos academics o dates dels documents.
       - Busca contradiccions o canvis significatius entre documents antics i nous.
-      - Sigues molt precis amb els termes psicopedagogics.
-      
+      - Sigues molt precis amb les dades.
       FINAL: Escriu "[FI]" quan acabis.`;
     } else if (role === 'orientador') {
         systemPrompt = `Ets un assistent expert per a orientadors educatius.
       OBJECTIU: Extreure informacio psicopedagogica clau per a l'orientacio de l'alumne.
-      
       ESTRUCTURA OBLIGATORIA DEL RESUM:
-      
       ## DADES DE L'ALUMNE
-      (Extreu exactament: Nom i cognoms, Data de naixement, Curs acadèmic, Estudis actuals. NO anonimitzis les dades.)
-      
+      (Extreu exactament: Nom i cognoms, Data de naixement, Curs acadèmic. NO anonimitzis.)
       ## DIAGNOSTIC
-      (Quin es el diagnostic? TDAH, Dislèxia, etc. Detalla els trastorns.)
-
+      (Quin es el diagnostic? TDAH, Dislèxia, etc.)
       ## JUSTIFICACIO
-      (Per què es fa aquest PI? Motius principals i necessitats educatives.)
-      
+      (Per què es fa aquest PI? Motius i necessitats.)
       ## ORIENTACIO A L'AULA
-      (Pautes clares d'intervenció educativa a l'aula.)
-      
+      (Pautes clares d'intervenció.)
       ## ASSIGNATURES
-      (Breu resum de les adaptacions específiques per matèries. "Un poco por encima".)
-      
+      (Breu resum de les adaptacions específiques.)
       ## CRITERIS D'AVALUACIO
-      (MOLT IMPORTANT: Normes específiques d'avaluació. Com avaluar? Ortografia, temps extra, formats, etc.)
-
-      INSTRUCCIONS:
-      - Estructura la informació clarament.
-      - Sigues precís amb les dades de l'alumne.
-      - Posa emfasi en l'Avaluació.
-      
+      (MOLT IMPORTANT: Normes específiques d'avaluació.)
       FINAL: Escriu "[FI]" quan acabis.`;
     } else {
         systemPrompt = `Ets un assistent expert per a docents.
-      OBJECTIU: Facilitar informacio practica i directa per aplicar a l'aula immediatament.
-      
+      OBJECTIU: Facilitar informacio practica i directa.
       ESTRUCTURA OBLIGATORIA DEL RESUM:
-      
       ## PERFIL I DIAGNOSTIC
-      (Resum ràpid: Nom, Curs i quina dificultat/trastorn té.)
-      
+      (Resum ràpid: Nom, Curs i dificultat.)
       ## ORIENTACIO A L'AULA
-      (Accions concretes: "Seu a primera fila", "Dona més temps", etc.)
-      
+      (Accions concretes.)
       ## ADAPTACIONS PER ASSIGNATURES
-      (Què canvia en el temari o materials de les assignatures?)
-      
+      (Què canvia en el temari?)
       ## CRITERIS D'AVALUACIO
-      (Com he de posar les notes? Ex: "No compten faltes", "Examen oral", etc.)
-
-      INSTRUCCIONS:
-      - Llenguatge molt pràctic.
-      - Evita teoria innecessària, ves al gra.
-      
+      (Com he de posar les notes?)
       FINAL: Escriu "[FI]" quan acabis.`;
     }
 
     const messages = [
-        { role: "system", content: `${systemPrompt}\n\nINSTRUCCIONS: NO GENERIS JSON. Retorna només TEXT MARKDOWN. Assegura't d'extreure les dades reals si es demanen.` },
-        { role: "user", content: `DOCUMENT:\n"${truncatedText}"\n\nTASCA: Genera el resum seguint les instruccions.` }
+        { role: "system", content: `${systemPrompt}\n\nINSTRUCCIONS: NO GENERIS JSON. Retorna només TEXT MARKDOWN. Escriu en CATALÀ.` },
+        { role: "user", content: `DOCUMENT:\n"${truncatedText}"\n\nTASCA: Genera el resum.` }
     ];
 
     try {
-        let pollReading = setInterval(async () => {
-            try {
-                const slotsUrl = (process.env.AI_BASE_URL || "http://pi_llm:8080/v1").replace('/v1', '/slots');
-                const res = await fetch(slotsUrl);
-                if (res.ok) {
-                    const slots = await res.json();
-                    const activeSlot = slots.find(s => s.is_processing === true);
-                    if (activeSlot) {
-                        let isGenerating = activeSlot.next_token?.length > 0 && activeSlot.next_token[0].n_decoded > 0;
-                        if (isGenerating) {
-                            if (onProgress) onProgress(null, 100, false);
-                            clearInterval(pollReading);
-                            return;
-                        }
-                        let raw = activeSlot.prompt_processing_progress || (activeSlot.n_prompt > 0 ? activeSlot.n_past / activeSlot.n_prompt : 0);
-                        if (raw > 0 && onProgress) onProgress(null, Math.floor(raw * 100), true);
-                    }
-                }
-            } catch (e) { }
-        }, 2000);
+        let fakeProgress = 0;
+        let progressInterval = setInterval(() => {
+            fakeProgress += 5;
+            if (fakeProgress > 90) fakeProgress = 90; 
+            if (onProgress) onProgress(null, fakeProgress, true);
+        }, 1000);
 
-        let tries = 0;
-        const maxTries = 3;
-        let completion = null;
+        console.log(`AI: Sending prompt to Ollama...`);
+        
+        const completion = await openai.chat.completions.create({
+            model: process.env.AI_MODEL_NAME || "llama3.2:3b", 
+            messages,
+            temperature: 0.7,
+            max_tokens: 3000,
+            stream: true,
+            stop: ["[FI]"]
+        });
 
-        while (tries < maxTries) {
-            try {
-                console.log(`AI: Attempt ${tries + 1}/${maxTries} invoking LLM...`);
-                completion = await openai.chat.completions.create({
-                    model: "default-model",
-                    messages,
-                    temperature: 0.7,
-                    max_tokens: 3000,
-                    stream: true,
-                    stop: ["[FI]"]
-                });
-                break;
-            } catch (openaiErr) {
-                tries++;
-                console.error(`AI Error attempt ${tries}:`, openaiErr.message);
-                if (tries >= maxTries) throw openaiErr;
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        }
-
-        clearInterval(pollReading);
+        clearInterval(progressInterval); 
+        
         let fullText = "";
         let chunkCount = 0;
 
@@ -182,9 +118,9 @@ async function generateSummaryLocal(text, role, onProgress) {
             const content = chunk.choices[0]?.delta?.content || "";
             fullText += content;
             chunkCount++;
-
-            if (onProgress && chunkCount % 10 === 0) {
-                await onProgress(undefined, Math.min(Math.floor(chunkCount / 2), 99), false);
+            
+            if (onProgress && chunkCount % 5 === 0) {
+                onProgress(undefined, 95, false); 
             }
         }
 
@@ -197,40 +133,26 @@ async function generateSummaryLocal(text, role, onProgress) {
 
 function parseSummaryToJSON(text) {
     const result = {
-        perfil: [],
-        dificultats: [],
-        justificacio: [],
-        adaptacions: [],
-        avaluacio: [],
-        recomanacions: []
+        perfil: [], dificultats: [], justificacio: [], 
+        adaptacions: [], avaluacio: [], recomanacions: []
     };
     if (!text) return result;
     const lines = text.split('\n');
     let currentKey = 'perfil';
     const sectionMap = {
-        'PERFIL': 'perfil',
-        'DADES': 'perfil',
-        'DIAGNOSTIC': 'dificultats',
-        'MOTIU': 'justificacio',
-        'JUSTIFICACIO': 'justificacio',
-        'ORIENTACIO': 'recomanacions',
-        'ADAPTACIONS': 'adaptacions',
-        'ASSIGNATURES': 'adaptacions',
-        'CRITERIS': 'avaluacio'
+        'PERFIL': 'perfil', 'DADES': 'perfil',
+        'DIAGNOSTIC': 'dificultats', 'MOTIU': 'justificacio', 'JUSTIFICACIO': 'justificacio',
+        'ORIENTACIO': 'recomanacions', 'ADAPTACIONS': 'adaptacions', 
+        'ASSIGNATURES': 'adaptacions', 'CRITERIS': 'avaluacio'
     };
     lines.forEach(line => {
         const trimmed = line.trim();
         if (trimmed.startsWith('#')) {
             const title = trimmed.replace(/^#+\s*/, '').toUpperCase();
             const foundKey = Object.keys(sectionMap).find(k => title.includes(k));
-            if (foundKey) {
-                currentKey = sectionMap[foundKey];
-                return;
-            }
+            if (foundKey) { currentKey = sectionMap[foundKey]; return; }
         }
-        if (trimmed.length > 0 && !trimmed.startsWith('```')) {
-            result[currentKey].push(trimmed);
-        }
+        if (trimmed.length > 0 && !trimmed.startsWith('```')) result[currentKey].push(trimmed);
     });
     return result;
 }
