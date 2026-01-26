@@ -18,10 +18,11 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         const allowedTypes = [
             'application/pdf',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
-            'application/msword', // doc
-            'application/vnd.oasis.opendocument.text' // odt
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+            'application/msword', 
+            'application/vnd.oasis.opendocument.text' 
         ];
+        
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
