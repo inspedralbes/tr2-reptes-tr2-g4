@@ -151,31 +151,33 @@ VITE_API_URL=http://incorporacio-pi.dam.inspedralbes.cat:3001
 
 ## 6. API Backend
 
-Llistat d'endpoints disponibles.
-=======
-Llistat d'endpoints disponibles. 
->>>>>>> cf2e30a1246549b806208ca779b785b7ec56aa18
+A continuació es detallen els endpoints principals disponibles a l'API.
 
-> _Opcional: Veure documentació Swagger a `/api/docs`_
+### Autenticació (`/api/login`)
+*   `POST /send-code`: Envia un codi de verificació.
+    *   **Body:** `{ "email": "usuari@exemple.cat", "recaptchaToken": "..." }`
+*   `POST /verify-code`: Verifica el codi i retorna sessió.
+    *   **Body:** `{ "email": "usuari@exemple.cat", "code": "123456" }`
 
-### Exemple d'Endpoint: `GET /api/exemple`
-*   **Descripció:** Retorna un llistat de...
-*   **Exemple de petició:**
-    ```json
-    {
-      "id": 1
-    }
-    ```
-*   **Codis de resposta:**
-    *   `200 OK`: Èxit.
-    *   `404 Not Found`: No trobat.
-*   **Exemple de resposta (JSON):**
-    ```json
-    {
-      "status": "success",
-      "data": []
-    }
-    ```
+### Alumnes (`/api/students`)
+*   `GET /`: Llistat complet d'alumnes.
+*   `POST /`: Crea un nou alumne.
+    *   **Body:** `{ "nombre": "Nom", "id": "RALC...", "codi_centre": "0000" }`
+*   `GET /search/advanced`: Cerca avançada.
+    *   **Params:** `term`, `hasFile`, `minDificultats`.
+*   `PUT /:hash/transfer`: Trasllat d'alumne a un altre centre.
+*   `DELETE /:hash/files/:filename`: Elimina un document.
+
+### Intel·ligència Artificial (`/api`)
+*   `POST /generate-summary`: Envia un document a la cua de processament IA.
+    *   **Body:** `{ "text": "...", "filename": "...", "role": "docent" }`
+*   `POST /generate-global-summary`: Genera un resum global de l'historial de l'alumne.
+
+### Estadístiques (`/api/stats`)
+*   `GET /dashboard`: Dades agregades per centre (ratio digitalització, volums).
+*   `GET /adaptacions`: Top adaptacions més freqüents detectades.
+
+> _Nota: Pots veure la definició completa de rutes a la carpeta `backend/routes/`._
 
 ---
 
