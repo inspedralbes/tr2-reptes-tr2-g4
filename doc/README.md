@@ -92,7 +92,11 @@ Explicació de com es puja l'aplicació al servidor de producció (AWS, Vercel, 
 
 ## 6. API Backend
 
+<<<<<<< HEAD
+Llistat d'endpoints disponibles.
+=======
 Llistat d'endpoints disponibles. 
+>>>>>>> cf2e30a1246549b806208ca779b785b7ec56aa18
 
 > _Opcional: Veure documentació Swagger a `/api/docs`_
 
@@ -119,4 +123,7 @@ Llistat d'endpoints disponibles.
 
 ## 7. Aplicació Android / Altres elements
 
-Si el projecte disposa d'una versió mòbil nativa o híbrida, o altres elements importants no esmentats anteriorment.
+<<<<<<< HEAD
+- Unity
+
+---
