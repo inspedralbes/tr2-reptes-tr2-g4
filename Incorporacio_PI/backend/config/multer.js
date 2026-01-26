@@ -13,12 +13,20 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
+        const allowedTypes = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+            'application/msword', 
+            'application/vnd.oasis.opendocument.text' 
+        ];
+        
+        if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
+            console.warn(`🚫 Tipus de fitxer no permès: ${file.mimetype}`);
             cb(null, false);
         }
     }
