@@ -8,8 +8,10 @@ services:
     container_name: pi_frontend_prod
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"   # Acceso interno para el proxy
+      - "8443:443"  # Acceso interno SSL
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - backend
     volumes:
