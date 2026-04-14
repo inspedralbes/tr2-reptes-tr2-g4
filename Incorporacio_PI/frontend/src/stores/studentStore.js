@@ -93,6 +93,33 @@ export const useStudentStore = defineStore('student', {
       } finally {
         this.loading = false;
       }
+    },
+
+    async addComment(studentHash, type, text) {
+      this.loading = true;
+      try {
+        const userEmail = localStorage.getItem('userEmail') || 'desconegut';
+        const response = await fetch(`${API_URL}/students/${studentHash}/comments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ type, text, userEmail })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          await this.fetchStudents();
+          return true;
+        }
+        throw new Error(result.error || 'Error al guardar el comentari');
+      } catch (err) {
+        console.error(err);
+        this.error = err.message;
+        return false;
+      } finally {
+        this.loading = false;
+      }
     }
   }
 });

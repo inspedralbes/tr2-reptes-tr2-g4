@@ -43,6 +43,10 @@
                   {{ student.has_file ? "PI Actiu" : "PI Pendent" }}
                 </v-chip>
               </div>
+              <div class="d-flex align-center mt-3 ga-2">
+                 <v-btn variant="outlined" color="purple-lighten-1" size="small" prepend-icon="mdi-account-tie" class="bg-white text-purple-darken-3" @click="openCommentDialog('docent')">Comentari Docent</v-btn>
+                 <v-btn variant="outlined" color="blue-lighten-1" size="small" prepend-icon="mdi-account-school" class="bg-white text-blue-darken-3" @click="openCommentDialog('alumne')">Comentari Alumne</v-btn>
+              </div>
             </div>
           </div>
 
@@ -360,6 +364,31 @@
             </v-card-text>
           </v-card>
 
+          <v-card class="gencat-card mt-6" elevation="0" rounded="lg" v-if="student.comments && student.comments.length > 0">
+            <v-card-title class="pa-4 bg-grey-lighten-4 border-bottom-subtle">
+              <div class="text-subtitle-1 font-weight-bold text-grey-darken-3 d-flex align-center">
+                <v-icon icon="mdi-comment-multiple-outline" class="mr-2 text-grey-darken-2"></v-icon>
+                Darrers Comentaris
+              </div>
+            </v-card-title>
+            <v-card-text class="pa-4">
+              <div class="comments-list" style="max-height: 400px; overflow-y: auto;">
+                <template v-for="(comment, index) in sortedComments" :key="'side-comment-'+index">
+                  <div class="mb-3 pa-3 rounded-sm border-subtle" :class="comment.type === 'docent' ? 'bg-purple-lighten-5' : 'bg-blue-lighten-5'">
+                    <div class="d-flex justify-space-between align-start mb-1">
+                      <div class="text-caption font-weight-bold" :class="comment.type === 'docent' ? 'text-purple-darken-3' : 'text-blue-darken-3'">
+                        <v-icon size="small" class="mr-1" :icon="comment.type === 'docent' ? 'mdi-account-tie' : 'mdi-account-school'"></v-icon>
+                        {{ comment.type === 'docent' ? 'Docent' : 'Alumne' }}
+                      </div>
+                      <div class="text-caption text-grey-darken-1">{{ formatDate(comment.date) }}</div>
+                    </div>
+                    <div class="text-body-2 text-grey-darken-4 mt-1" style="white-space: pre-wrap; line-height: 1.4;">{{ comment.text }}</div>
+                  </div>
+                </template>
+              </div>
+            </v-card-text>
+          </v-card>
+
         </div>
       </v-col>
     </v-row>
@@ -443,6 +472,25 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="showAddCommentDialog" max-width="500px">
+      <v-card class="gencat-card" rounded="sm">
+        <v-card-title class="bg-grey-lighten-4 pa-4 border-bottom-subtle text-body-1 font-weight-bold text-grey-darken-3">
+          Afegir Comentari {{ commentType === 'docent' ? 'Docent' : "de l'Alumne" }}
+        </v-card-title>
+        <v-card-text class="pa-6">
+          <v-textarea v-model="commentText" label="Escriu el comentari aquí..." variant="outlined" color="#D0021B" hide-details="auto" rows="4" auto-grow></v-textarea>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4 bg-grey-lighten-5">
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-3" variant="text" class="text-none font-weight-medium" @click="showAddCommentDialog = false">Cancel·lar</v-btn>
+          <v-btn color="#D0021B" class="text-none font-weight-bold px-4" variant="flat" rounded="sm" :disabled="!commentText.trim()" :loading="savingComment" @click="submitComment">
+            Guardar Comentari
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
@@ -467,6 +515,11 @@ const showRoleDialog = ref(false);
 const selectedFileForSummary = ref(null);
 const loadingGlobal = ref(false);
 
+const showAddCommentDialog = ref(false);
+const commentType = ref('docent');
+const commentText = ref('');
+const savingComment = ref(false);
+
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 const student = computed(() => studentStore.students.find(s => s.hash_id === route.params.hash_id));
@@ -487,6 +540,11 @@ const currentSchoolName = computed(() => {
 const latestFile = computed(() => {
   if (!normalizedFiles.value.length) return null;
   return [...normalizedFiles.value].sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate))[0];
+});
+
+const sortedComments = computed(() => {
+  if (!student.value || !student.value.comments || !Array.isArray(student.value.comments)) return [];
+  return [...student.value.comments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 });
 
 const getSchoolName = (code) => {
@@ -630,6 +688,27 @@ const goToSummary = (file, role = 'docent') => {
   });
 };
 
+const openCommentDialog = (type) => {
+  commentType.value = type;
+  commentText.value = '';
+  showAddCommentDialog.value = true;
+};
+
+const submitComment = async () => {
+  if (!commentText.value.trim()) return;
+  savingComment.value = true;
+  try {
+    const success = await studentStore.addComment(student.value.hash_id, commentType.value, commentText.value);
+    if (success) {
+      showAddCommentDialog.value = false;
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    savingComment.value = false;
+  }
+};
+
 const generateGlobalSummary = async () => {
   loadingGlobal.value = true;
   try {
@@ -748,6 +827,8 @@ onUnmounted(() => {
 .red-border { border-left-color: #D0021B !important; }
 .green-border { border-left-color: #43A047 !important; }
 .grey-border { border-left-color: #BDBDBD !important; }
+.purple-border { border-left-color: #BA68C8 !important; }
+.blue-border { border-left-color: #64B5F6 !important; }
 .border-top-dashed { border-top: 1px dashed #E0E0E0; }
 
 .status-badge {

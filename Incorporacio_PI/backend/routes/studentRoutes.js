@@ -193,4 +193,45 @@ router.put('/:hash/transfer', async (req, res) => {
     }
 });
 
+router.post('/:hash/comments', async (req, res) => {
+    const { hash } = req.params;
+    const { type, text, userEmail } = req.body;
+
+    if (!type || !text) {
+        return res.status(400).json({ error: "Falten dades del comentari" });
+    }
+
+    try {
+        const db = getDB();
+        const student = await db.collection('students').findOne({ hash_id: hash });
+
+        if (!student) {
+            return res.status(404).json({ error: "Alumne no trobat" });
+        }
+
+        const newComment = {
+            type: type, // 'docent' o 'alumne'
+            text: text,
+            author_email: userEmail || 'Desconegut',
+            date: new Date()
+        };
+
+        await db.collection('students').updateOne(
+            { hash_id: hash },
+            { $push: { comments: newComment } }
+        );
+
+        await registrarAcces(
+            userEmail || 'Desconegut', 
+            `Nou comentari (${type})`, 
+            student.visual_identity?.ralc_suffix || '???'
+        );
+
+        res.json({ success: true, message: "Comentari afegit correctament" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al servidor al guardar el comentari' });
+    }
+});
+
 module.exports = router;
