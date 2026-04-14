@@ -62,9 +62,21 @@
           <PiSummary :analysis="parsedAnalysis" :role="currentRole" />
           
           <div class="d-flex justify-center mt-8 mb-10">
-            <v-btn prepend-icon="mdi-refresh" variant="outlined" color="grey-darken-3" class="bg-white" @click="regenerarResumenIA" :loading="loadingAI">
+            <v-btn prepend-icon="mdi-refresh" variant="outlined" color="grey-darken-3" class="bg-white mr-4" @click="regenerarResumenIA" :loading="loadingAI">
                 Regenerar anàlisi
             </v-btn>
+            
+            <v-menu location="bottom">
+              <template v-slot:activator="{ props }">
+                <v-btn prepend-icon="mdi-download" color="primary" variant="flat" v-bind="props" :disabled="loadingAI">
+                  Descarregar document
+                </v-btn>
+              </template>
+              <v-list>
+                <v-list-item @click="descarregarWord" prepend-icon="mdi-file-word" title="Format Word (.doc)"></v-list-item>
+                <v-list-item @click="descarregarPDF" prepend-icon="mdi-file-pdf-box" title="Format PDF (.pdf)"></v-list-item>
+              </v-list>
+            </v-menu>
           </div>
         </div>
 
@@ -97,6 +109,7 @@
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import PiSummary from '@/components/PiSummary.vue';
+import html2pdf from 'html2pdf.js';
 
 const route = useRoute();
 const filename = route.params.filename; 
@@ -305,6 +318,85 @@ const regenerarResumenIA = async () => {
 onMounted(() => {
     checkStatusAndStart();
 });
+
+const descarregarWord = () => {
+    if (!resumenIA.value) return;
+    
+    let htmlContent = `<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; color: #333;">`;
+    htmlContent += `<h1 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; font-size: 24pt;">`;
+    htmlContent += `Informe d'Anàlisi - ${displayName.value}</h1>`;
+    htmlContent += `<p style="color: #7f8c8d; font-style: italic; font-size: 12pt;">Perfil: ${currentRole.value.toUpperCase()}</p>`;
+    
+    const sections = resumenIA.value.split(/##\s+/).filter(s => s.trim().length > 0);
+    sections.forEach((section, index) => {
+        const lines = section.split('\n');
+        const title = lines[0].trim();
+        const content = lines.slice(1).join('<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        if (index === 0 && !resumenIA.value.startsWith('##')) {
+             htmlContent += `<p style="font-size: 11pt; line-height: 1.6;">${section.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
+        } else {
+             htmlContent += `<h2 style="color: #2980b9; margin-top: 24pt; font-size: 18pt;">${title}</h2>`;
+             htmlContent += `<p style="font-size: 11pt; line-height: 1.6; text-align: justify;">${content}</p>`;
+        }
+    });
+
+    htmlContent += `</div>`;
+    
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Resum IA</title></head><body>";
+    const footer = "</body></html>";
+    const sourceHTML = header + htmlContent + footer;
+    
+    const blob = new Blob(['\\ufeff', sourceHTML], {
+        type: 'application/msword'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Resum_${currentRole.value}_${displayName.value.replace(/[^a-z0-9]/gi, '_')}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+const descarregarPDF = () => {
+    if (!resumenIA.value) return;
+    
+    let htmlContent = `<div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333;">`;
+    htmlContent += `<h1 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">`;
+    htmlContent += `Informe d'Anàlisi - ${displayName.value}</h1>`;
+    htmlContent += `<p style="color: #7f8c8d; font-style: italic;">Perfil: ${currentRole.value.toUpperCase()}</p>`;
+    
+    const sections = resumenIA.value.split(/##\s+/).filter(s => s.trim().length > 0);
+    sections.forEach((section, index) => {
+        const lines = section.split('\n');
+        const title = lines[0].trim();
+        const content = lines.slice(1).join('<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        if (index === 0 && !resumenIA.value.startsWith('##')) {
+             htmlContent += `<p style="line-height: 1.6;">${section.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
+        } else {
+             htmlContent += `<h2 style="color: #2980b9; margin-top: 20px;">${title}</h2>`;
+             htmlContent += `<p style="line-height: 1.6; text-align: justify;">${content}</p>`;
+        }
+    });
+
+    htmlContent += `</div>`;
+    
+    const opt = {
+        margin:       15,
+        filename:     `Resum_${currentRole.value}_${displayName.value.replace(/[^a-z0-9]/gi, '_')}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = htmlContent;
+    
+    html2pdf().set(opt).from(tempElement).save();
+};
 
 onUnmounted(() => { 
     if (processSSE) processSSE.close(); 
