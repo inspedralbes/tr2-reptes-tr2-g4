@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: pi_backend_dev
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - /app/node_modules
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - rabbitmq
+      - ollama
+      
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: pi_frontend_dev
+    ports:
+      - "3000:3000" 
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:3-alpine
+    container_name: rabbitmq_dev
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_dev
+    ports:
+      - "11434:11434" 
+    volumes:
+      - ollama_storage_dev:/root/.ollama
+
+volumes:
+  ollama_storage_dev:

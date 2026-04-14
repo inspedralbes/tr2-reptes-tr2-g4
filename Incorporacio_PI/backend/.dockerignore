@@ -1,0 +1,6 @@
+node_modules
+rabbitmq_data
+models
+uploads
+.env
+Dockerfile*
