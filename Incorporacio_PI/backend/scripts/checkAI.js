@@ -3,11 +3,11 @@ const { generateSummaryLocal } = require('../services/aiService');
 async function testAI() {
     console.log("🤖 Test de IA: Verificando generación...");
     
-    // Timeout de seguridad de 60 segundos para el test
+    // Timeout de seguridad de 300 segundos (5 min) para el test (necesario si el servidor es lento o está cargando el modelo)
     const timeout = setTimeout(() => {
         console.error("❌ Error: La IA ha tardado demasiado en responder (Timeout).");
         process.exit(1);
-    }, 60000);
+    }, 300000);
 
     try {
         const testPrompt = "Escriu només una frase curta: 'IA FUNCIONANT'.";
