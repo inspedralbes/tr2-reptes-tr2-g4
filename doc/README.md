@@ -1,39 +1,43 @@
-# Documentació del Projecte
-
-Aquest document recull la informació tècnica i funcional del projecte. Aquí trobareu explicats els objectius, l'arquitectura, el disseny i les instruccions per al desenvolupament i desplegament.
-
-> **Nota:** Les imatges es troben a la carpeta `esquemes/`.
+<div align="center">
+  <img src="assets/banner.png" alt="Plataforma Intercentre Banner" width="100%">
+  <h1>📚 Documentació Tècnica del Projecte</h1>
+  <p>Aquest document recull la informació tècnica i funcional detallada per a desenvolupadors i administradors del sistema.</p>
+</div>
 
 ---
 
-## 1. Objectius
+## 📖 Taula de Continguts
+1. [Objectius i Casos d'Ús](#1-objectius-i-casos-dús)
+2. [Arquitectura del Sistema](#2-arquitectura-del-sistema)
+3. [Disseny i Flux d'Usuari](#3-disseny-i-flux-dusuari)
+4. [Entorn de Desenvolupament](#4-entorn-de-desenvolupament)
+5. [Desplegament a Producció](#5-desplegament-a-producció)
+6. [Referència de l'API](#6-referència-de-lapi)
 
-El propòsit principal d'aquesta aplicació és [Descriu aquí breument què fa l'app].
+---
+
+## 1. Objectius i Casos d'Ús
+
+El propòsit principal d'aquesta aplicació és garantir la **continuïtat pedagògica** dels alumnes amb necessitats educatives especials durant el seu trànsit entre etapes educatives (ESO a FP).
 
 ### Casos d'ús
-A continuació es mostren les funcionalitats principals que ofereix el sistema als diferents tipus d'usuaris:
+El sistema permet gestionar el cicle de vida de la documentació PI (Pla Individualitzat) amb el suport d'Intel·ligència Artificial.
 
 ![Diagrama de casos d'ús](esquemes/Diagrama%20de%20casos%20d'ús.png)
 
 ---
 
-## 2. Arquitectura bàsica
+## 2. Arquitectura del Sistema
 
-L'arquitectura del sistema es basa en la interconnexió entre el client (Frontend), el servidor (Backend) i la base de dades.
+L'arquitectura es basa en un model desacoblat on el Backend actua com a orquestrador entre el client, la base de dades i els serveis d'IA.
 
 ### Esquema de Sistemes
-Visió general de com es comuniquen els diferents mòduls:
+Visió general de la comunicació entre mòduls:
 
 ![Esquema de Sistemes](esquemes/Esquema%20de%20Sistemes.png)
 
-### Tecnologies utilitzades
-*   **Backend:** [NodeJS / Laravel / SpringBoot...]
-*   **Frontend:** [Vue.js / React...]
-*   **Base de Dades:** [MySQL / MongoDB...]
-*   **Altres:** [Docker, Axios, etc.]
-
 ### Gestió d'Estat (Frontend)
-Per a la gestió de l'estat global de l'aplicació s'utilitza **Pinia**. A continuació es detalla l'estructura dels *stores*:
+S'utilitza **Pinia** per a una gestió reactiva i centralitzada de les dades de l'alumne i l'estat de la sessió.
 
 ![Diagrama Pinia Version 2](esquemes/DiagramaPiniaVersion2.png)
 
@@ -42,147 +46,78 @@ Per a la gestió de l'estat global de l'aplicació s'utilitza **Pinia**. A conti
 ## 3. Disseny i Flux d'Usuari
 
 ### Flux de l'Usuari (User Flow)
-Aquest diagrama representa el camí que segueix l'usuari a través de l'aplicació per completar les tasques principals:
+Representació del camí crític de l'usuari: des de la pujada del document fins a la recepció del resum generat per IA.
 
 ![Diagrama de flux d'usuari](esquemes/Diagrama%20de%20flux%20d'usuari.png)
 
 ### Esquemes de Pantalla (Wireframes)
-Esbossos de la disposició dels elements a les pantalles principals:
+Esbossos de la interfície d'usuari (UI) dissenyats per a la màxima claredat per als docents.
 
-**Pantalla General:**
+**Pantalla de Gestió de Documents:**
 ![Esquema de pantalla](esquemes/Esquema%20de%20pantalla.png)
 
-**Pantalla PI (Projecte Integrat / Pantalla Inicial):**
-![Esquema Pantalla PI](esquemes/Esquema%20Pantalla%20PI.png)
+---
+
+## 4. Entorn de Desenvolupament
+
+### Passos per aixecar el projecte en local:
+
+1. **Clonar el repositori:**
+   ```bash
+   git clone https://github.com/inspedralbes/tr2-reptes-tr2-g4.git
+   ```
+
+2. **Backend:**
+   ```bash
+   cd Incorporacio_PI/backend
+   npm install
+   cp .env.example .env # Configura les teves claus
+   npm run dev
+   ```
+
+3. **Frontend:**
+   ```bash
+   cd Incorporacio_PI/frontend
+   npm install
+   npm run dev
+   ```
 
 ---
 
-## 4. Entorn de desenvolupament
+## 5. Desplegament a Producció
 
-Passos per aixecar el projecte en local:
-
-1.  Clonar el repositori:
-    ```bash
-    git clone https://github.com/inspedralbes/tr2-reptes-tr2-g4.git
-    ```
-2.  Instal·lar dependències del Backend:
-    ```bash
-    cd backend
-    npm install
-    # o composer install
-    ```
-3.  Instal·lar dependències del Frontend:
-    ```bash
-    cd frontend
-    npm install
-    ```
-4.  Configurar variables d'entorn (`.env`).
-   
-5.  Executar (up) o tancar (down) el projecte.
-    ```bash
-    docker compose -f docker-compose.prod.yml up -d --build
-    ```
-    ```bash
-    docker compose -f docker-compose.prod.yml up -d --build
-    ```
-
----
-
-## 5. Desplegament a producció
-
-Explicació de com actualitzar i desplegar l'aplicació al servidor VPS.
-
-### 5.1 Accés al servidor
-Obre una terminal i connecta't via SSH:
-
+### 5.1 Accés al servidor VPS
 ```bash
 ssh root@77.42.72.57
 ```
 
-> **Nota:** En Windows, si l'anterior no funciona, prova amb la ruta completa:
-> `C:\Windows\System32\OpenSSH\ssh.exe root@77.42.72.57`
-
-Et demanarà la contrasenya d'accés al servidor.
-
-### 5.2 Actualització del codi
-Un cop dins del servidor, navega a la carpeta del projecte i descarrega els últims canvis de la branca `main`:
-
+### 5.2 Actualització i Reinici amb Docker
 ```bash
-# Anar a la carpeta del projecte
-cd /var/www/tr2-reptes-tr2-g4
-
-# Comprovar carpetes (opcional)
-ls
-
-# Baixar canvis del repositori
-git pull
-```
-
-### 5.3 Aixecar contenidors (Docker)
-Entra a la carpeta específica de la integració (`Incorporacio_PI`), atura els contenidors antics i aixeca la nova versió:
-
-```bash
-cd Incorporacio_PI
-
-# Aturar els contenidors actuals
+cd /var/www/tr2-reptes-tr2-g4/Incorporacio_PI
+git pull origin main
 docker compose -f docker-compose.prod.yml down
-
-# Reconstruir i aixecar els contenidors en segon pla
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-### 5.4 Configuració de Variables d'Entorn
-Assegura't que els fitxers de configuració tenen les variables correctes.
-
-**Exemple de fitxer `.env` (Backend):**
-```properties
-MONGODB_URI=mongodb+srv://dammongog4:<password>@clusterg4.dlau5vb.mongodb.net/Incorporacio_PI?appName=ClusterG4
-EMAIL_USER=dammongog4@gmail.com
-EMAIL_PASS=********
-RECAPTCHA_SECRET_KEY=********
-```
-
-**Exemple de fitxer `.env.production` (Frontend):**
-```properties
-VITE_API_URL=http://incorporacio-pi.dam.inspedralbes.cat:3001
-```
-
 ---
 
-## 6. API Backend
-
-A continuació es detallen els endpoints principals disponibles a l'API.
+## 6. Referència de l'API
 
 ### Autenticació (`/api/login`)
-*   `POST /send-code`: Envia un codi de verificació.
-    *   **Body:** `{ "email": "usuari@exemple.cat", "recaptchaToken": "..." }`
-*   `POST /verify-code`: Verifica el codi i retorna sessió.
-    *   **Body:** `{ "email": "usuari@exemple.cat", "code": "123456" }`
+- `POST /send-code`: Envia codi 2FA via email.
+- `POST /verify-code`: Valida el codi i genera el token JWT.
 
 ### Alumnes (`/api/students`)
-*   `GET /`: Llistat complet d'alumnes.
-*   `POST /`: Crea un nou alumne.
-    *   **Body:** `{ "nombre": "Nom", "id": "RALC...", "codi_centre": "0000" }`
-*   `GET /search/advanced`: Cerca avançada.
-    *   **Params:** `term`, `hasFile`, `minDificultats`.
-*   `PUT /:hash/transfer`: Trasllat d'alumne a un altre centre.
-*   `DELETE /:hash/files/:filename`: Elimina un document.
+- `GET /`: Llista d'alumnes del centre actual.
+- `POST /`: Registre de nou alumne.
+- `PUT /:hash/transfer`: Inicia el procés de traspàs intercentre.
 
 ### Intel·ligència Artificial (`/api`)
-*   `POST /generate-summary`: Envia un document a la cua de processament IA.
-    *   **Body:** `{ "text": "...", "filename": "...", "role": "docent" }`
-*   `POST /generate-global-summary`: Genera un resum global de l'historial de l'alumne.
-
-### Estadístiques (`/api/stats`)
-*   `GET /dashboard`: Dades agregades per centre (ratio digitalització, volums).
-*   `GET /adaptacions`: Top adaptacions més freqüents detectades.
-
-> _Nota: Pots veure la definició completa de rutes a la carpeta `backend/routes/`._
+- `POST /generate-summary`: Processament asíncron d'un document individual.
+- `POST /generate-global-summary`: Agregació històrica de dades per a un informe evolutiu.
 
 ---
 
-## 7. Aplicació Android / Altres elements
-
-- Unity
-
----
+<div align="center">
+  <sub>Documentació actualitzada el 28 d'abril de 2026</sub>
+</div>
