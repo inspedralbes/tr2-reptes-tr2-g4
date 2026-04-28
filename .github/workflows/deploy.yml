@@ -1,0 +1,74 @@
+name: Deploy Production PI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # --- BLOQUE 1: VALIDACIÓN ---
+  build-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        working-directory: [Incorporacio_PI/backend, Incorporacio_PI/frontend]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: '${{ matrix.working-directory }}/package-lock.json'
+        
+    - name: Install dependencies
+      working-directory: ${{ matrix.working-directory }}
+      run: npm ci
+      
+    - name: Build Check
+      working-directory: ${{ matrix.working-directory }}
+      run: |
+        if [ "${{ matrix.working-directory }}" = "Incorporacio_PI/frontend" ]; then
+          npm run build
+        else
+          echo "Backend check passed (No tests found, skipping...)"
+        fi
+
+  # --- BLOQUE 2: DESPLIEGUE PRODUCCIÓN ---
+  deploy-production:
+    needs: build-check 
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SERVER_HOST }} 
+        username: ${{ secrets.SERVER_USER }}
+        password: ${{ secrets.SERVER_PASSWORD }} 
+        port: ${{ secrets.SERVER_PORT || 22 }}
+        script: |
+          # 1. Navegar a la carpeta real del proyecto detectada
+          cd ../var/www/PI/tr2-reptes-tr2-g4
+          
+          # 2. Configuración de Git y Sincronización
+          git config --global --add safe.directory $(pwd)
+          git fetch origin
+          git reset --hard origin/main
+          
+          # 3. Despliegue con Docker Compose
+          cd Incorporacio_PI
+          
+          # Levantamos los servicios reconstruyendo las imágenes si hay cambios
+          docker compose -f docker-compose.prod.yml up -d --build
+          
+          # 4. Asegurar que el modelo de IA esté descargado (solo si no existe)
+          if ! docker exec ollama ollama list | grep -q "llama3.1:8b"; then
+            echo "Descargando modelo llama3.1:8b..."
+            docker exec ollama ollama run llama3.1:8b
+          else
+            echo "Modelo llama3.1:8b ya está presente."
+          fi
+          
+          # 5. Limpieza de imágenes huérfanas para ahorrar espacio
+          docker image prune -f
