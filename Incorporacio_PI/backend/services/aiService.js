@@ -32,7 +32,8 @@ async function checkConnection(retries = 100) {
 async function generateSummaryLocal(text, role, onProgress) {
     await checkConnection(5); 
 
-    const contextSize = parseInt(process.env.AI_CONTEXT_SIZE) || 4096;
+    const contextSize = parseInt(process.env.AI_CONTEXT_SIZE) || 16384;
+    const threads = parseInt(process.env.AI_THREADS) || 6;
     const safeChars = Math.floor(contextSize * 1.5);
     const limit = role === 'global' ? safeChars : Math.floor(safeChars * 0.9);
     const truncatedText = text.length > limit ? text.substring(0, limit) + "..." : text;
@@ -45,7 +46,7 @@ async function generateSummaryLocal(text, role, onProgress) {
       ## CRONOLOGIA I EVOLUCIO
       (Crea una llista per anys o cursos, ex: "Curs 2021-22", explicant que es detectava i que es feia.)
       ## ANALISI COMPARATIVA
-      (Explica quines dificultats han persistit i quines han millorat. Comenta si les adaptacions han augmentat o disminuit.)
+      (Explica quines dificultats han persistit i quines han mejorat. Comenta si les adaptacions han augmentat o disminuit.)
       ## ESTAT ACTUAL (CURS VIGENT)
       (Resum de la situacio a dia d'avui segons l'ultim document.)
       INSTRUCCIONS CLAU:
@@ -93,20 +94,26 @@ async function generateSummaryLocal(text, role, onProgress) {
     try {
         let fakeProgress = 0;
         let progressInterval = setInterval(() => {
-            fakeProgress += 5;
+            fakeProgress += 2; // Más lento ya que el modelo 8B es más pesado
             if (fakeProgress > 90) fakeProgress = 90; 
             if (onProgress) onProgress(null, fakeProgress, true);
-        }, 1000);
+        }, 1500);
 
-        console.log(`AI: Sending prompt to Ollama...`);
+        console.log(`AI: Sending prompt to Ollama (${process.env.AI_MODEL_NAME || "llama3.1:8b"})...`);
         
         const completion = await openai.chat.completions.create({
-            model: process.env.AI_MODEL_NAME || "llama3.2:3b", 
+            model: process.env.AI_MODEL_NAME || "llama3.1:8b", 
             messages,
-            temperature: 0.7,
-            max_tokens: 3000,
+            temperature: 0.6,
+            max_tokens: 4000,
             stream: true,
-            stop: ["[FI]"]
+            stop: ["[FI]"],
+            extra_body: {
+                options: {
+                    num_ctx: contextSize,
+                    num_thread: threads
+                }
+            }
         });
 
         clearInterval(progressInterval); 
