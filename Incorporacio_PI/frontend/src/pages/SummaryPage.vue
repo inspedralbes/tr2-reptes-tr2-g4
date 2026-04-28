@@ -197,6 +197,9 @@ const statusMessage = computed(() => {
   if (backendStatus.value === 'GENERANT...') {
     return { title: 'SINTETITZANT', description: 'Estem redactant el resum personalitzat basat en les dades extretes.' };
   }
+  if (backendStatus.value === 'COMPLETAT') {
+    return { title: 'FINALITZAT', description: 'El resum s\'ha generat correctament. Preparant la visualització...' };
+  }
   return { title: 'INICIANT PROCÉS', description: 'Connectant amb el servidor d\'Intel·ligència Artificial...' };
 });
 
@@ -266,12 +269,14 @@ const startSSE = () => {
       if (data.status === 'COMPLETAT') {
         resumenIA.value = data.resumen;
         loadingAI.value = false;
+        loading.value = false; // Asegurar que ambos loading se desactivan
         processSSE.close();
         processSSE = null;
       } else if (data.status === 'ERROR') {
-        errorMessage.value = "La IA ha trobat un problema tècnic.";
+        errorMessage.value = data.message || "La IA ha trobat un problema tècnic.";
         showError.value = true;
         loadingAI.value = false;
+        loading.value = false;
         processSSE.close();
         processSSE = null;
       }
@@ -280,9 +285,15 @@ const startSSE = () => {
     }
   };
 
-  processSSE.onerror = () => {
+  processSSE.onerror = (err) => {
+    console.error("SSE Error:", err);
     if (loadingAI.value) {
-      console.log("SSE Connection closed");
+      // Si hay error de conexión, intentamos verificar si el resumen ya está en la DB
+      // en lugar de quedarnos cargando para siempre.
+      setTimeout(() => {
+        if (loadingAI.value) checkStatusAndStart();
+      }, 2000);
+      
       processSSE.close();
       processSSE = null;
     }
