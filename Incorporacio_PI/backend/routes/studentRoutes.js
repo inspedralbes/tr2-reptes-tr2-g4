@@ -6,6 +6,7 @@ const { getDB } = require('../db');
 const { UPLOADS_DIR } = require('../config/multer'); 
 const { generarHash, obtenerIniciales } = require('../utils/helpers');
 const { registrarAcces } = require('../utils/logger'); 
+const crypto = require('crypto');
 
 router.get('/search/advanced', async (req, res) => {
     const { term, hasFile, minDificultats } = req.query;
@@ -115,14 +116,45 @@ router.delete('/:hash/files/:filename', async (req, res) => {
 
         await db.collection('students').updateOne(
             { hash_id: hash },
-            { $pull: { files: { filename: filename } } }
+            { 
+                $pull: { files: { filename: filename } },
+                $set: { 
+                    "global_summary.estado": "OBSOLET",
+                    "global_summary.resumen": "Aquest resum s'ha d'actualitzar perquè s'han eliminat documents de l'historial.",
+                    "global_summary.progress": 0
+                }
+            }
         );
 
         await db.collection('students').updateOne({ hash_id: hash, filename: filename }, { $unset: { filename: "" } });
         
         const studentUpdated = await db.collection('students').findOne({ hash_id: hash });
         const hasFiles = (studentUpdated.files && studentUpdated.files.length > 0);
-        await db.collection('students').updateOne({ hash_id: hash }, { $set: { has_file: hasFiles } });
+        
+        // Si no quedan archivos, borramos el resumen global por completo
+        // Si quedan algunos, lo marcamos como obsoleto
+        const globalSummaryUpdate = hasFiles 
+            ? { 
+                "global_summary.estado": "OBSOLET",
+                "global_summary.resumen": "Aquest resum s'ha d'actualitzar perquè s'han eliminat documents de l'historial.",
+                "global_summary.progress": 0
+              }
+            : {
+                "global_summary.estado": "SENSE DOCUMENTS",
+                "global_summary.resumen": "",
+                "global_summary.progress": 0,
+                "global_summary.fecha": null
+              };
+
+        await db.collection('students').updateOne(
+            { hash_id: hash },
+            { 
+                $set: { 
+                    has_file: hasFiles,
+                    ...globalSummaryUpdate
+                } 
+            }
+        );
 
         const filePath = path.join(UPLOADS_DIR, filename);
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
@@ -210,6 +242,7 @@ router.post('/:hash/comments', async (req, res) => {
         }
 
         const newComment = {
+            id: crypto.randomUUID(),
             type: type, // 'docent' o 'alumne'
             text: text,
             author_email: userEmail || 'Desconegut',
@@ -231,6 +264,84 @@ router.post('/:hash/comments', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error al servidor al guardar el comentari' });
+    }
+});
+
+router.put('/:hash/comments/:id', async (req, res) => {
+    const { hash, id } = req.params;
+    const { text, userEmail } = req.body;
+
+    if (!text) {
+        return res.status(400).json({ error: "Falta el text del comentari" });
+    }
+
+    try {
+        const db = getDB();
+        const student = await db.collection('students').findOne({ hash_id: hash });
+
+        if (!student) {
+            return res.status(404).json({ error: "Alumne no trobat" });
+        }
+
+        const result = await db.collection('students').updateOne(
+            { hash_id: hash, "comments.id": id },
+            { 
+                $set: { 
+                    "comments.$.text": text,
+                    "comments.$.updatedAt": new Date(),
+                    "comments.$.updatedBy": userEmail || 'Desconegut'
+                } 
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: "Comentari no trobat" });
+        }
+
+        await registrarAcces(
+            userEmail || 'Desconegut', 
+            `Comentari editat`, 
+            student.visual_identity?.ralc_suffix || '???'
+        );
+
+        res.json({ success: true, message: "Comentari actualitzat correctament" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al servidor al actualitzar el comentari' });
+    }
+});
+
+router.delete('/:hash/comments/:id', async (req, res) => {
+    const { hash, id } = req.params;
+    const { userEmail } = req.body;
+
+    try {
+        const db = getDB();
+        const student = await db.collection('students').findOne({ hash_id: hash });
+
+        if (!student) {
+            return res.status(404).json({ error: "Alumne no trobat" });
+        }
+
+        const result = await db.collection('students').updateOne(
+            { hash_id: hash },
+            { $pull: { comments: { id: id } } }
+        );
+
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({ error: "Comentari no trobat" });
+        }
+
+        await registrarAcces(
+            userEmail || 'Desconegut', 
+            `Comentari eliminat`, 
+            student.visual_identity?.ralc_suffix || '???'
+        );
+
+        res.json({ success: true, message: "Comentari eliminat correctament" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al servidor al eliminar el comentari' });
     }
 });
 

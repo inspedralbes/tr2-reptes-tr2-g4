@@ -45,8 +45,12 @@ router.post('/generate-global-summary', async (req, res) => {
         const student = await db.collection('students').findOne({ hash_id: studentHash });
         if (!student) return res.status(404).json({ error: 'Estudiant no trobat' });
 
-        let combinedText = "HISTORIAL DE DOCUMENTS:\n\n";
         const files = student.files || [];
+        if (files.length === 0) {
+            return res.status(400).json({ error: "No es pot generar un resum evolutiu sense documents PI." });
+        }
+
+        let combinedText = "HISTORIAL DE DOCUMENTS:\n\n";
         for (const f of files) {
             const text = await getFileText(f.filename);
             combinedText += `--- DOCUMENT: ${f.originalName} ---\n${text.substring(0, 1500)}...\n\n`;

@@ -120,6 +120,60 @@ export const useStudentStore = defineStore('student', {
       } finally {
         this.loading = false;
       }
+    },
+
+    async updateComment(studentHash, commentId, text) {
+      this.loading = true;
+      try {
+        const userEmail = localStorage.getItem('userEmail') || 'desconegut';
+        const response = await fetch(`${API_URL}/students/${studentHash}/comments/${commentId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ text, userEmail })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          await this.fetchStudents();
+          return true;
+        }
+        throw new Error(result.error || 'Error al actualizar el comentari');
+      } catch (err) {
+        console.error(err);
+        this.error = err.message;
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async deleteComment(studentHash, commentId) {
+      this.loading = true;
+      try {
+        const userEmail = localStorage.getItem('userEmail') || 'desconegut';
+        const response = await fetch(`${API_URL}/students/${studentHash}/comments/${commentId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ userEmail })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          await this.fetchStudents();
+          return true;
+        }
+        throw new Error(result.error || 'Error al eliminar el comentari');
+      } catch (err) {
+        console.error(err);
+        this.error = err.message;
+        return false;
+      } finally {
+        this.loading = false;
+      }
     }
   }
 });

@@ -373,14 +373,25 @@
             </v-card-title>
             <v-card-text class="pa-4">
               <div class="comments-list" style="max-height: 400px; overflow-y: auto;">
-                <template v-for="(comment, index) in sortedComments" :key="'side-comment-'+index">
-                  <div class="mb-3 pa-3 rounded-sm border-subtle" :class="comment.type === 'docent' ? 'bg-purple-lighten-5' : 'bg-blue-lighten-5'">
+                <template v-for="(comment, index) in sortedComments" :key="'side-comment-'+(comment.id || index)">
+                  <div class="mb-3 pa-3 rounded-sm border-subtle relative" :class="comment.type === 'docent' ? 'bg-purple-lighten-5' : 'bg-blue-lighten-5'">
                     <div class="d-flex justify-space-between align-start mb-1">
                       <div class="text-caption font-weight-bold" :class="comment.type === 'docent' ? 'text-purple-darken-3' : 'text-blue-darken-3'">
                         <v-icon size="small" class="mr-1" :icon="comment.type === 'docent' ? 'mdi-account-tie' : 'mdi-account-school'"></v-icon>
                         {{ comment.type === 'docent' ? 'Docent' : 'Alumne' }}
                       </div>
-                      <div class="text-caption text-grey-darken-1">{{ formatDate(comment.date) }}</div>
+                      <div class="d-flex align-center">
+                        <div class="text-caption text-grey-darken-1 mr-2">{{ formatDate(comment.date) }}</div>
+                        <v-menu v-if="comment.id">
+                          <template v-slot:activator="{ props }">
+                            <v-btn icon="mdi-dots-vertical" variant="text" size="x-small" v-bind="props"></v-btn>
+                          </template>
+                          <v-list density="compact">
+                            <v-list-item prepend-icon="mdi-pencil" title="Editar" @click="openEditComment(comment)"></v-list-item>
+                            <v-list-item prepend-icon="mdi-delete" title="Eliminar" base-color="red" @click="deleteCommentUI(comment.id)"></v-list-item>
+                          </v-list>
+                        </v-menu>
+                      </div>
                     </div>
                     <div class="text-body-2 text-grey-darken-4 mt-1" style="white-space: pre-wrap; line-height: 1.4;">{{ comment.text }}</div>
                   </div>
@@ -491,6 +502,25 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="showEditCommentDialog" max-width="500px">
+      <v-card class="gencat-card" rounded="sm">
+        <v-card-title class="bg-grey-lighten-4 pa-4 border-bottom-subtle text-body-1 font-weight-bold text-grey-darken-3">
+          Editar Comentari
+        </v-card-title>
+        <v-card-text class="pa-6">
+          <v-textarea v-model="editingCommentText" label="Edita el comentari aquí..." variant="outlined" color="#D0021B" hide-details="auto" rows="4" auto-grow></v-textarea>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4 bg-grey-lighten-5">
+          <v-spacer></v-spacer>
+          <v-btn color="grey-darken-3" variant="text" class="text-none font-weight-medium" @click="showEditCommentDialog = false">Cancel·lar</v-btn>
+          <v-btn color="#D0021B" class="text-none font-weight-bold px-4" variant="flat" rounded="sm" :disabled="!editingCommentText.trim()" :loading="savingComment" @click="submitEditComment">
+            Actualitzar Comentari
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
@@ -516,6 +546,9 @@ const selectedFileForSummary = ref(null);
 const loadingGlobal = ref(false);
 
 const showAddCommentDialog = ref(false);
+const showEditCommentDialog = ref(false);
+const editingCommentId = ref(null);
+const editingCommentText = ref('');
 const commentType = ref('docent');
 const commentText = ref('');
 const savingComment = ref(false);
@@ -704,6 +737,42 @@ const submitComment = async () => {
     }
   } catch (error) {
     console.error(error);
+  } finally {
+    savingComment.value = false;
+  }
+};
+
+const openEditComment = (comment) => {
+  editingCommentId.value = comment.id;
+  editingCommentText.value = comment.text;
+  showEditCommentDialog.value = true;
+};
+
+const submitEditComment = async () => {
+  if (!editingCommentText.value.trim() || !editingCommentId.value) return;
+  savingComment.value = true;
+  try {
+    const success = await studentStore.updateComment(student.value.hash_id, editingCommentId.value, editingCommentText.value);
+    if (success) {
+      showEditCommentDialog.value = false;
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Error al editar el comentari");
+  } finally {
+    savingComment.value = false;
+  }
+};
+
+const deleteCommentUI = async (commentId) => {
+  if (!confirm('Estàs segur que vols eliminar aquest comentari?')) return;
+  savingComment.value = true;
+  try {
+    const success = await studentStore.deleteComment(student.value.hash_id, commentId);
+    if (!success) alert("No s'ha pogut eliminar el comentari");
+  } catch (error) {
+    console.error(error);
+    alert("Error al eliminar el comentari");
   } finally {
     savingComment.value = false;
   }

@@ -72,3 +72,9 @@ jobs:
           
           # 5. Limpieza de imágenes huérfanas para ahorrar espacio
           docker image prune -f
+
+          # 6. VERIFICACIÓN FINAL: ¿La IA genera texto?
+          echo "Esperando 10s a que los servicios se estabilicen..."
+          sleep 10
+          echo "Ejecutando test de generación de IA..."
+          docker exec pi_backend_prod node checkAI.js
