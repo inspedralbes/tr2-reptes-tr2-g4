@@ -357,7 +357,7 @@
               </div>
 
               <v-btn v-else block color="grey-darken-3" variant="outlined" class="text-none font-weight-bold py-6"
-                prepend-icon="mdi-robot-outline" :disabled="normalizedFiles.length === 0 || loadingGlobal"
+                prepend-icon="mdi-robot-outline" :disabled="!hasAnySummaryCompleted || loadingGlobal"
                 :loading="loadingGlobal" @click="generateGlobalSummary">
                 Generar Resum d'Historial
               </v-btn>
@@ -382,7 +382,7 @@
                       </div>
                       <div class="d-flex align-center">
                         <div class="text-caption text-grey-darken-1 mr-2">{{ formatDate(comment.date) }}</div>
-                        <v-menu v-if="comment.id">
+                        <v-menu>
                           <template v-slot:activator="{ props }">
                             <v-btn icon="mdi-dots-vertical" variant="text" size="x-small" v-bind="props"></v-btn>
                           </template>
@@ -573,6 +573,14 @@ const currentSchoolName = computed(() => {
 const latestFile = computed(() => {
   if (!normalizedFiles.value.length) return null;
   return [...normalizedFiles.value].sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate))[0];
+});
+
+const hasAnySummaryCompleted = computed(() => {
+  if (!student.value || !normalizedFiles.value.length) return false;
+  return normalizedFiles.value.some(f => 
+    (f.ia_data?.docent?.estado === 'COMPLETAT' && f.ia_data?.docent?.resumen) || 
+    (f.ia_data?.orientador?.estado === 'COMPLETAT' && f.ia_data?.orientador?.resumen)
+  );
 });
 
 const sortedComments = computed(() => {
@@ -779,6 +787,7 @@ const deleteCommentUI = async (commentId) => {
 };
 
 const generateGlobalSummary = async () => {
+  if (loadingGlobal.value) return;
   loadingGlobal.value = true;
   try {
     const response = await fetch(`${API_URL}/api/generate-global-summary`, {
@@ -788,7 +797,8 @@ const generateGlobalSummary = async () => {
     });
 
     if (response.ok) {
-      await studentStore.fetchStudents();
+      // Don't wait for fetchStudents to finish before starting SSE
+      studentStore.fetchStudents();
       startGlobalSSE();
     }
   } catch (e) {
