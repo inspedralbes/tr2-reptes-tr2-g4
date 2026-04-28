@@ -233,6 +233,7 @@ const checkStatusAndStart = async () => {
         backendStatus.value = fileData.estado;
         loading.value = false;
         loadingAI.value = true;
+        resumenIA.value = fileData.resumen || ''; // Cargar lo que tengamos (parcial)
         startSSE();
         return;
       }
@@ -258,18 +259,25 @@ const startSSE = () => {
       const data = JSON.parse(e.data);
       if (data.status === 'CONNECTED') return;
 
-      // Ignorar si el rol no coincide (a menos que sea global)
-      if (data.role && data.role !== currentRole.value && data.role !== 'global') return;
+      console.log("SSE Message received:", data.status, "Role:", data.role);
 
+      // Si es un resumen global, aceptamos cualquier mensaje que llegue a este canal
+      const isGlobalSummary = isGlobal.value;
+      const roleMatch = data.role === currentRole.value || data.role === 'global';
+      
+      if (!isGlobalSummary && data.role && !roleMatch) {
+        console.log("Skipping message: role mismatch");
+        return;
+      }
+
+      loading.value = false; 
       loadingAI.value = true;
-      loading.value = false;
-
       backendStatus.value = data.status;
 
       if (data.status === 'COMPLETAT') {
         resumenIA.value = data.resumen;
         loadingAI.value = false;
-        loading.value = false; // Asegurar que ambos loading se desactivan
+        loading.value = false;
         processSSE.close();
         processSSE = null;
       } else if (data.status === 'ERROR') {
