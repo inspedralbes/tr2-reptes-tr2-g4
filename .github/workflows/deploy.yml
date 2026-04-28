@@ -26,13 +26,13 @@ jobs:
       working-directory: ${{ matrix.working-directory }}
       run: npm ci
       
-    - name: Build Check
+    - name: Build Check & Tests
       working-directory: ${{ matrix.working-directory }}
       run: |
         if [ "${{ matrix.working-directory }}" = "Incorporacio_PI/frontend" ]; then
           npm run build
         else
-          echo "Backend check passed (No tests found, skipping...)"
+          npm test
         fi
 
   # --- BLOQUE 2: DESPLIEGUE PRODUCCIÓN ---
