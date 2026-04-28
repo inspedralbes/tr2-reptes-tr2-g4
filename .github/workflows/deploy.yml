@@ -77,4 +77,4 @@ jobs:
           echo "Esperando 10s a que los servicios se estabilicen..."
           sleep 10
           echo "Ejecutando test de generación de IA..."
-          docker exec pi_backend_prod node checkAI.js
+          docker exec pi_backend_prod node scripts/checkAI.js
