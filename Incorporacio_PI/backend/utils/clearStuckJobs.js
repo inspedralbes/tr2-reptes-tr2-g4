@@ -1,4 +1,4 @@
-const { connectDB, getDB } = require('../db');
+const { connectDB, getDB } = require('../config/db');
 require('dotenv').config();
 
 async function clearStuckJobs() {

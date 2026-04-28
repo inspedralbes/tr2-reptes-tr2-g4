@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { getDB } = require('../db');
-const { extractTextFromFile } = require('../fileReader');
+const { getDB } = require('../config/db');
+const { extractTextFromFile } = require('../utils/fileReader');
 const { sendToQueue } = require('../services/rabbitService');
 
 const UPLOADS_DIR = path.join(__dirname, '../uploads');

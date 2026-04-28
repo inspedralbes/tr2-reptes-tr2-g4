@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 const { Server } = require("socket.io");
-const { connectDB, getDB } = require('./db');
+const { connectDB, getDB } = require('./config/db');
 const { runSeed } = require('./utils/seeder');
 
 const authRoutes = require('./routes/authRoutes');

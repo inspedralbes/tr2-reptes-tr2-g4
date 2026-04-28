@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { getDB } = require('../config/db');
 const { sendVerificationCode } = require('../utils/nodemailer');
 const { registrarAcces } = require('../utils/logger'); 
 

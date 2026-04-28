@@ -1,4 +1,4 @@
-const { analyzePI } = require('../piAnalyzer');
+const { analyzePI } = require('../services/piAnalyzer');
 
 describe('PI Analyzer - Logic Tests', () => {
     test('should clean noisy text (emails, phones, websites)', () => {

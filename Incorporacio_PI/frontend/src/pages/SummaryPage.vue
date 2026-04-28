@@ -131,6 +131,7 @@ const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'ht
 const loading = ref(true);
 const loadingAI = ref(false);
 const resumenIA = ref('');
+const currentStudent = ref(null);
 const backendStatus = ref('');
 const showError = ref(false);
 const errorMessage = ref('');
@@ -207,6 +208,7 @@ const checkStatusAndStart = async () => {
     const students = await res.json();
 
     const student = students.find(s => s.hash_id === filename || s.files?.some(f => f.filename === filename));
+    currentStudent.value = student;
 
     if (student) {
       let fileData = null;
@@ -341,6 +343,30 @@ onMounted(() => {
   checkStatusAndStart();
 });
 
+const getCommentsHTML = () => {
+  if (!currentStudent.value?.comments || currentStudent.value.comments.length === 0) return '';
+  
+  let html = `<div style="page-break-before: always; margin-top: 40px; border-top: 2px solid #333; padding-top: 20px;">`;
+  html += `<h1 style="color: #2c3e50; font-size: 22pt; margin-bottom: 20px;">Observacions i Comentaris</h1>`;
+  
+  currentStudent.value.comments.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(comment => {
+    const dateStr = new Date(comment.date).toLocaleDateString('ca-ES', { 
+      day: '2-digit', month: '2-digit', year: 'numeric', 
+      hour: '2-digit', minute: '2-digit' 
+    });
+    const author = comment.type === 'docent' ? 'Docent' : (comment.type === 'alumne' ? 'Alumne' : 'Orientador');
+    const color = comment.type === 'docent' ? '#3f51b5' : (comment.type === 'alumne' ? '#4caf50' : '#ff9800');
+    
+    html += `<div style="margin-bottom: 20px; padding: 15px; border-left: 5px solid ${color}; background-color: #f8f9fa; page-break-inside: avoid;">`;
+    html += `<div style="font-weight: bold; color: ${color}; margin-bottom: 5px; font-size: 10pt;">${author} - ${dateStr}</div>`;
+    html += `<div style="font-size: 11pt; line-height: 1.5; color: #444;">${comment.text.replace(/\n/g, '<br>')}</div>`;
+    html += `</div>`;
+  });
+  
+  html += `</div>`;
+  return html;
+};
+
 const descarregarWord = () => {
   if (!resumenIA.value) return;
 
@@ -355,14 +381,16 @@ const descarregarWord = () => {
     const title = lines[0].trim();
     const content = lines.slice(1).join('<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
 
+    htmlContent += `<div style="page-break-inside: avoid; margin-bottom: 25pt;">`;
     if (index === 0 && !resumenIA.value.startsWith('##')) {
       htmlContent += `<p style="font-size: 11pt; line-height: 1.6;">${section.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
     } else {
-      htmlContent += `<h2 style="color: #2980b9; margin-top: 24pt; font-size: 18pt;">${title}</h2>`;
+      htmlContent += `<h2 style="color: #2980b9; margin-top: 0; font-size: 18pt; border-bottom: 1px solid #ecf0f1; padding-bottom: 5pt; margin-bottom: 10pt;">${title}</h2>`;
       htmlContent += `<p style="font-size: 11pt; line-height: 1.6; text-align: justify;">${content}</p>`;
     }
+    htmlContent += `</div>`;
   });
-
+  htmlContent += getCommentsHTML();
   htmlContent += `</div>`;
 
   const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Resum IA</title></head><body>";
@@ -396,22 +424,25 @@ const descarregarPDF = () => {
     const title = lines[0].trim();
     const content = lines.slice(1).join('<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
 
+    htmlContent += `<div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 30px;">`;
     if (index === 0 && !resumenIA.value.startsWith('##')) {
       htmlContent += `<p style="line-height: 1.6;">${section.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`;
     } else {
-      htmlContent += `<h2 style="color: #2980b9; margin-top: 20px;">${title}</h2>`;
-      htmlContent += `<p style="line-height: 1.6; text-align: justify;">${content}</p>`;
+      htmlContent += `<h2 style="color: #2980b9; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px;">${title}</h2>`;
+      htmlContent += `<p style="line-height: 1.6; text-align: justify; margin-top: 0;">${content}</p>`;
     }
+    htmlContent += `</div>`;
   });
-
+  htmlContent += getCommentsHTML();
   htmlContent += `</div>`;
 
   const opt = {
     margin: 15,
     filename: `Resum_${currentRole.value}_${displayName.value.replace(/[^a-z0-9]/gi, '_')}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
   };
 
   const tempElement = document.createElement('div');

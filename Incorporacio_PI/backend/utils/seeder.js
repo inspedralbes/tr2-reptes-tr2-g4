@@ -1,4 +1,4 @@
-const { getDB } = require('../db');
+const { getDB } = require('../config/db');
 const { generarHash, obtenerIniciales } = require('./helpers');
 
 const dbAlumnosRaw = [

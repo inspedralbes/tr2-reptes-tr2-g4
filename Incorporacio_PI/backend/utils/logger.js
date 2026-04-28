@@ -1,4 +1,4 @@
-const { getDB } = require('../db');
+const { getDB } = require('../config/db');
 
 async function registrarAcces(email, accio, ralcSuffix = 'N/A') {
     try {

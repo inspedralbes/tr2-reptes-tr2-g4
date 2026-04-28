@@ -40,49 +40,80 @@ async function generateSummaryLocal(text, role, onProgress) {
 
     let systemPrompt = "";
     if (role === 'global') {
-        systemPrompt = `Ets un assistent expert en educacio inclusiva.
-      OBJECTIU: Analitzar l'EVOLUCIO de l'alumne comparant els seus diferents Plans Individualitzats (PI) ordenats cronologicament.
-      ESTRUCTURA OBLIGATORIA DEL RESUM:
-      ## CRONOLOGIA I EVOLUCIO
-      (Crea una llista per anys o cursos, ex: "Curs 2021-22", explicant que es detectava i que es feia.)
-      ## ANALISI COMPARATIVA
-      (Explica quines dificultats han persistit i quines han mejorat. Comenta si les adaptacions han augmentat o disminuit.)
+        systemPrompt = `Ets un assistent expert en educació inclusiva.
+      OBJECTIU: Analitzar l'EVOLUCIÓ de l'alumne comparant els seus diferents Plans Individualitzats (PI) ordenats cronològicament.
+
+      ESTRUCTURA OBLIGATÒRIA DEL RESUM:
+      
+      ## CRONOLOGIA I EVOLUCIÓ
+      (Crea una llista per anys o cursos, ex: "Curs 2021-22", explicant què es detectava i què es feia.)
+      
+      ## ANÀLISI COMPARATIVA
+      (Identifica canvis significatius. Quines dificultats han persistit i quines han millorat? Les adaptacions han augmentat o disminuït?)
+      
       ## ESTAT ACTUAL (CURS VIGENT)
-      (Resum de la situacio a dia d'avui segons l'ultim document.)
+      (Resum de la situació actual segons l'últim document disponible.)
+
       INSTRUCCIONS CLAU:
-      - Cita explicitament els cursos academics o dates dels documents.
-      - Busca contradiccions o canvis significatius entre documents antics i nous.
-      - Sigues molt precis amb les dades.
+      - Cita explícitament els cursos acadèmics o dates dels documents.
+      - Busca contradiccions o canvis rellevants entre documents antics i nous.
+      - Sigues molt precís amb els termes psicopedagògics.
+      - Utilitza llistes amb punts per a una millor llegibilitat.
+      
       FINAL: Escriu "[FI]" quan acabis.`;
     } else if (role === 'orientador') {
         systemPrompt = `Ets un assistent expert per a orientadors educatius.
-      OBJECTIU: Extreure informacio psicopedagogica clau per a l'orientacio de l'alumne.
-      ESTRUCTURA OBLIGATORIA DEL RESUM:
+      OBJECTIU: Extreure informació psicopedagògica clau per a l'orientació de l'alumne.
+      
+      ESTRUCTURA OBLIGATÒRIA DEL RESUM:
+      
       ## DADES DE L'ALUMNE
-      (Extreu exactament: Nom i cognoms, Data de naixement, Curs acadèmic. NO anonimitzis.)
-      ## DIAGNOSTIC
-      (Quin es el diagnostic? TDAH, Dislèxia, etc.)
-      ## JUSTIFICACIO
-      (Per què es fa aquest PI? Motius i necessitats.)
-      ## ORIENTACIO A L'AULA
-      (Pautes clares d'intervenció.)
+      (Extreu: Nom i cognoms, Data de naixement, Curs acadèmic i Estudis actuals. NO anonimitzis.)
+      
+      ## DIAGNÒSTIC
+      (Quin és el diagnòstic? Detalla els trastorns detectats: TDAH, Dislèxia, TEA, etc.)
+
+      ## JUSTIFICACIÓ
+      (Motius principals i necessitats educatives que justifiquen el PI.)
+      
+      ## ORIENTACIÓ A L'AULA
+      (Pautes clares d'intervenció educativa i metodològica.)
+      
       ## ASSIGNATURES
-      (Breu resum de les adaptacions específiques.)
-      ## CRITERIS D'AVALUACIO
-      (MOLT IMPORTANT: Normes específiques d'avaluació.)
+      (Resum breu de les adaptacions per matèries. Sigues concís.)
+      
+      ## CRITERIS D'AVALUACIÓ
+      (MOLT IMPORTANT: Normes específiques d'avaluació: ortografia, temps extra, tipus d'exàmens, etc.)
+
+      INSTRUCCIONS:
+      - Estructura la informació clarament amb negretes per a conceptes clau.
+      - Sigues extremadament precís amb les dades de l'alumne.
+      - Posa especial èmfasi en la secció d'Avaluació.
+      
       FINAL: Escriu "[FI]" quan acabis.`;
     } else {
         systemPrompt = `Ets un assistent expert per a docents.
-      OBJECTIU: Facilitar informacio practica i directa.
-      ESTRUCTURA OBLIGATORIA DEL RESUM:
-      ## PERFIL I DIAGNOSTIC
-      (Resum ràpid: Nom, Curs i dificultat.)
-      ## ORIENTACIO A L'AULA
-      (Accions concretes.)
+      OBJECTIU: Facilitar informació pràctica i directa per aplicar a l'aula immediatament.
+      
+      ESTRUCTURA OBLIGATÒRIA DEL RESUM:
+      
+      ## PERFIL I DIAGNÒSTIC
+      (Resum ràpid: Nom, Curs i dificultat/trastorn principal.)
+      
+      ## ORIENTACIÓ A L'AULA
+      (Accions concretes: "Seu a primera fila", "Fragments de text curts", "Dona més temps", etc.)
+      
       ## ADAPTACIONS PER ASSIGNATURES
-      (Què canvia en el temari?)
-      ## CRITERIS D'AVALUACIO
-      (Com he de posar les notes?)
+      (Què canvia en el temari, materials o activitats de les assignatures?)
+      
+      ## CRITERIS D'AVALUACIÓ
+      (Com s'ha de puntuar? Ex: "No penalitzis ortografia", "Examen oral opcional", "Ús de calculadora", etc.)
+
+      INSTRUCCIONS:
+      - Utilitza un llenguatge molt pràctic i directe (ves al gra).
+      - Evita teoria o descripcions genèriques.
+      - Usa llistes per facilitar la lectura ràpida.
+      
       FINAL: Escriu "[FI]" quan acabis.`;
     }
 
@@ -147,10 +178,12 @@ function parseSummaryToJSON(text) {
     const lines = text.split('\n');
     let currentKey = 'perfil';
     const sectionMap = {
-        'PERFIL': 'perfil', 'DADES': 'perfil',
-        'DIAGNOSTIC': 'dificultats', 'MOTIU': 'justificacio', 'JUSTIFICACIO': 'justificacio',
-        'ORIENTACIO': 'recomanacions', 'ADAPTACIONS': 'adaptacions', 
-        'ASSIGNATURES': 'adaptacions', 'CRITERIS': 'avaluacio'
+        'PERFIL': 'perfil', 'DADES': 'perfil', 'CRONOLOGIA': 'perfil', 'EVOLUCIÓ': 'perfil',
+        'DIAGNÒSTIC': 'dificultats', 'DIAGNOSTIC': 'dificultats', 'ANÀLISI': 'dificultats', 'ANALISI': 'dificultats',
+        'MOTIU': 'justificacio', 'JUSTIFICACIÓ': 'justificacio', 'JUSTIFICACIO': 'justificacio',
+        'ORIENTACIÓ': 'recomanacions', 'ORIENTACIO': 'recomanacions', 'ESTAT ACTUAL': 'recomanacions', 'RECOMANACIONS': 'recomanacions',
+        'ADAPTACIONS': 'adaptacions', 'ASSIGNATURES': 'adaptacions', 
+        'AVALUACIÓ': 'avaluacio', 'AVALUACIO': 'avaluacio', 'CRITERIS': 'avaluacio'
     };
     lines.forEach(line => {
         const trimmed = line.trim();

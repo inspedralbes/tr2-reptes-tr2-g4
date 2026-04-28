@@ -1,5 +1,5 @@
 const amqp = require('amqplib');
-const { getDB } = require('../db');
+const { getDB } = require('../config/db');
 const { generateSummaryLocal } = require('./aiService');
 const fs = require('fs');
 const path = require('path');

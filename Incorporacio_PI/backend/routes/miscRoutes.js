@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { getDB } = require('../db');
-const { extractTextFromFile } = require('../fileReader');
-const { analyzePI } = require('../piAnalyzer');
+const { getDB } = require('../config/db');
+const { extractTextFromFile } = require('../utils/fileReader');
+const { analyzePI } = require('../services/piAnalyzer');
 const centrosData = require('../centres-educatius.json');
 const { UPLOADS_DIR } = require('../config/multer');
 

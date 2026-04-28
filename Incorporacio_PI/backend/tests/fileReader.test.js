@@ -1,4 +1,4 @@
-const { extractTextFromFile } = require('../fileReader');
+const { extractTextFromFile } = require('../utils/fileReader');
 
 describe('File Reader - Extension Handling', () => {
     test('should return empty string for unsupported extensions', async () => {

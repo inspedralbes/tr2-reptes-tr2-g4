@@ -52,7 +52,11 @@ const getIconForSection = (title) => {
     if (t.includes('ANALISI') || t.includes('COMPARATIVA')) return 'mdi-chart-line';
     if (t.includes('ESTAT') || t.includes('ACTUAL')) return 'mdi-flag-checkered';
     if (t.includes('PERFIL') || t.includes('DADES')) return 'mdi-account-circle';
-    if (t.includes('ADAPTACIONS')) return 'mdi-puzzle-outline';
+    if (t.includes('DIAGNÒSTIC') || t.includes('DIAGNOSTIC')) return 'mdi-clipboard-text-search-outline';
+    if (t.includes('ADAPTACIONS') || t.includes('ASSIGNATURES')) return 'mdi-puzzle-outline';
+    if (t.includes('AVALUACIÓ') || t.includes('AVALUACIO') || t.includes('CRITERIS')) return 'mdi-file-check-outline';
+    if (t.includes('JUSTIFICACIÓ') || t.includes('JUSTIFICACIO') || t.includes('MOTIU')) return 'mdi-text-box-outline';
+    if (t.includes('ORIENTACIÓ') || t.includes('ORIENTACIO')) return 'mdi-lightbulb-on-outline';
     return 'mdi-information-outline';
 };
 

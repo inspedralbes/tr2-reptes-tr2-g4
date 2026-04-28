@@ -1,4 +1,4 @@
-const { connectDB, getDB, closeDB } = require('../db');
+const { connectDB, getDB, closeDB } = require('../config/db');
 const crypto = require('crypto');
 
 async function migrate() {

@@ -1,4 +1,4 @@
-const { generateSummaryLocal } = require('./services/aiService');
+const { generateSummaryLocal } = require('../services/aiService');
 
 async function testAI() {
     console.log("🤖 Test de IA: Verificando generación...");
