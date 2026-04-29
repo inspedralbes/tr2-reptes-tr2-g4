@@ -1,0 +1,10 @@
+# Variables d'entorn (Secrets)
+.env
+.env.local
+.env.*.local
+
+# Builds de producció (Frontend/Backend)
+build/
+
+backend/rabbitmq_data
+backend/models
