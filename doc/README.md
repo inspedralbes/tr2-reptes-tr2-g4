@@ -13,6 +13,7 @@
 4. [Entorn de Desenvolupament](#4-entorn-de-desenvolupament)
 5. [Desplegament a Producció](#5-desplegament-a-producció)
 6. [Referència de l'API](#6-referència-de-lapi)
+7. [Context del Projecte](#7-context-del-projecte)
 
 ---
 
@@ -84,23 +85,6 @@ Esbossos de la interfície d'usuari (UI) dissenyats per a la màxima claredat pe
 
 ---
 
-## 5. Desplegament a Producció
-
-### 5.1 Accés al servidor VPS
-```bash
-ssh root@77.42.72.57
-```
-
-### 5.2 Actualització i Reinici amb Docker
-```bash
-cd /var/www/tr2-reptes-tr2-g4/Incorporacio_PI
-git pull origin main
-docker compose -f docker-compose.prod.yml down
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
----
-
 ## 6. Referència de l'API
 
 ### Autenticació (`/api/login`)
@@ -118,6 +102,20 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ---
 
+## 📂 7. Context del Projecte
+
+Per a una visió més detallada de l'estructura i decisions del projecte, podeu consultar els següents fitxers:
+
+- **[00_OBJECTIVE.md](Context/00_OBJECTIVE.md):** Missió i objectius.
+- **[01_SCOPE.md](Context/01_SCOPE.md):** Abast i funcionalitats.
+- **[02_ARCHITECTURE.md](Context/02_ARCHITECTURE.md):** Estructura tècnica i serveis.
+- **[03_DECISIONS.md](Context/03_DECISIONS.md):** Registre de decisions (ADR).
+- **[04_CONVENTIONS.md](Context/04_CONVENTIONS.md):** Convencions de codi.
+- **[06_SYSTEM_MAP.md](Context/06_SYSTEM_MAP.md):** Mapa de fitxers i estructura.
+- **[AI_WORKFLOW.md](Context/AI_WORKFLOW.md):** Flux detallat de la IA.
+
+---
+
 <div align="center">
-  <sub>Documentació actualitzada el 28 d'abril de 2026</sub>
+  <sub>Documentació actualitzada el 29 d'abril de 2026</sub>
 </div>

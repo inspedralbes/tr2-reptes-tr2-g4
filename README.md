@@ -8,7 +8,7 @@
   [![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
   [![Vue.js](https://img.shields.io/badge/Vue.js-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
   [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-  [![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+  [![Ollama](https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/)
   [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 </div>
 
@@ -58,7 +58,7 @@ El sistema segueix un model **B2B (Centre a Centre)** amb un repositori segur in
 ### Backend
 - **Runtime:** Node.js (Express)
 - **Base de Dades:** MongoDB (Mongoose)
-- **IA:** OpenAI API (GPT-4 / GPT-3.5)
+- **IA Local:** Ollama (Llama 3.1:8b)
 - **Cues de Treball:** RabbitMQ (amqplib)
 - **Gestió de Fitxers:** Multer + Adm-zip
 - **Seguretat:** Crypto, Express Rate Limit, reCAPTCHA v2
@@ -112,11 +112,11 @@ El sistema segueix un model **B2B (Centre a Centre)** amb un repositori segur in
 
 ## 🔒 Seguretat i Privacitat
 
-La plataforma ha estat dissenyada amb la privacitat des del disseny (*Privacy by Design*):
+La plataforma ha estat dissenyada amb la privacitat del disseny (*Privacy by Design*):
 - **GDPR Compliance:** Compliment estricte de la normativa europea.
 - **Logs Immutables:** Registre de tots els accessos a la informació sensible.
 - **RBAC:** Control d'accés basat en rols (Docent, Tutor, Administrador).
-- **IA Segura:** Ús d'instàncies privades per evitar la filtració de dades cap a models públics.
+- **IA Local:** Ús de models LLM executats localment (Ollama) per evitar la filtració de dades cap a servidors externs.
 
 ---
 
